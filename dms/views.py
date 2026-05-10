@@ -34,6 +34,7 @@ from dms.services.archive_intelligence import (
     build_retention_assistant,
     get_superseded_candidates,
 )
+from dms.services.document_indexing import delete_document_from_index, index_document
 import tempfile
 
 from dms.services.text_extractor import extract_text_from_file
@@ -915,26 +916,7 @@ def document_upload(request):
         # =================================================
         # 5. EMBEDDING + QDRANT
         # =================================================
-        vector_text = " ".join(filter(None, [
-            doc.title,
-            doc.description,
-            doc.extracted_text,
-        ])).strip()
-
-        vector = build_embedding(vector_text)
-
-        if vector:
-            from dms.services.vector_store import upsert_document
-            upsert_document(
-                doc_id=doc.id,
-                vector=vector,
-                payload={
-                    "department_id": doc.department_id,
-                    "folder_id": doc.folder_id,
-                    "doc_type_id": doc.doc_type_id,
-                    "doc_date": doc.doc_date.isoformat() if doc.doc_date else None,
-                },
-            )
+        index_document(doc)
 
         # =================================================
         # 6. ДОСТУПЫ
@@ -1157,29 +1139,9 @@ def document_edit(request, pk):
             updated.create_version(uploaded_by=user)
 
         # ============================
-        # ОБНОВЛЕНИЕ EMBEDDING
+        # ОБНОВЛЕНИЕ EMBEDDING / QDRANT
         # ============================
-        combined_text = " ".join(filter(None, [
-            updated.title,
-            updated.description,
-            updated.extracted_text,
-        ]))
-
-        embedding = build_embedding(combined_text)
-
-        # ============================
-        # ОБНОВЛЕНИЕ В QDRANT
-        # ============================
-        upsert_document(
-            doc_id=updated.id,
-            vector=embedding,
-            payload={
-                "title": updated.title,
-                "department_id": updated.department_id,
-                "doc_type_id": updated.doc_type_id,
-                "doc_date": str(updated.doc_date) if updated.doc_date else None,
-            },
-        )
+        index_document(updated)
 
         # ============================
         # ЛОГ
@@ -1752,106 +1714,10 @@ from dms.utils import get_allowed_departments
 
 @login_required
 def semantic_search(request):
-    form = SemanticSearchForm(request.GET or None)
     if not request.GET:
-        return render(
-            request,
-            "dms/semantic_search.html",
-            {
-                "documents": [],
-                "query": "",
-            },
-        )
+        return redirect("dms:document_list")
 
-    if not form.is_valid():
-        return HttpResponseBadRequest("Некорректный поисковый запрос.")
-
-    query = form.cleaned_data["q"]
-
-    # =================================================
-    # 1. embedding запроса
-    # =================================================
-    query_vec = build_embedding(query)
-    if not query_vec:
-        return render(
-            request,
-            "dms/semantic_search.html",
-            {
-                "documents": [],
-                "query": query,
-            },
-        )
-
-    # =================================================
-    # 2. ДОСТУПНЫЕ ОТДЕЛЫ ПОЛЬЗОВАТЕЛЯ
-    # =================================================
-    allowed_departments = get_allowed_departments(request.user)
-    allowed_dept_ids = list(
-        allowed_departments.values_list("id", flat=True)
-    )
-
-    if not allowed_dept_ids:
-        return HttpResponseForbidden("Нет доступных отделов")
-
-    # =================================================
-    # 3. Поиск в Qdrant (ТОЛЬКО по доступным отделам)
-    # =================================================
-    try:
-        hits = search_documents(
-            query_vector=query_vec,
-            department_ids=allowed_dept_ids,
-            limit=30,
-        )
-    except Exception:
-        # Qdrant недоступен — не валим страницу
-        return render(
-            request,
-            "dms/semantic_search.html",
-            {
-                "documents": [],
-                "query": query,
-                "error": "Поиск временно недоступен",
-            },
-        )
-
-    if not hits:
-        return render(
-            request,
-            "dms/semantic_search.html",
-            {
-                "documents": [],
-                "query": query,
-            },
-        )
-
-    # =================================================
-    # 4. Получаем документы из БД (ОДИН запрос)
-    # =================================================
-    doc_ids = [hit["id"] for hit in hits]
-
-    docs = (
-        Document.objects
-        .filter(id__in=doc_ids)
-        .select_related("department", "doc_type", "folder")
-    )
-
-    docs_map = {doc.id: doc for doc in docs}
-
-    # порядок как в Qdrant (по релевантности)
-    ordered_docs = [
-        docs_map[doc_id]
-        for doc_id in doc_ids
-        if doc_id in docs_map
-    ]
-
-    return render(
-        request,
-        "dms/semantic_search.html",
-        {
-            "documents": ordered_docs,
-            "query": query,
-        },
-    )
+    return document_list(request)
 
 
 
@@ -1907,14 +1773,11 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 
 from dms.models import Document, DocumentActivity
-from dms.services.vector_store import delete_document
-
-
 @login_required
 @require_POST
 def document_delete(request, pk):
     user = request.user
-    doc = get_object_or_404(Document, pk=pk)
+    doc = get_object_or_404(get_allowed_documents(user), pk=pk)
 
     # ============================
     # ПРАВА
@@ -1935,12 +1798,7 @@ def document_delete(request, pk):
     # ============================
     # УДАЛЕНИЕ ИЗ QDRANT
     # ============================
-    try:
-        delete_document(doc.id)
-    except Exception:
-        # принципиально не роняем запрос:
-        # БД — источник истины
-        pass
+    delete_document_from_index(doc.id)
 
     # ============================
     # УДАЛЕНИЕ ИЗ БД

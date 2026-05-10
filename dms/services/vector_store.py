@@ -1,53 +1,25 @@
+import logging
+
+from django.conf import settings
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
-    VectorParams,
-    PointStruct,
-    Filter,
     FieldCondition,
-    MatchValue,
+    Filter,
     MatchAny,
+    MatchValue,
+    PointStruct,
+    VectorParams,
 )
 
 
-from qdrant_client import QdrantClient
-from django.conf import settings
+logger = logging.getLogger(__name__)
 
-COLLECTION_NAME = "documents"
+COLLECTION_NAME = getattr(settings, "QDRANT_COLLECTION", "documents")
 VECTOR_SIZE = 384
 
 _client: QdrantClient | None = None
-
-
-def get_client() -> QdrantClient:
-    global _client
-
-    if _client is None:
-        _client = QdrantClient(
-            host=settings.QDRANT_HOST,
-            port=settings.QDRANT_PORT,
-        )
-
-    return _client
-
-
-
-
-
-from django.conf import settings
-
-# ======================================================
-# CONFIG
-# ======================================================
-
-COLLECTION_NAME = "documents"
-VECTOR_SIZE = 384   # all-MiniLM-L6-v2
-
-# ======================================================
-# CLIENT (SINGLETON)
-# ======================================================
-
-_client: QdrantClient | None = None
+_collection_ready = False
 
 
 def get_client() -> QdrantClient:
@@ -62,139 +34,142 @@ def get_client() -> QdrantClient:
     return _client
 
 
-# ======================================================
-# COLLECTION
-# ======================================================
-
-_collection_ready = False
-
-
-def ensure_collection() -> None:
+def ensure_collection() -> bool:
     global _collection_ready
 
     if _collection_ready:
-        return
-
-    client = get_client()
+        return True
 
     try:
+        client = get_client()
         collections = client.get_collections().collections
+        if COLLECTION_NAME not in {collection.name for collection in collections}:
+            client.create_collection(
+                collection_name=COLLECTION_NAME,
+                vectors_config=VectorParams(
+                    size=VECTOR_SIZE,
+                    distance=Distance.COSINE,
+                ),
+            )
     except Exception:
-        # Qdrant может быть недоступен — не падаем
-        return
-
-    if COLLECTION_NAME not in {c.name for c in collections}:
-        client.create_collection(
-            collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(
-                size=VECTOR_SIZE,
-                distance=Distance.COSINE,
-            ),
-        )
+        logger.warning("Qdrant collection is not available", exc_info=True)
+        return False
 
     _collection_ready = True
+    return True
 
-
-# ======================================================
-# UPSERT
-# ======================================================
 
 def upsert_document(
     *,
     doc_id: int,
     vector: list[float],
     payload: dict,
-) -> None:
+) -> bool:
     if not vector or len(vector) != VECTOR_SIZE:
-        return
+        return False
 
-    ensure_collection()
-    client = get_client()
+    if not ensure_collection():
+        return False
 
-    client.upsert(
-        collection_name=COLLECTION_NAME,
-        points=[
-            PointStruct(
-                id=doc_id,
-                vector=vector,
-                payload=payload,
-            )
-        ],
-    )
+    try:
+        get_client().upsert(
+            collection_name=COLLECTION_NAME,
+            points=[
+                PointStruct(
+                    id=doc_id,
+                    vector=vector,
+                    payload=payload,
+                )
+            ],
+        )
+    except Exception:
+        logger.warning("Qdrant upsert failed", exc_info=True, extra={"document_id": doc_id})
+        return False
+
+    return True
 
 
-# ======================================================
-# DELETE
-# ======================================================
-
-def delete_document(doc_id: int) -> None:
+def delete_document(doc_id: int) -> bool:
     if not doc_id:
-        return
+        return False
 
-    ensure_collection()
-    client = get_client()
+    if not ensure_collection():
+        return False
 
-    client.delete(
-        collection_name=COLLECTION_NAME,
-        points_selector=[doc_id],
-    )
+    try:
+        get_client().delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=[doc_id],
+        )
+    except Exception:
+        logger.warning("Qdrant delete failed", exc_info=True, extra={"document_id": doc_id})
+        return False
+
+    return True
 
 
-# ======================================================
-# SEARCH
-# ======================================================
+def _build_filter(filters: dict | None) -> Filter | None:
+    if not filters:
+        return None
 
-from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchAny
+    conditions = []
+    for field, value in filters.items():
+        if value is None:
+            continue
 
-from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchAny
+        if isinstance(value, (list, tuple, set)):
+            conditions.append(
+                FieldCondition(
+                    key=field,
+                    match=MatchAny(any=list(value)),
+                )
+            )
+        else:
+            conditions.append(
+                FieldCondition(
+                    key=field,
+                    match=MatchValue(value=value),
+                )
+            )
+
+    if not conditions:
+        return None
+
+    return Filter(must=conditions)
+
 
 def search_documents(
     *,
-    embedding: list[float],
+    embedding: list[float] | None = None,
+    query_vector: list[float] | None = None,
     limit: int = 30,
     filters: dict | None = None,
+    department_ids: list[int] | None = None,
 ) -> list[dict]:
-
-    if not embedding:
+    vector = embedding if embedding is not None else query_vector
+    if not vector:
         return []
 
-    ensure_collection()
-    client = get_client()
+    if department_ids is not None:
+        filters = {
+            **(filters or {}),
+            "department_id": department_ids,
+        }
 
-    q_filter = None
+    if not ensure_collection():
+        return []
 
-    if filters:
-        conditions = []
-
-        for field, value in filters.items():
-            if value is None:
-                continue
-
-            if isinstance(value, (list, tuple, set)):
-                conditions.append(
-                    FieldCondition(
-                        key=field,
-                        match=MatchAny(any=list(value)),
-                    )
-                )
-            else:
-                conditions.append(
-                    FieldCondition(
-                        key=field,
-                        match=MatchValue(value=value),
-                    )
-                )
-
-        if conditions:
-            q_filter = Filter(must=conditions)
-
-    result = client.query_points(
-        collection_name=COLLECTION_NAME,
-        query=embedding,
-        limit=limit,
-        with_payload=True,
-        query_filter=q_filter,
-    )
+    try:
+        result = get_client().query_points(
+            collection_name=COLLECTION_NAME,
+            query=vector,
+            limit=limit,
+            with_payload=True,
+            query_filter=_build_filter(filters),
+        )
+    except Exception:
+        logger.warning("Qdrant search failed", exc_info=True)
+        return []
 
     return [
         {

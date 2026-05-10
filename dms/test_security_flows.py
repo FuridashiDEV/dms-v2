@@ -82,6 +82,16 @@ class DocumentAccessManagementTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertTrue(DocumentAccess.objects.filter(id=self.access.id).exists())
 
+    def test_outsider_cannot_delete_or_probe_document(self):
+        self.client.force_login(self.outsider)
+
+        response = self.client.post(
+            reverse("dms:document_delete", args=[self.document.id])
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(Document.objects.filter(id=self.document.id).exists())
+
 
 class AuthenticationSecurityTests(TestCase):
     def setUp(self):
