@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils.text import slugify
 
-from dms.models import Department
+from dms.models import Department, OrganizationMember
 
 User = get_user_model()
 
@@ -34,6 +34,11 @@ class Command(BaseCommand):
             )
             user.set_password(DEFAULT_PASSWORD)
             user.save()
+            OrganizationMember.objects.get_or_create(
+                organization=dept.organization,
+                user=user,
+                defaults={"role": OrganizationMember.Role.MEMBER},
+            )
 
             created += 1
 

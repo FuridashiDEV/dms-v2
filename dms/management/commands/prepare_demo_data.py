@@ -19,6 +19,7 @@ from dms.models import (
     DocumentRelation,
     DocumentType,
     Folder,
+    OrganizationMember,
 )
 from dms.services.embedding import build_embedding
 from dms.services.preservation import calculate_sha256, detect_format_risk, detect_mime_type
@@ -145,6 +146,12 @@ class Command(BaseCommand):
         finance = Department.objects.create(name="Финансовый отдел")
         education = Department.objects.create(name="Учебный офис")
         archive = Department.objects.create(name="Архив")
+        demo_organization = rectorate.organization
+        OrganizationMember.objects.create(
+            organization=demo_organization,
+            user=demo_admin,
+            role=OrganizationMember.Role.ADMIN,
+        )
 
         demo_users = [
             ("legal_demo", "DemoArchive2026!", "Марат", "Оспанов", legal, "Юрисконсульт"),
@@ -153,7 +160,7 @@ class Command(BaseCommand):
             ("archive_demo", "DemoArchive2026!", "Ерлан", "Турсынов", archive, "Архивариус"),
         ]
         for username, password, first_name, last_name, department, position in demo_users:
-            User.objects.create_user(
+            user = User.objects.create_user(
                 username=username,
                 password=password,
                 first_name=first_name,
@@ -161,6 +168,11 @@ class Command(BaseCommand):
                 role=User.Role.EMPLOYEE,
                 department=department,
                 position=position,
+            )
+            OrganizationMember.objects.create(
+                organization=department.organization,
+                user=user,
+                role=OrganizationMember.Role.MEMBER,
             )
 
         doc_types = {

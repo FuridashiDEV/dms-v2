@@ -8,8 +8,45 @@ from django.utils.translation import gettext_lazy as _
 from mptt.models import MPTTModel, TreeForeignKey
 
 
+DEFAULT_ORGANIZATION_SLUG = "default"
+DEFAULT_ORGANIZATION_NAME = "Default Organization"
+
+
+class Organization(models.Model):
+    name = models.CharField(_("Название организации"), max_length=255)
+    slug = models.SlugField(_("Slug"), max_length=80, unique=True)
+    is_active = models.BooleanField(_("Активна"), default=True)
+    created_at = models.DateTimeField(_("Дата создания"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Организация")
+        verbose_name_plural = _("Организации")
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+def get_default_organization_id() -> int:
+    organization, _ = Organization.objects.get_or_create(
+        slug=DEFAULT_ORGANIZATION_SLUG,
+        defaults={
+            "name": DEFAULT_ORGANIZATION_NAME,
+            "is_active": True,
+        },
+    )
+    return organization.id
+
+
 class Department(MPTTModel):
-    name = models.CharField(_("Название отдела"), max_length=255, unique=True)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="departments",
+        verbose_name=_("Организация"),
+        default=get_default_organization_id,
+    )
+    name = models.CharField(_("Название отдела"), max_length=255)
     parent = TreeForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -25,13 +62,36 @@ class Department(MPTTModel):
     class Meta:
         verbose_name = _("Отдел")
         verbose_name_plural = _("Отделы")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "name"],
+                name="unique_department_name_per_organization",
+            )
+        ]
 
     def __str__(self) -> str:
         return self.name
 
+    def save(self, *args, **kwargs):
+        if self.parent_id and (
+            not self.organization_id
+            or self.organization_id != self.parent.organization_id
+        ):
+            self.organization = self.parent.organization
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = set(kwargs["update_fields"]) | {"organization"}
+        super().save(*args, **kwargs)
+
 
 class Folder(MPTTModel):
     name = models.CharField(max_length=255)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="folders",
+        verbose_name=_("Организация"),
+        default=get_default_organization_id,
+    )
     department = models.ForeignKey(
         Department,
         on_delete=models.CASCADE,
@@ -53,17 +113,40 @@ class Folder(MPTTModel):
         verbose_name = _("Папка")
         verbose_name_plural = _("Папки")
 
+    def save(self, *args, **kwargs):
+        if self.department_id and (
+            not self.organization_id
+            or self.organization_id != self.department.organization_id
+        ):
+            self.organization = self.department.organization
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = set(kwargs["update_fields"]) | {"organization"}
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
 
 
 class DocumentType(models.Model):
-    name = models.CharField(_("Тип документа"), max_length=100, unique=True)
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="document_types",
+        verbose_name=_("Организация"),
+        default=get_default_organization_id,
+    )
+    name = models.CharField(_("Тип документа"), max_length=100)
 
     class Meta:
         verbose_name = _("Тип документа")
         verbose_name_plural = _("Типы документов")
-        ordering = ["name"]
+        ordering = ["organization__name", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "name"],
+                name="unique_document_type_name_per_organization",
+            )
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -107,6 +190,51 @@ class User(AbstractUser):
         return self.username
 
 
+class OrganizationMember(models.Model):
+    class Role(models.TextChoices):
+        OWNER = "OWNER", _("Владелец")
+        ADMIN = "ADMIN", _("Администратор")
+        MEMBER = "MEMBER", _("Участник")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="members",
+        verbose_name=_("Организация"),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="organization_memberships",
+        verbose_name=_("Пользователь"),
+    )
+    role = models.CharField(
+        _("Роль в организации"),
+        max_length=20,
+        choices=Role.choices,
+        default=Role.MEMBER,
+    )
+    is_active = models.BooleanField(_("Активен"), default=True)
+    created_at = models.DateTimeField(_("Дата создания"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Участник организации")
+        verbose_name_plural = _("Участники организаций")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "user"],
+                name="unique_organization_member",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "is_active"]),
+            models.Index(fields=["organization", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user} @ {self.organization}"
+
+
 def document_upload_path(instance, filename: str) -> str:
     ext = os.path.splitext(filename)[1].lower()
     safe_name = f"{uuid.uuid4().hex}{ext}"
@@ -144,6 +272,13 @@ class Document(models.Model):
     extracted_text = models.TextField(
         blank=True,
         verbose_name=_("Извлеченный текст"),
+    )
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="documents",
+        verbose_name=_("Организация"),
+        default=get_default_organization_id,
     )
     department = models.ForeignKey(
         Department,
@@ -268,6 +403,7 @@ class Document(models.Model):
         verbose_name_plural = _("Документы")
         ordering = ["-doc_date", "-id"]
         indexes = [
+            models.Index(fields=["organization", "-doc_date"]),
             models.Index(fields=["department", "-doc_date"]),
             models.Index(fields=["doc_type", "-doc_date"]),
             models.Index(fields=["folder"]),
@@ -278,6 +414,16 @@ class Document(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+    def save(self, *args, **kwargs):
+        if self.department_id and (
+            not self.organization_id
+            or self.organization_id != self.department.organization_id
+        ):
+            self.organization = self.department.organization
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = set(kwargs["update_fields"]) | {"organization"}
+        super().save(*args, **kwargs)
 
     @property
     def latest_version(self):

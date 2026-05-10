@@ -8,7 +8,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils.html import strip_tags
 
-from .models import Department, Document, Folder
+from .models import Department, Document, DocumentType, Folder, OrganizationMember
+from .utils import get_allowed_departments, get_user_organizations
 
 
 User = get_user_model()
@@ -317,14 +318,13 @@ class DocumentUploadForm(forms.ModelForm):
         if not user:
             return
 
-        allowed_departments = Department.objects.none()
-        if user.role == "ADMIN":
-            allowed_departments = Department.objects.all()
-        elif user.department_id:
-            allowed_departments = user.department.get_descendants(include_self=True)
+        allowed_departments = get_allowed_departments(user)
 
         allowed_departments = allowed_departments.order_by("tree_id", "lft")
         self.fields["department"].queryset = allowed_departments
+        self.fields["doc_type"].queryset = DocumentType.objects.filter(
+            organization__in=get_user_organizations(user),
+        ).order_by("name")
 
         if user.role != "ADMIN":
             self.fields["status"].choices = [
@@ -476,6 +476,10 @@ class DocumentUploadForm(forms.ModelForm):
         if new_folder and folder:
             raise ValidationError("Выберите существующую папку или создайте новую, но не оба варианта сразу.")
 
+        doc_type = cleaned_data.get("doc_type")
+        if doc_type and department and doc_type.organization_id != department.organization_id:
+            raise ValidationError("Тип документа не принадлежит выбранной организации.")
+
         return cleaned_data
 
     def clean_file(self):
@@ -535,9 +539,13 @@ class UserCreateForm(forms.ModelForm):
             "position": forms.TextInput(attrs={"placeholder": "Например: Архивариус"}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user=None, **kwargs):
+        self.creator_user = user
         super().__init__(*args, **kwargs)
-        departments = Department.objects.all().order_by("tree_id", "lft")
+        if user:
+            departments = get_allowed_departments(user).order_by("tree_id", "lft")
+        else:
+            departments = Department.objects.all().order_by("tree_id", "lft")
         self.fields["department"].queryset = departments
         self.fields["department"].choices = department_tree_choices(departments)
 
@@ -571,6 +579,23 @@ class UserCreateForm(forms.ModelForm):
         user.set_password(self.cleaned_data["temp_password"])
         if commit:
             user.save()
+            organization = None
+            if user.department_id:
+                organization = user.department.organization
+            elif self.creator_user:
+                organization = get_user_organizations(self.creator_user).order_by("name", "id").first()
+            if organization:
+                OrganizationMember.objects.get_or_create(
+                    organization=organization,
+                    user=user,
+                    defaults={
+                        "role": (
+                            OrganizationMember.Role.ADMIN
+                            if user.role == User.Role.ADMIN
+                            else OrganizationMember.Role.MEMBER
+                        )
+                    },
+                )
         return user
 
 
@@ -584,9 +609,13 @@ class DocumentAccessForm(forms.Form):
     def __init__(self, *args, user=None, document=None, **kwargs):
         super().__init__(*args, **kwargs)
         if user.role == "ADMIN":
-            queryset = Department.objects.all()
-        else:
+            queryset = get_allowed_departments(user)
+        elif user.department_id:
             queryset = user.department.get_descendants(include_self=False)
+        else:
+            queryset = Department.objects.none()
+        if document is not None:
+            queryset = queryset.filter(organization_id=document.organization_id)
         self.fields["department"].queryset = queryset.order_by("tree_id", "lft")
 
 
@@ -604,10 +633,7 @@ class FolderManageForm(forms.ModelForm):
 
         allowed_departments = Department.objects.none()
         if user:
-            if user.role == "ADMIN":
-                allowed_departments = Department.objects.all()
-            elif user.department_id:
-                allowed_departments = user.department.get_descendants(include_self=True)
+            allowed_departments = get_allowed_departments(user)
 
         allowed_departments = allowed_departments.order_by("tree_id", "lft")
         self.fields["department"].queryset = allowed_departments

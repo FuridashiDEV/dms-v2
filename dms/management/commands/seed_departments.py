@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from dms.models import Department
+from dms.models import DEFAULT_ORGANIZATION_NAME, DEFAULT_ORGANIZATION_SLUG, Department, Organization
 
 
 TREE = {
@@ -82,22 +82,37 @@ TREE = {
 }
 
 
-def ensure_node(name: str, parent: Department | None) -> Department:
+def get_default_organization() -> Organization:
+    organization, _ = Organization.objects.get_or_create(
+        slug=DEFAULT_ORGANIZATION_SLUG,
+        defaults={
+            "name": DEFAULT_ORGANIZATION_NAME,
+            "is_active": True,
+        },
+    )
+    return organization
+
+
+def ensure_node(name: str, parent: Department | None, organization: Organization) -> Department:
     """
     Создаёт Department если нет. Если есть — обновляет parent (если изменился).
     """
-    obj, created = Department.objects.get_or_create(name=name, parent=parent)
+    obj, created = Department.objects.get_or_create(
+        name=name,
+        organization=organization,
+        defaults={"parent": parent},
+    )
     if (not created) and (obj.parent_id != (parent.id if parent else None)):
         obj.parent = parent
         obj.save(update_fields=["parent"])
     return obj
 
 
-def create_tree(parent: Department | None, subtree: dict):
+def create_tree(parent: Department | None, subtree: dict, organization: Organization):
     for dept_name, children in subtree.items():
-        node = ensure_node(dept_name, parent)
+        node = ensure_node(dept_name, parent, organization)
         if isinstance(children, dict) and children:
-            create_tree(node, children)
+            create_tree(node, children, organization)
 
 
 class Command(BaseCommand):
@@ -105,7 +120,8 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
-        create_tree(None, TREE)
+        organization = get_default_organization()
+        create_tree(None, TREE, organization)
 
         # пересобираем MPTT дерево (на случай изменений)
         Department.objects.rebuild()

@@ -24,6 +24,7 @@ def build_document_index_text(document: Document) -> str:
 def build_document_index_payload(document: Document) -> dict:
     return {
         "title": document.title,
+        "organization_id": document.organization_id,
         "department_id": document.department_id,
         "folder_id": document.folder_id,
         "doc_type_id": document.doc_type_id,

@@ -41,7 +41,7 @@ from dms.services.text_extractor import extract_text_from_file
 import os
 import re
 User = get_user_model()
-from dms.utils import get_allowed_departments, get_allowed_documents, user_can_access_document
+from dms.utils import get_allowed_departments, get_allowed_documents, get_user_organizations, user_can_access_document
 
 logger = logging.getLogger(__name__)
 
@@ -473,14 +473,7 @@ def _deprecated_get_allowed_departments(user):
     ADMIN: все отделы
     остальные: свой отдел + все нижестоящие (descendants)
     """
-    if user.role == "ADMIN":
-        return Department.objects.all()
-
-    if not user.department_id:
-        return Department.objects.none()
-
-    root = Department.objects.get(id=user.department_id)
-    return root.get_descendants(include_self=True)
+    return get_allowed_departments(user)
 
 
 # =========================================================
@@ -490,23 +483,12 @@ def _deprecated_get_allowed_departments(user):
 def dashboard(request):
     user = request.user
 
-    # --- определяем доступные отделы
-    if user.role == "ADMIN":
-        allowed_depts = Department.objects.all()
-    else:
-        if not user.department_id:
-            return HttpResponseForbidden("У вас не указан отдел")
-        allowed_depts = user.department.get_descendants(include_self=True)
+    allowed_depts = get_allowed_departments(user)
+    if user.role != "ADMIN" and not allowed_depts.exists():
+        return HttpResponseForbidden("У вас не указан отдел")
 
     # --- документы, доступные пользователю
-    docs_qs = (
-        Document.objects
-        .filter(
-            Q(department__in=allowed_depts) |
-            Q(accesses__department=user.department) 
-        )
-        .distinct()
-    )
+    docs_qs = get_allowed_documents(user)
     now = timezone.now()
     month_start = now.replace(day=1)
 
@@ -716,11 +698,17 @@ def document_list(request):
 
     selected_folder = None
     if folder_id:
-        selected_folder = Folder.objects.filter(id=folder_id).first()
+        selected_folder = Folder.objects.filter(
+            id=folder_id,
+            department__in=allowed_depts,
+        ).first()
 
     selected_doc_type = None
     if doc_type_id:
-        selected_doc_type = DocumentType.objects.filter(id=doc_type_id).first()
+        selected_doc_type = DocumentType.objects.filter(
+            id=doc_type_id,
+            organization__in=get_user_organizations(user),
+        ).first()
 
     status_choices = [
         (Document.Status.DRAFT, "Черновики"),
@@ -731,7 +719,9 @@ def document_list(request):
     context = {
         "documents": documents,
         "q": q,
-        "doc_types": DocumentType.objects.all().order_by("name"),
+        "doc_types": DocumentType.objects.filter(
+            organization__in=get_user_organizations(user),
+        ).order_by("name"),
         "departments": allowed_depts,
         "folders": Folder.objects.filter(
             department__in=allowed_depts
@@ -818,6 +808,7 @@ def document_upload(request):
         # =================================================
         doc = form.save(commit=False)
         doc.uploaded_by = user
+        doc.organization = doc.department.organization
         doc.source_system = doc.source_system or "manual_upload"
 
         if user.role != "ADMIN":
@@ -876,7 +867,9 @@ def document_upload(request):
         logger.info("Extracted text for uploaded document", extra={"text_length": len(extracted_text)})
 
         allowed_types = set(
-            DocumentType.objects.values_list("name", flat=True)
+            DocumentType.objects.filter(
+                organization=doc.organization,
+            ).values_list("name", flat=True)
         )
 
         meta = {}
@@ -906,7 +899,8 @@ def document_upload(request):
 
             if not doc.doc_type and meta.get("doc_type"):
                 dt, _ = DocumentType.objects.get_or_create(
-                    name=meta["doc_type"]
+                    organization=doc.organization,
+                    name=meta["doc_type"],
                 )
                 doc.doc_type = dt
 
@@ -1075,6 +1069,7 @@ def document_edit(request, pk):
 
         original_doc = Document.objects.get(pk=doc.pk)
         updated = form.save(commit=False)
+        updated.organization = updated.department.organization
 
         # ---- защита отдела
         if updated.department not in allowed_departments:
@@ -1103,6 +1098,7 @@ def document_edit(request, pk):
             populate_preservation_metadata(updated, form.cleaned_data.get("file"))
             updated.save(
                 update_fields=[
+                    "organization",
                     "department",
                     "folder",
                     "title",
@@ -1471,13 +1467,13 @@ def user_create(request):
         return HttpResponseForbidden("Доступ запрещен")
 
     if request.method == "POST":
-        form = UserCreateForm(request.POST)
+        form = UserCreateForm(request.POST, user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, "Пользователь успешно создан")
             return redirect("dms:user_list")
     else:
-        form = UserCreateForm()
+        form = UserCreateForm(user=request.user)
 
     return render(request, "dms/user_create.html", {"form": form})
 
@@ -1487,9 +1483,15 @@ def user_list(request):
     if not can_manage_users(request.user):
         return HttpResponseForbidden("Доступ запрещен")
 
+    organizations = get_user_organizations(request.user)
     users = (
         User.objects
+        .filter(
+            Q(organization_memberships__organization__in=organizations) |
+            Q(department__organization__in=organizations)
+        )
         .select_related("department")
+        .distinct()
         .order_by("last_name", "first_name")
     )
 
@@ -1649,7 +1651,9 @@ def ai_parse_document(request):
             path = tmp.name
 
         allowed_types = set(
-            DocumentType.objects.values_list("name", flat=True)
+            DocumentType.objects.filter(
+                organization__in=get_user_organizations(request.user),
+            ).values_list("name", flat=True)
         )
 
         text = extract_text_from_file(path) or ""

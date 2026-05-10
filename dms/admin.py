@@ -2,8 +2,35 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from mptt.admin import MPTTModelAdmin
 
-from .models import Department, DocumentType, Document, DocumentActivity, DocumentRelation, DocumentVersion, Folder, User
+from .models import (
+    Department,
+    Document,
+    DocumentActivity,
+    DocumentRelation,
+    DocumentType,
+    DocumentVersion,
+    Folder,
+    Organization,
+    OrganizationMember,
+    User,
+)
 from .forms import UserAdminChangeForm
+
+
+@admin.register(Organization)
+class OrganizationAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "is_active", "created_at")
+    list_filter = ("is_active",)
+    search_fields = ("name", "slug")
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(OrganizationMember)
+class OrganizationMemberAdmin(admin.ModelAdmin):
+    list_display = ("organization", "user", "role", "is_active", "created_at")
+    list_filter = ("organization", "role", "is_active")
+    search_fields = ("organization__name", "user__username", "user__email")
+    autocomplete_fields = ("organization", "user")
 
 
 # =========================
@@ -12,17 +39,19 @@ from .forms import UserAdminChangeForm
 @admin.register(Department)
 class DepartmentAdmin(MPTTModelAdmin):
     mptt_indent_field = "name"
-    list_display = ("name", "parent")
-    list_filter = ("parent",)
+    list_display = ("name", "organization", "parent")
+    list_filter = ("organization", "parent")
     search_fields = ("name",)
+    autocomplete_fields = ("organization",)
 
 
 @admin.register(Folder)
 class FolderAdmin(MPTTModelAdmin):
     mptt_indent_field = "name"
-    list_display = ("name", "department", "parent")
-    list_filter = ("department",)
+    list_display = ("name", "organization", "department", "parent")
+    list_filter = ("organization", "department")
     search_fields = ("name",)
+    autocomplete_fields = ("organization", "department", "parent")
 
 
 # =========================
@@ -31,7 +60,9 @@ class FolderAdmin(MPTTModelAdmin):
 @admin.register(DocumentType)
 class DocumentTypeAdmin(admin.ModelAdmin):
     search_fields = ("name",)
-    list_display = ("name",)
+    list_display = ("name", "organization")
+    list_filter = ("organization",)
+    autocomplete_fields = ("organization",)
 
 
 # =========================
@@ -43,6 +74,7 @@ class DocumentAdmin(admin.ModelAdmin):
         "title",
         "public_id",
         "status",
+        "organization",
         "department",
         "doc_type",
         "language",
@@ -50,10 +82,10 @@ class DocumentAdmin(admin.ModelAdmin):
         "uploaded_by",
         "created_at",
     )
-    list_filter = ("status", "department", "doc_type", "language", "doc_date", "retention_until", "legal_hold")
+    list_filter = ("status", "organization", "department", "doc_type", "language", "doc_date", "retention_until", "legal_hold")
     search_fields = ("title", "description", "document_author", "public_id", "uploaded_by__username", "checksum_sha256")
     date_hierarchy = "doc_date"
-    autocomplete_fields = ("department", "folder", "doc_type", "uploaded_by")
+    autocomplete_fields = ("organization", "department", "folder", "doc_type", "uploaded_by")
 
 
 # =========================
