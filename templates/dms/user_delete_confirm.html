@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Удалить пользователя?</h2>
+
+<p>
+{{ user_obj.last_name }} {{ user_obj.first_name }} ({{ user_obj.username }})
+</p>
+
+<form method="post">
+  {% csrf_token %}
+  <button class="btn btn-danger">Удалить</button>
+  <a href="{% url 'dms:user_list' %}" class="btn btn-ghost">Отмена</a>
+</form>
+
+{% endblock %}

@@ -1,0 +1,954 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} — ИИ-архив{% endblock %}
+{% block content %}
+
+<style>
+.page-head{
+  margin:10px 0 26px;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+}
+
+.page-title{
+  margin:0;
+  font-size:34px;
+  font-weight:900;
+  letter-spacing:-0.02em;
+}
+
+.page-sub{
+  margin-top:10px;
+  color:rgba(15,23,42,0.55);
+  font-weight:600;
+  max-width:760px;
+}
+
+.form-wrap{
+  max-width:1000px;
+  margin:0 auto;
+}
+
+.form-card{
+  background:#fff;
+  border-radius:22px;
+  padding:28px;
+  box-shadow:0 15px 40px rgba(15,23,42,0.05);
+}
+
+.form-row{ margin-top:18px; }
+
+.form-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+}
+
+label{
+  display:block;
+  font-size:13px;
+  font-weight:900;
+  color:rgba(15,23,42,0.75);
+  margin-bottom:8px;
+}
+
+.req{ color:#e11d48; }
+
+input, select, textarea{
+  width:100%;
+  height:44px;
+  border-radius:14px;
+  border:1px solid rgba(148,163,184,0.35);
+  padding:0 14px;
+  font-weight:700;
+  font-size:14px;
+}
+
+textarea{
+  min-height:90px;
+  padding-top:12px;
+}
+
+input:focus, select:focus, textarea:focus{
+  outline:none;
+  border-color:#6d28d9;
+  box-shadow:0 0 0 4px rgba(109,40,217,0.12);
+}
+
+.alert-error{
+  background:rgba(225,29,72,0.07);
+  border:1px solid rgba(225,29,72,0.25);
+  color:#9f1239;
+  padding:14px;
+  border-radius:14px;
+  font-weight:800;
+  margin-bottom:18px;
+}
+
+.field-error{
+  margin-top:6px;
+  font-size:12px;
+  font-weight:800;
+  color:#9f1239;
+}
+
+.form-actions{
+  margin-top:26px;
+  display:flex;
+  gap:14px;
+}
+
+.file-current{
+  border:1px solid rgba(148,163,184,0.25);
+  background:rgba(248,250,252,0.75);
+  border-radius:18px;
+  padding:14px 16px;
+  margin-bottom:12px;
+}
+
+.file-current-title{
+  font-size:13px;
+  font-weight:900;
+  color:rgba(15,23,42,0.58);
+  margin-bottom:8px;
+}
+
+.file-current-row{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+}
+
+.file-path{
+  font-weight:800;
+  color:rgba(15,23,42,0.82);
+  word-break:break-all;
+}
+
+.file-open{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  height:36px;
+  padding:0 14px;
+  border-radius:12px;
+  font-weight:900;
+  text-decoration:none;
+  border:1px solid rgba(37,99,235,0.18);
+  background:rgba(37,99,235,0.08);
+  color:#2563eb;
+}
+
+.drop-zone{
+  border:2px dashed rgba(148,163,184,0.55);
+  background:rgba(248,250,252,0.7);
+  border-radius:18px;
+  padding:28px;
+  cursor:pointer;
+  transition:.15s;
+}
+
+.drop-zone:hover{
+  border-color:#6d28d9;
+  background:rgba(109,40,217,0.04);
+}
+
+.drop-zone.dragover{
+  border-color:#6d28d9;
+  background:rgba(109,40,217,0.08);
+}
+
+.drop-inner{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+  text-align:center;
+}
+
+.drop-icon{
+  width:64px;
+  height:64px;
+  border-radius:50%;
+  background:rgba(109,40,217,0.12);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.drop-title{
+  font-size:16px;
+  font-weight:900;
+}
+
+.drop-sub{
+  font-size:13px;
+  font-weight:700;
+  color:rgba(15,23,42,0.6);
+}
+
+.file-name{
+  margin-top:6px;
+  font-weight:800;
+  font-size:13px;
+}
+
+.ai-hint{
+  margin-top:10px;
+  font-size:13px;
+  font-weight:700;
+  color:rgba(15,23,42,0.55);
+}
+
+.ai-hint.is-loading{
+  color:#2563eb;
+}
+
+.ai-hint.is-success{
+  color:#15803d;
+}
+
+.ai-hint.is-error{
+  color:#b91c1c;
+}
+
+.hidden-input{ display:none; }
+
+.searchable-select{
+  position:relative;
+  width:100%;
+}
+
+.select-input{
+  height:46px;
+  padding:0 14px;
+  border-radius:12px;
+  border:1px solid rgba(148,163,184,0.35);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  cursor:pointer;
+  font-weight:700;
+  background:#fff;
+  position:relative;
+  z-index:5;
+}
+
+.select-dropdown{
+  position:absolute;
+  top:110%;
+  left:0;
+  width:100%;
+  background:#fff;
+  border-radius:12px;
+  border:1px solid rgba(148,163,184,0.35);
+  box-shadow:0 12px 30px rgba(0,0,0,.08);
+  padding:10px;
+  z-index:50;
+  display:none;
+}
+
+.search-input{
+  width:100%;
+  height:38px;
+  padding:0 12px;
+  border-radius:10px;
+  border:1px solid rgba(148,163,184,0.35);
+  font-size:14px;
+  margin-bottom:8px;
+}
+
+.options{
+  max-height:260px;
+  overflow-y:auto;
+}
+
+.option{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:6px;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:14px;
+  font-weight:600;
+}
+
+.option:hover{
+  background:rgba(109,40,217,0.06);
+}
+
+.option input[type="checkbox"]{
+  width:16px;
+  height:16px;
+  accent-color:#6d28d9;
+}
+
+.help{
+  margin-top:8px;
+  font-size:13px;
+  font-weight:700;
+  color:rgba(15,23,42,0.55);
+}
+
+.folder-toggle{
+  margin-top:6px;
+}
+
+.toggle-wrap{
+  display:inline-flex;
+  align-items:center;
+  gap:12px;
+  cursor:pointer;
+  user-select:none;
+}
+
+.toggle-wrap input{
+  display:none !important;
+}
+
+.toggle-wrap-legal{
+  min-height:44px;
+}
+
+.toggle-slider{
+  position:relative;
+  width:42px;
+  height:24px;
+  background:rgba(226,232,240,0.95);
+  border:1px solid rgba(148,163,184,0.28);
+  border-radius:999px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.7);
+  transition:.2s ease;
+}
+
+.toggle-slider::after{
+  content:"";
+  position:absolute;
+  top:2px;
+  left:2px;
+  width:18px;
+  height:18px;
+  background:#ffffff;
+  border-radius:50%;
+  box-shadow:0 2px 6px rgba(15,23,42,0.14);
+  transition:.2s ease;
+}
+
+.toggle-wrap input:checked + .toggle-slider{
+  background:rgba(37,99,235,0.14);
+  border-color:rgba(37,99,235,0.22);
+}
+
+.toggle-wrap input:checked + .toggle-slider::after{
+  transform:translateX(18px);
+  background:#2563eb;
+}
+
+.toggle-text{
+  font-size:14px;
+  font-weight:800;
+  color:rgba(15,23,42,0.72);
+}
+
+.versions-card{
+  margin-top:22px;
+  padding:18px;
+  border-radius:18px;
+  border:1px solid rgba(148,163,184,0.18);
+  background:rgba(248,250,252,0.72);
+}
+
+.versions-title{
+  font-size:18px;
+  font-weight:900;
+  margin:0;
+}
+
+.versions-sub{
+  margin-top:6px;
+  color:rgba(15,23,42,0.55);
+  font-weight:700;
+}
+
+.version-list{
+  margin-top:14px;
+  display:grid;
+  gap:10px;
+}
+
+.version-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+  padding:14px 16px;
+  border-radius:16px;
+  background:#fff;
+  border:1px solid rgba(148,163,184,0.2);
+}
+
+.version-main{
+  font-weight:900;
+  color:rgba(15,23,42,0.92);
+}
+
+.version-meta{
+  margin-top:6px;
+  color:rgba(15,23,42,0.55);
+  font-size:13px;
+  font-weight:700;
+}
+
+.version-actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+@media(max-width:900px){
+  .form-grid{ grid-template-columns:1fr; }
+  .page-head{ flex-direction:column; }
+}
+</style>
+
+<div class="form-wrap">
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">{{ page_title }}</h1>
+      <div class="page-sub">{{ page_subtitle }}</div>
+    </div>
+    <a href="{% url 'dms:document_list' %}" class="btn btn-ghost">← К документам</a>
+  </div>
+
+  <div class="form-card">
+    {% if form.non_field_errors %}
+      <div class="alert-error">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <div class="form-row" id="folder-wrapper">
+        <label for="id_department">Отдел <span class="req">*</span></label>
+        {% if user.role == "ADMIN" %}
+          <select
+            name="department"
+            id="id_department"
+            hx-get="{% url 'dms:folders_by_department' %}"
+            hx-trigger="change"
+            hx-target="#id_folder"
+            hx-swap="innerHTML"
+            hx-include="#id_department"
+          >
+            <option value="">— Выберите отдел —</option>
+            {% for dept in form.fields.department.queryset %}
+              <option value="{{ dept.id }}" {% if selected_department_id == dept.id|stringformat:'s' %}selected{% endif %}>{{ dept.name }}</option>
+            {% endfor %}
+          </select>
+        {% else %}
+          <div class="select-input" aria-readonly="true">
+            <span>
+              {% for dept in form.fields.department.queryset %}
+                {% if selected_department_id == dept.id|stringformat:'s' %}{{ dept.name }}{% endif %}
+              {% endfor %}
+            </span>
+            <span>▾</span>
+          </div>
+          <input type="hidden" name="department" value="{{ selected_department_id }}">
+        {% endif %}
+        {% if form.department.errors %}<div class="field-error">{{ form.department.errors|striptags }}</div>{% endif %}
+      </div>
+
+      <div class="form-row" id="subfolder-wrapper">
+        <label for="id_folder">Папка</label>
+        <select
+          name="folder"
+          id="id_folder"
+          hx-get="{% url 'dms:subfolders_by_parent' %}"
+          hx-trigger="change"
+          hx-target="#id_subfolder"
+          hx-swap="innerHTML"
+        >
+          <option value="">— Выберите папку —</option>
+          {% for folder in root_folders %}
+            <option value="{{ folder.id }}" {% if selected_root_folder_id == folder.id|stringformat:'s' %}selected{% endif %}>{{ folder.name }}</option>
+          {% endfor %}
+        </select>
+        {% if form.folder.errors %}<div class="field-error">{{ form.folder.errors|striptags }}</div>{% endif %}
+      </div>
+
+      <div class="form-row">
+        <label for="id_subfolder">Подпапка</label>
+        <select name="subfolder" id="id_subfolder">
+          <option value="">— Выберите подпапку —</option>
+          {% for folder in current_subfolders %}
+            <option value="{{ folder.id }}" {% if selected_subfolder_id == folder.id|stringformat:'s' %}selected{% endif %}>{{ folder.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-row folder-toggle">
+        <label class="toggle-wrap">
+          <input type="checkbox" id="toggleNewFolder" {% if form.new_folder.value %}checked{% endif %}>
+          <span class="toggle-slider"></span>
+          <span class="toggle-text">Создать новую папку</span>
+        </label>
+      </div>
+
+      <div class="form-row folder-toggle">
+        <label class="toggle-wrap">
+          <input type="checkbox" id="toggleNewSubFolder" {% if form.new_subfolder.value %}checked{% endif %}>
+          <span class="toggle-slider"></span>
+          <span class="toggle-text">Создать новую подпапку</span>
+        </label>
+      </div>
+
+      <div class="form-row" id="newFolderBlock" style="display:none;">
+        <label for="id_new_folder">Название новой папки</label>
+        {{ form.new_folder }}
+        {% if form.new_folder.errors %}<div class="field-error">{{ form.new_folder.errors|striptags }}</div>{% endif %}
+      </div>
+
+      <div class="form-row" id="newSubFolderBlock" style="display:none;">
+        <label for="id_new_subfolder">Название подпапки</label>
+        {{ form.new_subfolder }}
+        {% if form.new_subfolder.errors %}<div class="field-error">{{ form.new_subfolder.errors|striptags }}</div>{% endif %}
+      </div>
+
+      <div class="form-row form-grid">
+        <div>
+          <label>Название документа <span class="req">*</span></label>
+          {{ form.title }}
+          {% if form.title.errors %}<div class="field-error">{{ form.title.errors|striptags }}</div>{% endif %}
+        </div>
+        <div>
+          <label>Тип документа <span class="req">*</span></label>
+          {{ form.doc_type }}
+          {% if form.doc_type.errors %}<div class="field-error">{{ form.doc_type.errors|striptags }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="form-row form-grid">
+        <div>
+          <label>Дата документа <span class="req">*</span></label>
+          {{ form.doc_date }}
+          {% if form.doc_date.errors %}<div class="field-error">{{ form.doc_date.errors|striptags }}</div>{% endif %}
+        </div>
+
+        <div>
+          <label>{% if doc %}Файл документа{% else %}Файл <span class="req">*</span>{% endif %}</label>
+
+          {% if doc and doc.file %}
+            <div class="file-current">
+              <div class="file-current-title">Текущий файл</div>
+              <div class="file-current-row">
+                <span class="file-path">{{ doc.file.name }}</span>
+                <a class="file-open" href="{{ doc.file.url }}" target="_blank">Открыть</a>
+              </div>
+            </div>
+          {% endif %}
+
+          <div id="dropZone" class="drop-zone" tabindex="0">
+            <div class="drop-inner">
+              <div class="drop-icon">📄</div>
+              <div class="drop-title">{% if doc %}Заменить файл документа{% else %}Нажмите для выбора файла{% endif %}</div>
+              <div class="drop-sub">Любой формат файла, до 50 МБ</div>
+              <div id="fileName" class="file-name">{% if doc %}Файл не выбран{% else %}Файл не выбран{% endif %}</div>
+            </div>
+            <div class="hidden-input">{{ form.file }}</div>
+          </div>
+          <div id="aiHint" class="ai-hint">После выбора файла ИИ попробует заполнить название, описание, тип и дату документа.</div>
+
+          {% if form.file.errors %}<div class="field-error">{{ form.file.errors|striptags }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="form-row form-grid">
+        <div>
+          <label>Язык документа</label>
+          {{ form.language }}
+          {% if form.language.errors %}<div class="field-error">{{ form.language.errors|striptags }}</div>{% endif %}
+        </div>
+        <div>
+          <label>Автор документа</label>
+          {{ form.document_author }}
+          {% if form.document_author.errors %}<div class="field-error">{{ form.document_author.errors|striptags }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="form-row form-grid">
+        <div>
+          <label>Статус <span class="req">*</span></label>
+          {{ form.status }}
+          {% if form.status.errors %}<div class="field-error">{{ form.status.errors|striptags }}</div>{% endif %}
+        </div>
+        <div></div>
+      </div>
+
+      {% if show_access_block %}
+        <div class="form-row">
+          <label>Доступ к документу</label>
+          <div class="searchable-select" id="accessSelect">
+            <div class="select-input" onclick="toggleAccessDropdown()">
+              <span id="accessSelectedText" class="muted">Выберите отделы</span>
+              <span>▾</span>
+            </div>
+            <div class="select-dropdown" id="accessDropdown">
+              <input type="text" id="accessSearch" placeholder="Поиск..." class="search-input">
+              <div class="options">
+                {% for dept in form.access_departments.field.queryset %}
+                  <label class="option">
+                    <input
+                      type="checkbox"
+                      name="access_departments"
+                      value="{{ dept.id }}"
+                      {% if dept.id|stringformat:'s' in selected_access_department_ids %}checked{% endif %}
+                    >
+                    {{ dept.name }}
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+          {% if form.access_departments.errors %}<div class="field-error">{{ form.access_departments.errors|striptags }}</div>{% endif %}
+          <div class="help">Можно выбрать несколько отделов</div>
+        </div>
+      {% endif %}
+
+      <div class="form-row form-grid">
+        <div>
+          <label>Категория хранения</label>
+          {{ form.retention_category }}
+          {% if form.retention_category.errors %}<div class="field-error">{{ form.retention_category.errors|striptags }}</div>{% endif %}
+        </div>
+        <div>
+          <label>Срок хранения до</label>
+          {{ form.retention_until }}
+          {% if form.retention_until.errors %}<div class="field-error">{{ form.retention_until.errors|striptags }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="form-row form-grid">
+        <div>
+          <label>Источник документа</label>
+          {{ form.source_system }}
+          {% if form.source_system.errors %}<div class="field-error">{{ form.source_system.errors|striptags }}</div>{% endif %}
+        </div>
+        <div style="display:flex; align-items:end;">
+          <label class="toggle-wrap toggle-wrap-legal" for="id_legal_hold">
+            <input type="checkbox" name="legal_hold" id="id_legal_hold" {% if form.legal_hold.value %}checked{% endif %}>
+            <span class="toggle-slider"></span>
+            <span class="toggle-text">Юридическое удержание</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Краткое описание</label>
+        {{ form.description }}
+        {% if form.description.errors %}<div class="field-error">{{ form.description.errors|striptags }}</div>{% endif %}
+      </div>
+
+      {% if doc %}
+        <div class="versions-card">
+          <h2 class="versions-title">История версий</h2>
+          <div class="versions-sub">Файл и ключевые метаданные сохраняются по версиям, чтобы можно было вернуться к предыдущему состоянию.</div>
+          <div class="version-list">
+            {% for version in versions %}
+              <div class="version-row">
+                <div>
+                  <div class="version-main">Версия {{ version.number }}</div>
+                  <div class="version-meta">
+                    {{ version.created_at|date:"d.m.Y H:i" }}
+                    {% if version.uploaded_by %} • {{ version.uploaded_by.get_full_name|default:version.uploaded_by.username }}{% endif %}
+                    {% if version.doc_type %} • {{ version.doc_type.name }}{% endif %}
+                  </div>
+                </div>
+                <div class="version-actions">
+                  <a class="btn btn-ghost" href="{% url 'dms:document_version_view' doc.id version.id %}" target="_blank">Открыть</a>
+                  <a class="btn btn-ghost" href="{% url 'dms:document_version_download' doc.id version.id %}">Скачать</a>
+                </div>
+              </div>
+            {% empty %}
+              <div class="version-row">
+                <div>
+                  <div class="version-main">История еще не сформирована</div>
+                  <div class="version-meta">После сохранения обновлений версии появятся здесь.</div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
+        <a class="btn btn-ghost" href="{% url 'dms:document_list' %}">Отмена</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const fileInput = document.getElementById("id_file");
+  const dropZone = document.getElementById("dropZone");
+  const fileName = document.getElementById("fileName");
+  const aiHint = document.getElementById("aiHint");
+  const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+
+  if (fileInput && dropZone) {
+    const updateName = () => {
+      fileName.textContent = fileInput.files && fileInput.files.length
+        ? fileInput.files[0].name
+        : "???? ?? ??????";
+    };
+
+    const applyAiMetadata = (data) => {
+      const setSelectValue = (selector, value, { byText = false } = {}) => {
+        if (!value) return;
+        const select = document.querySelector(selector);
+        if (!select) return;
+        if (!byText) {
+          const directOption = Array.from(select.options).find((opt) => opt.value === value);
+          if (directOption) {
+            select.value = value;
+            return;
+          }
+        }
+        const target = String(value).toLowerCase();
+        for (const opt of select.options) {
+          if (opt.text.toLowerCase() === target || opt.value.toLowerCase() === target) {
+            opt.selected = true;
+            break;
+          }
+        }
+      };
+
+      const titleInput = document.querySelector('input[name="title"]');
+      if (titleInput && data.title_ru) {
+        titleInput.value = "RU: " + data.title_ru + (data.title_kk ? " | KZ: " + data.title_kk : "");
+      }
+
+      const dateInput = document.querySelector('input[name="doc_date"]');
+      if (dateInput && typeof data.date === "string" && !dateInput.value) {
+        dateInput.value = data.date;
+      }
+
+      const desc = document.getElementById("id_description");
+      if (desc && data.summary_ru && !desc.value) {
+        desc.value = "RU: " + data.summary_ru + (data.summary_kk ? " | KZ: " + data.summary_kk : "");
+      }
+
+      if (typeof data.doc_type === "string") {
+        setSelectValue('select[name="doc_type"]', data.doc_type, { byText: true });
+      }
+
+      if (typeof data.language === "string") {
+        setSelectValue('select[name="language"]', data.language);
+      }
+
+      const authorInput = document.querySelector('input[name="document_author"]');
+      if (authorInput && data.document_author && !authorInput.value) {
+        authorInput.value = data.document_author;
+      }
+
+      if (typeof data.status === "string") {
+        setSelectValue('select[name="status"]', data.status);
+      }
+
+      const retentionCategoryInput = document.querySelector('input[name="retention_category"]');
+      if (retentionCategoryInput && data.retention_category && !retentionCategoryInput.value) {
+        retentionCategoryInput.value = data.retention_category;
+      }
+
+      const retentionUntilInput = document.querySelector('input[name="retention_until"]');
+      if (retentionUntilInput && typeof data.retention_until === "string" && !retentionUntilInput.value) {
+        retentionUntilInput.value = data.retention_until;
+      }
+
+      const sourceSystemInput = document.querySelector('input[name="source_system"]');
+      if (sourceSystemInput && data.source_system && !sourceSystemInput.value) {
+        sourceSystemInput.value = data.source_system;
+      }
+
+      const legalHoldInput = document.getElementById("id_legal_hold");
+      if (legalHoldInput && typeof data.legal_hold === "boolean") {
+        legalHoldInput.checked = data.legal_hold;
+      }
+    };
+
+    const parseFileWithAi = async () => {
+      if (!fileInput.files.length) return;
+
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+
+      try {
+        if (aiHint) {
+          aiHint.textContent = "ИИ анализирует документ...";
+          aiHint.className = "ai-hint is-loading";
+        }
+        const response = await fetch("/ai/parse/", {
+          method: "POST",
+          body: formData,
+          headers: csrfInput && csrfInput.value ? { "X-CSRFToken": csrfInput.value } : {},
+          credentials: "same-origin",
+        });
+        const contentType = response.headers.get("content-type") || "";
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("AI parse request failed", response.status, errorText);
+          if (aiHint) {
+            aiHint.textContent = response.status === 401
+              ? "Сессия истекла. Обновите страницу и войдите заново."
+              : "Не удалось получить метаданные от ИИ. Документ можно заполнить вручную.";
+            aiHint.className = "ai-hint is-error";
+          }
+          return;
+        }
+        if (response.redirected || !contentType.includes("application/json")) {
+          if (aiHint) {
+            aiHint.textContent = "Не удалось получить корректный ответ от AI-модуля. Обновите страницу и попробуйте снова.";
+            aiHint.className = "ai-hint is-error";
+          }
+          return;
+        }
+        const data = await response.json();
+        applyAiMetadata(data);
+        if (aiHint) {
+          const hasMetadata = Boolean(
+            data.title_ru ||
+            data.summary_ru ||
+            data.doc_type ||
+            data.date ||
+            data.language ||
+            data.document_author ||
+            data.retention_category ||
+            data.retention_until ||
+            data.source_system
+          );
+          aiHint.textContent = hasMetadata
+            ? "Поля карточки заполнены автоматически. При необходимости их можно поправить вручную."
+            : "ИИ не нашел уверенные метаданные. Поля можно заполнить вручную.";
+          aiHint.className = hasMetadata ? "ai-hint is-success" : "ai-hint";
+        }
+      } catch (e) {
+        console.error("AI parse error", e);
+        if (aiHint) {
+          aiHint.textContent = "Не удалось связаться с AI-модулем. Поля можно заполнить вручную.";
+          aiHint.className = "ai-hint is-error";
+        }
+      }
+    };
+
+    dropZone.addEventListener("click", () => fileInput.click());
+    dropZone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
+    fileInput.addEventListener("change", async () => {
+      updateName();
+      await parseFileWithAi();
+    });
+
+    dropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropZone.classList.add("dragover");
+    });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+    dropZone.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("dragover");
+      if (!e.dataTransfer.files || !e.dataTransfer.files.length) return;
+      fileInput.files = e.dataTransfer.files;
+      updateName();
+      await parseFileWithAi();
+    });
+    updateName();
+  }
+
+  const toggleNewFolder = document.getElementById("toggleNewFolder");
+  const toggleNewSubFolder = document.getElementById("toggleNewSubFolder");
+  const folderWrapper = document.getElementById("folder-wrapper");
+  const subfolderWrapper = document.getElementById("subfolder-wrapper");
+  const newFolderBlock = document.getElementById("newFolderBlock");
+  const newSubFolderBlock = document.getElementById("newSubFolderBlock");
+
+  function syncFolderControls() {
+    if (!toggleNewFolder || !toggleNewSubFolder) return;
+    const creatingFolder = toggleNewFolder.checked;
+    const creatingSubfolder = toggleNewSubFolder.checked;
+    newFolderBlock.style.display = creatingFolder ? "block" : "none";
+    newSubFolderBlock.style.display = creatingSubfolder ? "block" : "none";
+    folderWrapper.style.display = creatingFolder ? "none" : "block";
+    subfolderWrapper.style.display = creatingFolder ? "none" : "block";
+  }
+
+  if (toggleNewFolder && toggleNewSubFolder) {
+    toggleNewFolder.addEventListener("change", syncFolderControls);
+    toggleNewSubFolder.addEventListener("change", syncFolderControls);
+    syncFolderControls();
+  }
+
+  const accessSelect = document.getElementById("accessSelect");
+  const dropdown = accessSelect ? accessSelect.querySelector(".select-dropdown") : null;
+
+  window.toggleAccessDropdown = function(){
+    if (!dropdown) return;
+    dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+  };
+
+  document.addEventListener("click", function(e){
+    if (!accessSelect || !dropdown) return;
+    if (!accessSelect.contains(e.target)) {
+      dropdown.style.display = "none";
+    }
+  });
+
+  const search = document.getElementById("accessSearch");
+  if (search) {
+    search.addEventListener("input", function () {
+      const q = this.value.trim().toLowerCase();
+      document.querySelectorAll("#accessSelect .option").forEach(opt => {
+        const text = opt.textContent.toLowerCase();
+        opt.style.display = q === "" || text.includes(q) ? "flex" : "none";
+      });
+    });
+  }
+
+  function updateAccessSelected(){
+    const boxes = document.querySelectorAll('input[name="access_departments"]:checked');
+    const label = document.getElementById("accessSelectedText");
+    if (!label) return;
+    if (boxes.length === 0){
+      label.textContent = "Выберите отделы";
+      label.classList.add("muted");
+      return;
+    }
+    if (boxes.length <= 2){
+      const names = [...boxes].map(b => b.closest("label").innerText.trim());
+      label.textContent = names.join(", ");
+    } else {
+      label.textContent = "Выбрано отделов: " + boxes.length;
+    }
+    label.classList.remove("muted");
+  }
+
+  document.addEventListener("change", function(e){
+    if (e.target.name === "access_departments") {
+      updateAccessSelected();
+    }
+  });
+  updateAccessSelected();
+});
+</script>
+{% endblock %}

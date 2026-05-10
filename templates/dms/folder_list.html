@@ -1,0 +1,545 @@
+{% extends "base.html" %}
+{% block title %}Папки архива — ИИ-архив{% endblock %}
+
+{% block content %}
+<style>
+  .page-top{
+    display:grid;
+    grid-template-columns:minmax(0, 1.2fr) auto;
+    gap:18px;
+    align-items:start;
+    margin-bottom:18px;
+  }
+  .hero-card{
+    padding:26px;
+    border-radius:26px;
+    border:1px solid rgba(148,163,184,0.18);
+    background:
+      radial-gradient(circle at top left, rgba(250,204,21,0.18), transparent 36%),
+      linear-gradient(135deg, #ffffff 0%, #fffdf7 56%, #f7fbff 100%);
+    box-shadow:0 18px 40px rgba(15,23,42,0.08);
+  }
+  .page-title{
+    margin:0;
+    font-size:38px;
+    line-height:1.02;
+    letter-spacing:-0.03em;
+    font-weight:900;
+  }
+  .page-sub{
+    margin-top:14px;
+    color:var(--muted);
+    line-height:1.65;
+    font-size:15px;
+    font-weight:600;
+    max-width:760px;
+  }
+  .toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .message-list{
+    display:grid;
+    gap:10px;
+    margin-bottom:16px;
+  }
+  .message{
+    padding:12px 14px;
+    border-radius:14px;
+    font-weight:800;
+    border:1px solid rgba(34,197,94,0.18);
+    background:rgba(34,197,94,0.08);
+    color:#166534;
+  }
+  .layout{
+    display:grid;
+    grid-template-columns:320px minmax(0, 1fr);
+    gap:18px;
+    align-items:start;
+  }
+  .filter-card{
+    padding:22px;
+    position:sticky;
+    top:94px;
+  }
+  .section-title{
+    margin:0;
+    font-size:20px;
+    font-weight:900;
+  }
+  .section-sub{
+    margin-top:6px;
+    color:var(--muted);
+    line-height:1.55;
+    font-weight:600;
+  }
+  .field{
+    margin-top:16px;
+  }
+  .stats{
+    margin-top:18px;
+    display:grid;
+    gap:12px;
+  }
+  .stat{
+    padding:16px;
+    border-radius:18px;
+    background:rgba(248,250,252,0.92);
+    border:1px solid rgba(148,163,184,0.18);
+  }
+  .stat-label{
+    color:rgba(15,23,42,0.52);
+    font-size:12px;
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+  }
+  .stat-value{
+    margin-top:8px;
+    font-size:28px;
+    font-weight:900;
+  }
+  .browser{
+    display:grid;
+    gap:18px;
+  }
+  .breadcrumbs{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:center;
+  }
+  .crumb{
+    display:inline-flex;
+    align-items:center;
+    min-height:34px;
+    padding:0 14px;
+    border-radius:999px;
+    border:1px solid rgba(148,163,184,0.24);
+    background:rgba(255,255,255,0.92);
+    font-size:13px;
+    font-weight:900;
+    color:rgba(15,23,42,0.84);
+  }
+  .crumb-current{
+    background:rgba(37,99,235,0.1);
+    border-color:rgba(37,99,235,0.18);
+    color:#1d4ed8;
+  }
+  .panel{
+    padding:22px;
+  }
+  .panel-head{
+    display:flex;
+    justify-content:space-between;
+    gap:14px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
+  .panel-meta{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:14px;
+  }
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    min-height:32px;
+    padding:0 12px;
+    border-radius:999px;
+    border:1px solid rgba(148,163,184,0.24);
+    background:rgba(248,250,252,0.92);
+    font-size:13px;
+    font-weight:900;
+    color:rgba(15,23,42,0.76);
+  }
+  .folder-grid{
+    margin-top:18px;
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+    gap:16px;
+  }
+  .folder-card{
+    display:grid;
+    gap:14px;
+    padding:20px;
+    border-radius:22px;
+    border:1px solid rgba(148,163,184,0.18);
+    background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96));
+    box-shadow:0 14px 34px rgba(15,23,42,0.06);
+  }
+  .folder-top{
+    display:flex;
+    gap:14px;
+    align-items:flex-start;
+  }
+  .folder-icon{
+    width:56px;
+    height:44px;
+    border-radius:14px 14px 18px 18px;
+    background:linear-gradient(180deg, #f9d46b 0%, #f0b63a 100%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.45), 0 10px 20px rgba(240,184,63,0.24);
+    position:relative;
+    flex:0 0 auto;
+  }
+  .folder-icon::before{
+    content:"";
+    position:absolute;
+    top:-7px;
+    left:8px;
+    width:24px;
+    height:12px;
+    border-radius:10px 10px 0 0;
+    background:#f8df90;
+  }
+  .folder-name{
+    font-size:19px;
+    line-height:1.2;
+    font-weight:900;
+    color:rgba(15,23,42,0.95);
+  }
+  .folder-path{
+    margin-top:6px;
+    color:rgba(15,23,42,0.56);
+    line-height:1.5;
+    font-size:13px;
+    font-weight:700;
+  }
+  .folder-actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .folder-actions .btn{
+    flex:1 1 120px;
+    justify-content:center;
+  }
+  .docs-list{
+    margin-top:18px;
+    display:grid;
+    gap:12px;
+  }
+  .doc-row{
+    padding:18px;
+    border-radius:20px;
+    border:1px solid rgba(148,163,184,0.18);
+    background:rgba(248,250,252,0.75);
+  }
+  .doc-row-head{
+    display:flex;
+    justify-content:space-between;
+    gap:14px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
+  .doc-title{
+    margin:0;
+    font-size:18px;
+    font-weight:900;
+  }
+  .doc-title a:hover{
+    color:#1d4ed8;
+  }
+  .doc-sub{
+    margin-top:8px;
+    color:rgba(15,23,42,0.58);
+    line-height:1.55;
+    font-weight:600;
+  }
+  .doc-tags{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:14px;
+  }
+  .status-badge{
+    display:inline-flex;
+    align-items:center;
+    min-height:32px;
+    padding:0 14px;
+    border-radius:999px;
+    font-size:13px;
+    font-weight:900;
+  }
+  .badge-status-draft{ background: rgba(148,163,184,0.16); color: #475569; }
+  .badge-status-approved{ background: rgba(34,197,94,0.13); color: #15803d; }
+  .badge-status-archived{ background: rgba(100,116,139,0.16); color: #334155; }
+  .doc-actions{
+    margin-top:14px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .empty{
+    margin-top:18px;
+    padding:32px 22px;
+    border-radius:22px;
+    border:1px dashed rgba(148,163,184,0.4);
+    text-align:center;
+    color:rgba(15,23,42,0.62);
+    background:rgba(248,250,252,0.72);
+    font-weight:800;
+  }
+  @media(max-width: 1080px){
+    .page-top,
+    .layout{
+      grid-template-columns:1fr;
+    }
+    .filter-card{
+      position:static;
+    }
+  }
+</style>
+
+{% if messages %}
+  <div class="message-list">
+    {% for message in messages %}
+      <div class="message">{{ message }}</div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<section class="page-top">
+  <div class="hero-card">
+    <h1 class="page-title">Папки и структура архива</h1>
+    <div class="page-sub">
+      Здесь архив выглядит как привычная файловая система, но поверх нее уже работают архивные метаданные,
+      AI-поиск, контроль версий и единая структура фонда. Для демонстрации это хороший экран, чтобы показать
+      порядок в архиве до перехода к карточке документа.
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <a class="btn btn-primary" href="{% url 'dms:folder_create' %}{% if selected_department %}?department={{ selected_department.id }}{% if current_folder %}&parent={{ current_folder.id }}{% endif %}{% endif %}">
+      {% if current_folder %}Создать подпапку{% else %}Создать папку{% endif %}
+    </a>
+    <a class="btn btn-ghost" href="{% url 'dms:document_upload' %}{% if selected_department %}?department={{ selected_department.id }}{% endif %}">Загрузить документ</a>
+  </div>
+</section>
+
+<section class="layout">
+  <form class="card filter-card" method="get">
+    <h2 class="section-title">Навигация по архиву</h2>
+    <div class="section-sub">Выберите подразделение и переходите по ветке хранения, как в обычной файловой системе.</div>
+
+    <div class="field">
+      <label for="id_department">Подразделение</label>
+      <select id="id_department" name="department" onchange="this.form.submit()">
+        {% for department in departments %}
+          <option value="{{ department.id }}" {% if selected_department and selected_department.id == department.id %}selected{% endif %}>
+            {% if department.level %}{% for _ in "x"|ljust:department.level %}— {% endfor %}{% endif %}{{ department.name }}
+          </option>
+        {% endfor %}
+      </select>
+      {% if current_folder %}
+        <input type="hidden" name="folder" value="{{ current_folder.id }}">
+      {% endif %}
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Папок в отделе</div>
+        <div class="stat-value">{{ department_folder_count }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Документов в отделе</div>
+        <div class="stat-value">{{ department_document_count }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Документов в текущей ветке</div>
+        <div class="stat-value">{{ total_document_count }}</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <a class="btn btn-ghost" href="{% url 'dms:folder_list' %}{% if selected_department %}?department={{ selected_department.id }}{% endif %}">На корень отдела</a>
+    </div>
+  </form>
+
+  <div class="browser">
+    {% if selected_department %}
+      <div class="breadcrumbs">
+        <a class="crumb" href="{% url 'dms:folder_list' %}?department={{ selected_department.id }}">{{ selected_department.name }}</a>
+        {% for crumb in breadcrumbs %}
+          <span class="crumb {% if forloop.last %}crumb-current{% endif %}">
+            {% if forloop.last %}
+              {{ crumb.name }}
+            {% else %}
+              <a href="{% url 'dms:folder_list' %}?department={{ selected_department.id }}&folder={{ crumb.id }}">{{ crumb.name }}</a>
+            {% endif %}
+          </span>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <section class="card panel">
+      <div class="panel-head">
+        <div>
+          {% if current_folder %}
+            <h2 class="section-title">Содержимое папки «{{ current_folder.name }}»</h2>
+            <div class="section-sub">Показываем подпапки и документы на текущем уровне, а ниже — документы из вложенной ветки.</div>
+          {% else %}
+            <h2 class="section-title">Корневые папки отдела</h2>
+            <div class="section-sub">Это стартовая точка архивной навигации по выбранному подразделению.</div>
+          {% endif %}
+          <div class="panel-meta">
+            <span class="pill">Отдел: {{ selected_department.name }}</span>
+            <span class="pill">Подпапок: {% if current_folder %}{{ child_folders|length }}{% else %}{{ root_folders|length }}{% endif %}</span>
+            <span class="pill">Документов в ветке: {{ total_document_count }}</span>
+          </div>
+        </div>
+
+        {% if current_folder %}
+          <a class="btn btn-ghost" href="{% url 'dms:folder_list' %}?department={{ selected_department.id }}{% if current_folder.parent_id %}&folder={{ current_folder.parent_id }}{% endif %}">На уровень выше</a>
+        {% endif %}
+      </div>
+
+      {% if current_folder or root_folders %}
+        <div class="folder-grid">
+          {% if current_folder and current_folder.parent_id %}
+            <article class="folder-card">
+              <div class="folder-top">
+                <div class="folder-icon"></div>
+                <div>
+                  <div class="folder-name">На уровень выше</div>
+                  <div class="folder-path">{{ current_folder.parent.name }}</div>
+                </div>
+              </div>
+              <div class="folder-actions">
+                <a class="btn btn-ghost" href="{% url 'dms:folder_list' %}?department={{ selected_department.id }}&folder={{ current_folder.parent_id }}">Открыть</a>
+              </div>
+            </article>
+          {% endif %}
+
+          {% for folder in child_folders %}
+            <article class="folder-card">
+              <div class="folder-top">
+                <div class="folder-icon"></div>
+                <div>
+                  <div class="folder-name">{{ folder.name }}</div>
+                  <div class="folder-path">{{ folder.display_path }}</div>
+                </div>
+              </div>
+              <div class="panel-meta">
+                <span class="pill">Подпапок: {{ folder.child_count }}</span>
+                <span class="pill">Документов: {{ folder.document_count }}</span>
+              </div>
+              <div class="folder-actions">
+                <a class="btn btn-primary" href="{% url 'dms:folder_list' %}?department={{ selected_department.id }}&folder={{ folder.id }}">Открыть</a>
+                <a class="btn btn-ghost" href="{% url 'dms:folder_create' %}?department={{ selected_department.id }}&parent={{ folder.id }}">Подпапка</a>
+                <a class="btn btn-ghost" href="{% url 'dms:folder_edit' folder.id %}">Изменить</a>
+                <a class="btn btn-ghost" href="{% url 'dms:folder_delete' folder.id %}">Удалить</a>
+              </div>
+            </article>
+          {% endfor %}
+
+          {% if not current_folder %}
+            {% for folder in root_folders %}
+              <article class="folder-card">
+                <div class="folder-top">
+                  <div class="folder-icon"></div>
+                  <div>
+                    <div class="folder-name">{{ folder.name }}</div>
+                    <div class="folder-path">{{ folder.display_path }}</div>
+                  </div>
+                </div>
+                <div class="panel-meta">
+                  <span class="pill">Подпапок: {{ folder.child_count }}</span>
+                  <span class="pill">Документов: {{ folder.document_count }}</span>
+                </div>
+                <div class="folder-actions">
+                  <a class="btn btn-primary" href="{% url 'dms:folder_list' %}?department={{ selected_department.id }}&folder={{ folder.id }}">Открыть</a>
+                  <a class="btn btn-ghost" href="{% url 'dms:folder_create' %}?department={{ selected_department.id }}&parent={{ folder.id }}">Подпапка</a>
+                  <a class="btn btn-ghost" href="{% url 'dms:folder_edit' folder.id %}">Изменить</a>
+                  <a class="btn btn-ghost" href="{% url 'dms:folder_delete' folder.id %}">Удалить</a>
+                </div>
+              </article>
+            {% endfor %}
+          {% endif %}
+        </div>
+      {% else %}
+        <div class="empty">В этом отделе пока нет папок. Начните с создания первой корневой папки.</div>
+      {% endif %}
+    </section>
+
+    {% if current_folder %}
+      <section class="card panel">
+        <div class="panel-head">
+          <div>
+            <h2 class="section-title">Документы в текущей папке</h2>
+            <div class="section-sub">Здесь лежат документы ровно на этом уровне архива.</div>
+          </div>
+          <a class="btn btn-primary" href="{% url 'dms:document_upload' %}">Загрузить документ</a>
+        </div>
+
+        {% if documents %}
+          <div class="docs-list">
+            {% for doc in documents %}
+              <article class="doc-row">
+                <div class="doc-row-head">
+                  <div>
+                    <h3 class="doc-title"><a href="{% url 'dms:document_detail' doc.pk %}">{{ doc.title }}</a></h3>
+                    <div class="doc-sub">{{ doc.description|default:"Описание пока не заполнено." }}</div>
+                  </div>
+                  <span class="status-badge {{ doc.status_badge }}">{{ doc.status_label }}</span>
+                </div>
+                <div class="doc-tags">
+                  <span class="pill">Тип: {{ doc.doc_type.name|default:"Не указан" }}</span>
+                  <span class="pill">Дата: {{ doc.doc_date|date:"d.m.Y"|default:"Не указана" }}</span>
+                  <span class="pill">Версий: {{ doc.version_count }}</span>
+                </div>
+                <div class="doc-actions">
+                  <a class="btn btn-primary" href="{% url 'dms:document_detail' doc.pk %}">Карточка</a>
+                  <a class="btn btn-ghost" href="{% url 'dms:document_view' doc.pk %}" target="_blank">Открыть</a>
+                  <a class="btn btn-ghost" href="{% url 'dms:document_download' doc.pk %}">Скачать</a>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty">В этой папке пока нет документов.</div>
+        {% endif %}
+      </section>
+
+      <section class="card panel">
+        <div class="panel-head">
+          <div>
+            <h2 class="section-title">Документы во вложенных подпапках</h2>
+            <div class="section-sub">Это удобно для демо: видно, что архив умеет читать не только текущий уровень, но и всю ветку хранения.</div>
+          </div>
+        </div>
+
+        {% if descendant_documents %}
+          <div class="docs-list">
+            {% for doc in descendant_documents %}
+              <article class="doc-row">
+                <div class="doc-row-head">
+                  <div>
+                    <h3 class="doc-title"><a href="{% url 'dms:document_detail' doc.pk %}">{{ doc.title }}</a></h3>
+                    <div class="doc-sub">{{ doc.description|default:"Описание пока не заполнено." }}</div>
+                  </div>
+                  <span class="status-badge {{ doc.status_badge }}">{{ doc.status_label }}</span>
+                </div>
+                <div class="doc-tags">
+                  <span class="pill">Путь: {{ doc.folder_path }}</span>
+                  <span class="pill">Тип: {{ doc.doc_type.name|default:"Не указан" }}</span>
+                  <span class="pill">Версий: {{ doc.version_count }}</span>
+                </div>
+                <div class="doc-actions">
+                  <a class="btn btn-primary" href="{% url 'dms:document_detail' doc.pk %}">Карточка</a>
+                  <a class="btn btn-ghost" href="{% url 'dms:document_view' doc.pk %}" target="_blank">Открыть</a>
+                  <a class="btn btn-ghost" href="{% url 'dms:document_download' doc.pk %}">Скачать</a>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty">Во вложенных подпапках пока нет документов.</div>
+        {% endif %}
+      </section>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

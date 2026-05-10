@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.title }} - ИИ-архив{% endblock %}
+
+{% block content %}
+<style>
+  .page-top { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin:10px 0 18px; }
+  .page-title { margin:0; font-size:34px; font-weight:900; letter-spacing:-0.02em; }
+  .page-sub { margin-top:10px; color:var(--muted); font-weight:600; max-width:860px; }
+  .top-actions { display:flex; gap:12px; flex-wrap:wrap; }
+  .grid { display:grid; grid-template-columns:1.2fr .8fr; gap:18px; }
+  .meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px; }
+  .meta-item { padding:14px 16px; border-radius:16px; background:rgba(248,250,252,0.82); border:1px solid rgba(148,163,184,0.18); }
+  .meta-label { font-size:12px; font-weight:900; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
+  .meta-value { margin-top:8px; font-size:16px; font-weight:900; color:rgba(15,23,42,0.92); word-break:break-word; }
+  .section-title { margin:0; font-size:18px; font-weight:900; }
+  .section-sub { margin-top:6px; color:var(--muted); font-weight:600; }
+  .stack { display:grid; gap:12px; margin-top:16px; }
+  .row-card { padding:14px 16px; border-radius:16px; border:1px solid rgba(148,163,184,0.18); background:#fff; }
+  .row-main { font-weight:900; color:rgba(15,23,42,0.92); }
+  .row-main a { color:inherit; text-decoration:none; }
+  .row-main a:hover { text-decoration:underline; }
+  .row-meta { margin-top:6px; color:rgba(15,23,42,0.55); font-size:13px; font-weight:700; }
+  .row-actions { margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; }
+  .preview-shell { margin-top:16px; border-radius:18px; overflow:hidden; border:1px solid rgba(148,163,184,0.22); background:rgba(248,250,252,0.72); }
+  .preview-frame { width:100%; min-height:640px; border:0; background:#fff; }
+  .preview-image { display:block; width:100%; height:auto; background:#fff; }
+  .preview-empty { padding:28px 22px; color:rgba(15,23,42,0.62); font-weight:700; line-height:1.6; }
+  .score-strong { color:#15803d; }
+  .score-medium { color:#b45309; }
+  .score-weak { color:#b91c1c; }
+  @media(max-width:980px){ .page-top{flex-direction:column;} .grid{grid-template-columns:1fr;} .meta-grid{grid-template-columns:1fr;} }
+</style>
+
+<div class="page-top">
+  <div>
+    <h1 class="page-title">{{ doc.title }}</h1>
+    <div class="page-sub">Умная карточка архивного документа: метаданные, сохранность файла, AI-сводка, связи, версии и аудит действий.</div>
+  </div>
+  <div class="top-actions">
+    <a class="btn btn-ghost" href="{% url 'dms:document_list' %}">К документам</a>
+    <a class="btn btn-primary" href="{% url 'dms:document_edit' doc.id %}">Изменить</a>
+    <a class="btn btn-ghost" href="{% url 'dms:document_view' doc.id %}" target="_blank">Открыть файл</a>
+    <a class="btn btn-ghost" href="{% url 'dms:document_download' doc.id %}">Скачать</a>
+  </div>
+</div>
+
+<div class="grid">
+  <div style="display:grid; gap:18px;">
+    <div class="card" style="padding:22px;">
+      <h2 class="section-title">Архивная карточка</h2>
+      <div class="section-sub">Основные, архивные и preservation-метаданные документа.</div>
+      <div class="meta-grid">
+        <div class="meta-item"><div class="meta-label">Отдел</div><div class="meta-value">{{ doc.department.name }}</div></div>
+        <div class="meta-item"><div class="meta-label">Папка</div><div class="meta-value">{{ folder_path }}</div></div>
+        <div class="meta-item"><div class="meta-label">Тип документа</div><div class="meta-value">{{ doc.doc_type.name|default:"Не указан" }}</div></div>
+        <div class="meta-item"><div class="meta-label">Публичный ID</div><div class="meta-value">{{ doc.public_id }}</div></div>
+        <div class="meta-item"><div class="meta-label">Дата документа</div><div class="meta-value">{{ doc.doc_date|date:"d.m.Y"|default:"Не указана" }}</div></div>
+        <div class="meta-item"><div class="meta-label">Дата загрузки</div><div class="meta-value">{{ doc.created_at|date:"d.m.Y H:i" }}</div></div>
+        <div class="meta-item"><div class="meta-label">Загрузил</div><div class="meta-value">{{ doc.uploaded_by.get_full_name|default:doc.uploaded_by.username|default:"Неизвестно" }}</div></div>
+        <div class="meta-item"><div class="meta-label">Автор документа</div><div class="meta-value">{{ doc.document_author|default:"Не указан" }}</div></div>
+        <div class="meta-item"><div class="meta-label">Язык</div><div class="meta-value">{{ doc.get_language_display }}</div></div>
+        <div class="meta-item"><div class="meta-label">Статус</div><div class="meta-value">{{ doc.get_status_display }}</div></div>
+        <div class="meta-item"><div class="meta-label">Версий</div><div class="meta-value">{{ versions|length }}</div></div>
+        <div class="meta-item"><div class="meta-label">Категория хранения</div><div class="meta-value">{{ doc.retention_category|default:"Не указана" }}</div></div>
+        <div class="meta-item"><div class="meta-label">Срок хранения до</div><div class="meta-value">{{ doc.retention_until|date:"d.m.Y"|default:"Не указан" }}</div></div>
+        <div class="meta-item"><div class="meta-label">Legal hold</div><div class="meta-value">{% if doc.legal_hold %}Активен{% else %}Нет{% endif %}</div></div>
+        <div class="meta-item"><div class="meta-label">Источник документа</div><div class="meta-value">{{ doc.source_system|default:"Не указан" }}</div></div>
+        <div class="meta-item"><div class="meta-label">Исходное имя файла</div><div class="meta-value">{{ doc.source_file_name|default:doc.file.name }}</div></div>
+        <div class="meta-item"><div class="meta-label">MIME-тип</div><div class="meta-value">{{ doc.mime_type|default:"Не определен" }}</div></div>
+        <div class="meta-item"><div class="meta-label">SHA-256</div><div class="meta-value">{{ doc.checksum_sha256|default:"Не рассчитан" }}</div></div>
+        <div class="meta-item"><div class="meta-label">Риск формата</div><div class="meta-value">{{ doc.get_format_risk_level_display }}</div></div>
+      </div>
+      <div style="margin-top:18px;">
+        <div class="meta-label">Описание</div>
+        <div class="meta-value" style="font-size:15px; line-height:1.6; margin-top:10px;">{{ doc.description|default:"Описание пока не заполнено." }}</div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:22px;">
+      <h2 class="section-title">AI-сводка</h2>
+      <div class="section-sub">Краткое содержание документа для быстрого просмотра.</div>
+      {% if ai_summary %}
+        <div style="margin-top:16px; color:rgba(15,23,42,0.84); line-height:1.7; font-weight:600;">{{ ai_summary }}</div>
+      {% else %}
+        <div class="row-card" style="margin-top:16px;">
+          <div class="row-main">Сводка пока недоступна</div>
+          <div class="row-meta">Если Ollama недоступна или по документу мало текста, карточка продолжит работать без AI-описания.</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="card" style="padding:22px;">
+      <h2 class="section-title">Предпросмотр</h2>
+      <div class="section-sub">Быстрый просмотр документа прямо в карточке без отдельного скачивания.</div>
+      <div class="preview-shell">
+        {% if preview_kind == "pdf" %}
+          <iframe class="preview-frame" src="{% url 'dms:document_view' doc.id %}" title="Предпросмотр {{ doc.title }}"></iframe>
+        {% elif preview_kind == "image" %}
+          <img class="preview-image" src="{% url 'dms:document_view' doc.id %}" alt="Предпросмотр {{ doc.title }}">
+        {% else %}
+          <div class="preview-empty">Для этого формата встроенный предпросмотр пока не поддерживается. Откройте файл в новой вкладке или скачайте его из карточки документа.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card" style="padding:22px;">
+      <h2 class="section-title">История версий</h2>
+      <div class="section-sub">Все доступные редакции файла и ключевых метаданных.</div>
+      <div class="stack">
+        {% for version in versions %}
+          <div class="row-card">
+            <div class="row-main">Версия {{ version.number }}</div>
+            <div class="row-meta">
+              {{ version.created_at|date:"d.m.Y H:i" }}
+              {% if version.uploaded_by %} • {{ version.uploaded_by.get_full_name|default:version.uploaded_by.username }}{% endif %}
+              {% if version.doc_type %} • {{ version.doc_type.name }}{% endif %}
+              {% if version.checksum_sha256 %} • SHA-256: {{ version.checksum_sha256|slice:":12" }}...{% endif %}
+            </div>
+            <div class="row-actions">
+              <a class="btn btn-ghost" href="{% url 'dms:document_version_view' doc.id version.id %}" target="_blank">Открыть</a>
+              <a class="btn btn-ghost" href="{% url 'dms:document_version_download' doc.id version.id %}">Скачать</a>
+            </div>
+          </div>
+        {% empty %}
+          <div class="row-card">
+            <div class="row-main">История версий пока пуста</div>
+            <div class="row-meta">После сохранения новой редакции она появится в этом блоке.</div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid; gap:18px;">
+    <div class="card" style="padding:22px;">
+      <h2 class="section-title">Связи документа</h2>
+      <div class="section-sub">Контекст архива: какие документы этот файл заменяет, к чему относится и где фигурирует.</div>
+      <div class="stack">
+        {% for relation in outgoing_relations %}
+          <div class="row-card">
+            <div class="row-main">{{ relation.get_relation_type_display }}: <a href="{% url 'dms:document_detail' relation.to_document.id %}">{{ relation.to_document.title }}</a></div>
+            <div class="row-meta">{{ relation.to_document.department.name }}{% if relation.to_document.doc_type %} • {{ relation.to_document.doc_type.name }}{% endif %}{% if relation.confidence %} • AI: {{ relation.confidence }}{% endif %}</div>
+          </div>
+        {% endfor %}
+        {% for relation in incoming_relations %}
+          <div class="row-card">
+            <div class="row-main">{{ relation.from_document.title }} → {{ relation.get_relation_type_display|lower }} текущий документ</div>
+            <div class="row-meta">{{ relation.from_document.department.name }}{% if relation.from_document.doc_type %} • {{ relation.from_document.doc_type.name }}{% endif %}{% if relation.confidence %} • AI: {{ relation.confidence }}{% endif %}</div>
+          </div>
+        {% endfor %}
+        {% if not outgoing_relations and not incoming_relations %}
+          <div class="row-card">
+            <div class="row-main">Явные связи пока не заданы</div>
+            <div class="row-meta">Система уже готова показывать ручные и автоматические связи между документами.</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card" style="padding:22px;">
+      <h2 class="section-title">AI-подсказки архива</h2>
+      <div class="section-sub">Подсказки по сроку хранения, качеству карточки и вероятным устаревшим редакциям.</div>
+      <div class="stack">
+        <div class="row-card">
+          <div class="row-main">Retention assistant</div>
+          <div class="row-meta">
+            Категория: {{ retention_hint.category }}
+            {% if retention_hint.years %} • срок: {{ retention_hint.years }} лет{% endif %}
+            {% if retention_hint.suggested_until %} • до {{ retention_hint.suggested_until }}{% endif %}
+          </div>
+          <div class="row-meta">{{ retention_hint.reason }}</div>
+        </div>
+        <div class="row-card">
+          <div class="row-main">
+            Качество карточки:
+            <span class="{% if card_quality.score >= 80 %}score-strong{% elif card_quality.score >= 50 %}score-medium{% else %}score-weak{% endif %}">
+              {{ card_quality.score }}/100
+            </span>
+          </div>
+          {% if card_quality.issues %}
+            <div class="row-meta">{{ card_quality.issues|join:", " }}</div>
+          {% else %}
+            <div class="row-meta">Карточка заполнена хорошо: ключевые метаданные и сохранность на месте.</div>
+          {% endif %}
+        </div>
+        {% for suggestion in relation_suggestions %}
+          <div class="row-card">
+            <div class="row-main">{{ suggestion.label }}: <a href="{% url 'dms:document_detail' suggestion.target.id %}">{{ suggestion.target.title }}</a></div>
+            <div class="row-meta">{{ suggestion.target.department.name }}{% if suggestion.target.doc_type %} • {{ suggestion.target.doc_type.name }}{% endif %}{% if suggestion.target.doc_date %} • {{ suggestion.target.doc_date|date:"d.m.Y" }}{% endif %}</div>
+          </div>
+        {% endfor %}
+        <div class="row-card">
+          <div class="row-main">Superseded detection</div>
+          {% if superseded_candidates %}
+            <div class="row-meta">Найдены документы, которые эта версия, вероятно, заменяет: {{ superseded_candidates|length }}.</div>
+          {% else %}
+            <div class="row-meta">Явных устаревших редакций в доступном архиве пока не найдено.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:22px;">
+      <h2 class="section-title">Похожие документы</h2>
+      <div class="section-sub">Материалы, которые AI считает близкими по содержанию.</div>
+      <div class="stack">
+        {% for similar_doc in similar_documents %}
+          <div class="row-card">
+            <div class="row-main"><a href="{% url 'dms:document_detail' similar_doc.id %}">{{ similar_doc.title }}</a></div>
+            <div class="row-meta">{{ similar_doc.department.name }}{% if similar_doc.doc_type %} • {{ similar_doc.doc_type.name }}{% endif %}{% if similar_doc.doc_date %} • {{ similar_doc.doc_date|date:"d.m.Y" }}{% endif %}</div>
+          </div>
+        {% empty %}
+          <div class="row-card">
+            <div class="row-main">Похожие документы пока не найдены</div>
+            <div class="row-meta">Если Qdrant недоступен или индекс еще не наполнен, этот блок останется пустым.</div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card" style="padding:22px;">
+      <h2 class="section-title">Выданный доступ</h2>
+      <div class="section-sub">Какие отделы получили доступ к документу.</div>
+      <div class="stack">
+        {% if accesses %}
+          {% for access in accesses %}
+            <div class="row-card">
+              <div class="row-main">{{ access.department.name }}</div>
+              <div class="row-meta">Выдал: {{ access.granted_by.get_full_name|default:access.granted_by.username }} • {{ access.created_at|date:"d.m.Y H:i" }}</div>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div class="row-card">
+            <div class="row-main">Дополнительный доступ не выдавался</div>
+            <div class="row-meta">Документ пока доступен только по основным правилам доступа.</div>
+          </div>
+        {% endif %}
+      </div>
+      {% if doc.can_manage_access %}
+        <div class="row-actions">
+          <a class="btn btn-primary" href="{% url 'dms:document_access_manage' doc.id %}">Управлять доступом</a>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="card" style="padding:22px;">
+      <h2 class="section-title">История действий</h2>
+      <div class="section-sub">Кто и что делал с документом.</div>
+      <div class="stack">
+        {% for activity in activities %}
+          <div class="row-card">
+            <div class="row-main">{{ activity.get_action_display }}</div>
+            <div class="row-meta">{{ activity.user.get_full_name|default:activity.user.username }} • {{ activity.created_at|date:"d.m.Y H:i" }}</div>
+          </div>
+        {% empty %}
+          <div class="row-card">
+            <div class="row-main">История действий пока пуста</div>
+            <div class="row-meta">После работы с документом здесь появятся события просмотра, скачивания и изменений.</div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

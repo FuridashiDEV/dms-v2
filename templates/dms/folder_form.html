@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} — DMS{% endblock %}
+
+{% block content %}
+<style>
+  .page-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:16px;
+    margin:10px 0 18px;
+  }
+  .page-title{
+    margin:0;
+    font-size:34px;
+    font-weight:900;
+    letter-spacing:-0.02em;
+  }
+  .page-sub{
+    margin-top:10px;
+    color:var(--muted);
+    font-weight:600;
+    max-width:760px;
+  }
+  .form-card{
+    max-width:760px;
+    padding:24px;
+  }
+  .field{
+    margin-top:18px;
+  }
+  .field:first-child{
+    margin-top:0;
+  }
+  .errors{
+    margin-bottom:16px;
+    padding:14px;
+    border-radius:14px;
+    background:rgba(239,68,68,0.08);
+    border:1px solid rgba(239,68,68,0.18);
+    color:#991b1b;
+    font-weight:800;
+  }
+  .actions{
+    margin-top:24px;
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+</style>
+
+<div class="page-top">
+  <div>
+    <h1 class="page-title">{{ page_title }}</h1>
+    <div class="page-sub">Управляйте структурой архива: выбирайте отдел, родительскую папку и собирайте чистое дерево хранения.</div>
+  </div>
+
+  <a class="btn btn-ghost" href="{% url 'dms:folder_list' %}">К списку папок</a>
+</div>
+
+<div class="card form-card">
+  {% if form.non_field_errors %}
+    <div class="errors">{{ form.non_field_errors|striptags }}</div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="field">
+      <label for="{{ form.department.id_for_label }}">Отдел</label>
+      {{ form.department }}
+      {% if form.department.errors %}
+        <div class="errors" style="margin-top:10px; margin-bottom:0;">{{ form.department.errors|striptags }}</div>
+      {% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.parent.id_for_label }}">Родительская папка</label>
+      {{ form.parent }}
+      {% if form.parent.errors %}
+        <div class="errors" style="margin-top:10px; margin-bottom:0;">{{ form.parent.errors|striptags }}</div>
+      {% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.name.id_for_label }}">Название папки</label>
+      {{ form.name }}
+      {% if form.name.errors %}
+        <div class="errors" style="margin-top:10px; margin-bottom:0;">{{ form.name.errors|striptags }}</div>
+      {% endif %}
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
+      <a class="btn btn-ghost" href="{% url 'dms:folder_list' %}">Отмена</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

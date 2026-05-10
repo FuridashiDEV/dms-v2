@@ -1,0 +1,17 @@
+Django==6.0.1
+psycopg2-binary
+pgvector
+django-mptt
+qdrant-client
+pdfplumber
+pytesseract
+Pillow
+openpyxl
+xlrd
+python-docx
+python-pptx
+ollama
+gunicorn
+django-ratelimit
+sentence-transformers
+python-dotenv

@@ -1,0 +1,10 @@
+<option value="">— Без подпапки —</option>
+
+{% for subfolder in subfolders %}
+  <option value="{{ subfolder.id }}">
+    {% for _ in "x"|ljust:subfolder.level %}— {% endfor %}
+    {{ subfolder.name }}
+  </option>
+{% empty %}
+  <option value="">— Подпапок нет —</option>
+{% endfor %}

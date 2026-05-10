@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% if error %}
+
+<div style="
+  background:#fee2e2;
+  color:#991b1b;
+  padding:18px;
+  border-radius:14px;
+  font-weight:800;
+  font-size:16px;
+">
+  {{ error }}
+</div>
+
+{% else %}
+
+<h2>Доступ к документу</h2>
+
+<div class="card" style="padding:20px;">
+  <b>{{ document.title }}</b>
+  <div class="muted">{{ document.department.name }}</div>
+</div>
+
+<div class="card" style="margin-top:16px; padding:20px;">
+  <form method="post" action="{% url 'dms:document_access_manage' document.id %}">
+    {% csrf_token %}
+
+    <div>
+      {{ form.department.label_tag }}
+      {{ form.department }}
+    </div>
+
+    <div style="margin-top:12px;">
+      <button class="btn btn-primary" type="submit">
+        Выдать доступ
+      </button>
+    </div>
+  </form>
+</div>
+
+<div class="card" style="margin-top:16px; padding:20px;">
+  <h3>Кому выдан доступ</h3>
+
+  {% if granted %}
+    <table class="table">
+      <tr>
+        <th>Отдел</th>
+        <th>Кто выдал</th>
+        <th>Дата</th>
+        <th></th>
+      </tr>
+
+      {% for a in granted %}
+        <tr>
+          <td>{{ a.department.name }}</td>
+          <td>{{ a.granted_by }}</td>
+          <td>{{ a.created_at|date:"d.m.Y H:i" }}</td>
+          <td>
+            <form
+              method="post"
+              action="{% url 'dms:document_access_revoke' a.id %}"
+              onsubmit="return confirm('Отменить доступ?')"
+              style="display:inline;"
+            >
+              {% csrf_token %}
+              <button type="submit" class="btn btn-ghost">Отозвать</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <div class="muted">Доступов нет</div>
+  {% endif %}
+</div>
+
+{% endif %}
+
+{% endblock %}

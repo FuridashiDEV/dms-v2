@@ -1,0 +1,481 @@
+{% extends "base.html" %}
+{% block title %}Поиск по архиву — ИИ-архив{% endblock %}
+
+{% block content %}
+<style>
+  .hero{
+    display:grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.9fr);
+    gap:18px;
+    align-items:stretch;
+    margin-bottom:18px;
+  }
+  .hero-card{
+    padding:26px;
+    border-radius:26px;
+    border:1px solid rgba(148,163,184,0.18);
+    background:
+      radial-gradient(circle at top left, rgba(59,130,246,0.16), transparent 34%),
+      linear-gradient(135deg, #ffffff 0%, #f8fbff 55%, #eef4ff 100%);
+    box-shadow:0 18px 40px rgba(15,23,42,0.08);
+  }
+  .hero h1{
+    margin:0;
+    font-size:38px;
+    line-height:1.02;
+    letter-spacing:-0.03em;
+    font-weight:900;
+  }
+  .hero p{
+    margin:14px 0 0;
+    color:var(--muted);
+    font-size:15px;
+    line-height:1.65;
+    max-width:760px;
+    font-weight:600;
+  }
+  .hero-actions{
+    margin-top:22px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .hero-kpis{
+    display:grid;
+    gap:14px;
+  }
+  .kpi-card{
+    padding:22px;
+    border-radius:24px;
+    border:1px solid rgba(148,163,184,0.18);
+    background:#fff;
+    box-shadow:0 16px 36px rgba(15,23,42,0.08);
+  }
+  .kpi-label{
+    color:var(--muted);
+    font-weight:800;
+    font-size:13px;
+  }
+  .kpi-value{
+    margin-top:8px;
+    font-size:32px;
+    line-height:1;
+    font-weight:900;
+  }
+  .kpi-note{
+    margin-top:10px;
+    color:rgba(15,23,42,0.6);
+    font-size:13px;
+    line-height:1.5;
+    font-weight:700;
+  }
+  .search-shell{
+    display:grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap:18px;
+    align-items:start;
+  }
+  .filter-card{
+    padding:22px;
+    position:sticky;
+    top:94px;
+  }
+  .section-title{
+    margin:0;
+    font-size:20px;
+    font-weight:900;
+  }
+  .section-sub{
+    margin-top:6px;
+    color:var(--muted);
+    font-weight:600;
+    line-height:1.55;
+  }
+  .field{
+    margin-top:14px;
+  }
+  .actions{
+    margin-top:18px;
+    display:grid;
+    gap:10px;
+  }
+  .btn-wide{
+    width:100%;
+    justify-content:center;
+  }
+  .results-card{
+    padding:22px;
+  }
+  .summary-bar{
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
+  .summary-meta{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:14px;
+  }
+  .tag{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    min-height:34px;
+    padding:0 14px;
+    border-radius:999px;
+    border:1px solid rgba(148,163,184,0.24);
+    background:rgba(248,250,252,0.92);
+    color:rgba(15,23,42,0.76);
+    font-size:13px;
+    font-weight:900;
+  }
+  .tag-blue{
+    background:rgba(37,99,235,0.1);
+    border-color:rgba(37,99,235,0.18);
+    color:#1d4ed8;
+  }
+  .doc-list{
+    margin-top:18px;
+    display:grid;
+    gap:14px;
+  }
+  .doc-card{
+    padding:20px;
+    border-radius:22px;
+    border:1px solid rgba(148,163,184,0.18);
+    background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96));
+    box-shadow:0 14px 34px rgba(15,23,42,0.06);
+  }
+  .doc-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:14px;
+  }
+  .doc-title{
+    margin:0;
+    font-size:20px;
+    line-height:1.2;
+    font-weight:900;
+  }
+  .doc-title a{
+    color:inherit;
+  }
+  .doc-title a:hover{
+    color:#1d4ed8;
+  }
+  .doc-desc{
+    margin-top:10px;
+    color:rgba(15,23,42,0.62);
+    line-height:1.6;
+    font-weight:600;
+  }
+  .doc-grid{
+    margin-top:16px;
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap:12px;
+  }
+  .meta-box{
+    padding:14px 16px;
+    border-radius:18px;
+    background:rgba(248,250,252,0.88);
+    border:1px solid rgba(148,163,184,0.18);
+  }
+  .meta-label{
+    color:rgba(15,23,42,0.5);
+    font-size:12px;
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+  }
+  .meta-value{
+    margin-top:6px;
+    font-size:14px;
+    line-height:1.5;
+    font-weight:800;
+    color:rgba(15,23,42,0.88);
+  }
+  .doc-footer{
+    margin-top:18px;
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:space-between;
+    gap:14px;
+    align-items:center;
+  }
+  .doc-pills{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .status-badge{
+    display:inline-flex;
+    align-items:center;
+    min-height:32px;
+    padding:0 14px;
+    border-radius:999px;
+    font-size:13px;
+    font-weight:900;
+  }
+  .badge-status-draft{ background: rgba(148,163,184,0.16); color: #475569; }
+  .badge-status-approved{ background: rgba(34,197,94,0.13); color: #15803d; }
+  .badge-status-archived{ background: rgba(100,116,139,0.16); color: #334155; }
+  .doc-actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .empty-state{
+    margin-top:18px;
+    padding:34px 24px;
+    text-align:center;
+    border-radius:22px;
+    border:1px dashed rgba(148,163,184,0.4);
+    background:rgba(248,250,252,0.72);
+  }
+  .empty-title{
+    font-size:20px;
+    font-weight:900;
+  }
+  .empty-text{
+    margin-top:10px;
+    color:var(--muted);
+    font-weight:600;
+    line-height:1.6;
+  }
+  @media(max-width: 1100px){
+    .hero{
+      grid-template-columns: 1fr;
+    }
+    .search-shell{
+      grid-template-columns: 1fr;
+    }
+    .filter-card{
+      position:static;
+    }
+  }
+  @media(max-width: 760px){
+    .doc-grid{
+      grid-template-columns: 1fr;
+    }
+    .doc-head{
+      flex-direction:column;
+    }
+  }
+</style>
+
+<section class="hero">
+  <div class="hero-card">
+    <h1>Поиск по архиву, а не по имени файла</h1>
+    <p>
+      Страница объединяет обычный поиск по реквизитам и смысловой AI-поиск по содержимому. Для демо это самый
+      сильный экран: здесь видно, что архив не просто хранит документы, а понимает их контекст, связи и актуальность.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="{% url 'dms:document_upload' %}">Загрузить документ</a>
+      <a class="btn btn-ghost" href="{% url 'dms:folder_list' %}">Открыть архив по папкам</a>
+    </div>
+  </div>
+
+  <div class="hero-kpis">
+    <div class="kpi-card">
+      <div class="kpi-label">Найдено документов</div>
+      <div class="kpi-value">{{ result_count }}</div>
+      <div class="kpi-note">Страница собирает выдачу из фильтров, полнотекстового поиска и семантического слоя.</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Режим поиска</div>
+      <div class="kpi-value">
+        {% if search_mode == "hybrid" %}Гибридный{% elif search_mode == "semantic" %}Семантический{% elif search_mode == "text" %}Текстовый{% else %}Обзор{% endif %}
+      </div>
+      <div class="kpi-note">
+        {% if q %}
+          Запрос: «{{ q }}»
+        {% else %}
+          Откройте архив без запроса или используйте живые запросы вроде «приказ о запуске архива».
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="search-shell">
+  <form class="card filter-card" method="get">
+    <h2 class="section-title">Фильтры и запрос</h2>
+    <div class="section-sub">Для презентации удобно сочетать простой запрос со строгими архивными фильтрами.</div>
+
+    <div class="field">
+      <label for="id_q">Смысловой запрос</label>
+      <input id="id_q" type="text" name="q" value="{{ q }}" placeholder="Например: положение по академической мобильности" />
+    </div>
+
+    <div class="field">
+      <label for="id_department">Подразделение</label>
+      <select id="id_department" name="department">
+        <option value="">Все доступные отделы</option>
+        {% for department in departments %}
+          <option value="{{ department.id }}" {% if department_id == department.id|stringformat:'s' %}selected{% endif %}>
+            {% if department.level %}{% for _ in "x"|ljust:department.level %}— {% endfor %}{% endif %}{{ department.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="id_folder">Папка</label>
+      <select id="id_folder" name="folder">
+        <option value="">Все папки</option>
+        {% for folder in folders %}
+          <option value="{{ folder.id }}" {% if folder_id == folder.id|stringformat:'s' %}selected{% endif %}>
+            {% if folder.level %}{% for _ in "x"|ljust:folder.level %}— {% endfor %}{% endif %}{{ folder.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="id_doc_type">Тип документа</label>
+      <select id="id_doc_type" name="doc_type">
+        <option value="">Все типы</option>
+        {% for doc_type in doc_types %}
+          <option value="{{ doc_type.id }}" {% if doc_type_id == doc_type.id|stringformat:'s' %}selected{% endif %}>{{ doc_type.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="id_status">Статус</label>
+      <select id="id_status" name="status">
+        <option value="">Любой статус</option>
+        {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="id_date_from">Дата документа: от</label>
+      <input id="id_date_from" type="date" name="date_from" value="{{ date_from }}" />
+    </div>
+
+    <div class="field">
+      <label for="id_date_to">Дата документа: до</label>
+      <input id="id_date_to" type="date" name="date_to" value="{{ date_to }}" />
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary btn-wide" type="submit">Найти документы</button>
+      <a class="btn btn-ghost btn-wide" href="{% url 'dms:document_list' %}">Сбросить фильтры</a>
+    </div>
+  </form>
+
+  <div class="card results-card">
+    <div class="summary-bar">
+      <div>
+        <h2 class="section-title">Результаты архивного поиска</h2>
+        <div class="section-sub">На одной странице видно смысл, реквизиты, путь по папкам и статус актуальности документа.</div>
+        <div class="summary-meta">
+          <span class="tag tag-blue">
+            {% if search_mode == "hybrid" %}AI + реквизиты{% elif search_mode == "semantic" %}AI-поиск{% elif search_mode == "text" %}Полнотекстовый поиск{% else %}Обзор архива{% endif %}
+          </span>
+          {% if selected_department %}<span class="tag">Отдел: {{ selected_department.name }}</span>{% endif %}
+          {% if selected_folder %}<span class="tag">Папка: {{ selected_folder.name }}</span>{% endif %}
+          {% if selected_doc_type %}<span class="tag">Тип: {{ selected_doc_type.name }}</span>{% endif %}
+          {% if status %}<span class="tag">Статус: {{ status }}</span>{% endif %}
+        </div>
+      </div>
+      <a class="btn btn-ghost" href="{% url 'dms:document_upload' %}">Новый документ</a>
+    </div>
+
+    {% if documents %}
+      <div class="doc-list">
+        {% for doc in documents %}
+          <article class="doc-card">
+            <div class="doc-head">
+              <div>
+                <h3 class="doc-title"><a href="{% url 'dms:document_detail' doc.pk %}">{{ doc.title }}</a></h3>
+                <div class="doc-desc">
+                  {% if doc.description %}
+                    {{ doc.description }}
+                  {% else %}
+                    Описание пока не заполнено, но документ уже включен в архивную выдачу и индекс поиска.
+                  {% endif %}
+                </div>
+              </div>
+              <span class="status-badge {{ doc.status_badge }}">{{ doc.status_label }}</span>
+            </div>
+
+            <div class="doc-grid">
+              <div class="meta-box">
+                <div class="meta-label">Архивный контекст</div>
+                <div class="meta-value">
+                  {{ doc.department.name }}<br>
+                  {{ doc.folder_path }}<br>
+                  {% if doc.doc_type %}{{ doc.doc_type.name }}{% else %}Тип не указан{% endif %}
+                </div>
+              </div>
+              <div class="meta-box">
+                <div class="meta-label">Реквизиты</div>
+                <div class="meta-value">
+                  ID: {{ doc.public_id }}<br>
+                  Автор: {{ doc.document_author|default:"Не указан" }}<br>
+                  Дата документа: {{ doc.doc_date|date:"d.m.Y"|default:"Не указана" }}
+                </div>
+              </div>
+              <div class="meta-box">
+                <div class="meta-label">Сохранность</div>
+                <div class="meta-value">
+                  MIME: {{ doc.mime_type|default:"Не определен" }}<br>
+                  Риск формата: {{ doc.get_format_risk_level_display|default:"Не определен" }}<br>
+                  Source: {{ doc.source_system|default:"manual_upload" }}
+                </div>
+              </div>
+              <div class="meta-box">
+                <div class="meta-label">Жизненный цикл</div>
+                <div class="meta-value">
+                  Версий: {{ doc.version_count }}<br>
+                  Хранение: {{ doc.retention_category|default:"Не указано" }}<br>
+                  До: {{ doc.retention_until|date:"d.m.Y"|default:"Не указано" }}
+                </div>
+              </div>
+            </div>
+
+            <div class="doc-footer">
+              <div class="doc-pills">
+                <span class="tag">Загружен: {{ doc.created_at|date:"d.m.Y" }}</span>
+                {% if doc.source_file_name %}<span class="tag">Файл: {{ doc.source_file_name }}</span>{% endif %}
+                {% if doc.legal_hold %}<span class="tag tag-blue">Legal hold</span>{% endif %}
+              </div>
+
+              <div class="doc-actions">
+                <a class="btn btn-primary" href="{% url 'dms:document_detail' doc.pk %}">Карточка</a>
+                <a class="btn btn-ghost" href="{% url 'dms:document_view' doc.pk %}" target="_blank">Открыть</a>
+                <a class="btn btn-ghost" href="{% url 'dms:document_download' doc.pk %}">Скачать</a>
+                <a class="btn btn-ghost" href="{% url 'dms:document_edit' doc.pk %}">Изменить</a>
+                {% if request.user.role == "ADMIN" %}
+                  <a class="btn btn-ghost" href="{% url 'dms:document_delete' doc.pk %}">Удалить</a>
+                {% endif %}
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-title">Подходящих документов пока нет</div>
+        <div class="empty-text">
+          {% if has_active_filters %}
+            Попробуйте убрать часть фильтров или использовать более широкий смысловой запрос.
+          {% else %}
+            Архив пуст. Для демонстрации можно загрузить документы или выполнить подготовку демо-данных через management command.
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

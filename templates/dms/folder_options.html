@@ -1,0 +1,9 @@
+<option value="">— Без папки —</option>
+
+{% for folder in folders %}
+  <option value="{{ folder.id }}">
+    {{ folder.name }}
+  </option>
+{% empty %}
+  <option value="">— Папок нет —</option>
+{% endfor %}

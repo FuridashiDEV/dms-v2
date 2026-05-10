@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+
+  db:
+    image: postgres:15
+    container_name: dms_db
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  qdrant:
+    image: qdrant/qdrant
+    container_name: dms_qdrant
+    restart: always
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  web:
+    build: .
+    container_name: dms_web
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - .:/app
+      - media_data:/app/media
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - qdrant
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: db
+      QDRANT_HOST: qdrant
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  media_data:
