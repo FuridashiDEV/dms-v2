@@ -3,6 +3,7 @@ import uuid
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from mptt.models import MPTTModel, TreeForeignKey
@@ -10,6 +11,23 @@ from mptt.models import MPTTModel, TreeForeignKey
 
 DEFAULT_ORGANIZATION_SLUG = "default"
 DEFAULT_ORGANIZATION_NAME = "Default Organization"
+AUTH_USER_MODEL = settings.AUTH_USER_MODEL
+SENSITIVE_METADATA_KEY_PARTS = ("token", "secret", "password", "api_key", "apikey", "private_key", "access_key")
+
+
+def validate_no_plaintext_secrets(value):
+    if not isinstance(value, dict):
+        return
+    pending = list(value.items())
+    while pending:
+        key, item = pending.pop()
+        normalized_key = str(key).lower()
+        if any(part in normalized_key for part in SENSITIVE_METADATA_KEY_PARTS):
+            raise ValidationError("Sensitive integration credentials must not be stored in metadata.")
+        if isinstance(item, dict):
+            pending.extend(item.items())
+        elif isinstance(item, list):
+            pending.extend((str(index), nested) for index, nested in enumerate(item))
 
 
 class Organization(models.Model):
@@ -772,6 +790,9 @@ class AuditEvent(models.Model):
         EXCHANGE_REJECTED = "EXCHANGE_REJECTED", _("Document exchange rejected")
         EXCHANGE_COMMENTED = "EXCHANGE_COMMENTED", _("Document exchange commented")
         EXCHANGE_RECEIVED = "EXCHANGE_RECEIVED", _("B2B document exchange received")
+        INTEGRATION_CONNECTION_CREATED = "INTEGRATION_CONNECTION_CREATED", _("Integration connection created")
+        INTEGRATION_SYNC_JOB_CREATED = "INTEGRATION_SYNC_JOB_CREATED", _("Integration sync job created")
+        EXTERNAL_REFERENCE_LINKED = "EXTERNAL_REFERENCE_LINKED", _("External reference linked")
 
     organization = models.ForeignKey(
         Organization,
@@ -857,6 +878,9 @@ class UsageEvent(models.Model):
         WORKFLOW_ACTION = "workflow.action", _("Workflow action")
         EXCHANGE_EVENT = "exchange.event", _("Exchange event")
         EVIDENCE_EXPORTED = "evidence.exported", _("Evidence exported")
+        INTEGRATION_CONNECTION_CREATED = "integration.connection_created", _("Integration connection created")
+        INTEGRATION_SYNC_JOB_CREATED = "integration.sync_job_created", _("Integration sync job created")
+        EXTERNAL_REFERENCE_LINKED = "integration.external_reference_linked", _("External reference linked")
 
     organization = models.ForeignKey(
         Organization,
@@ -989,6 +1013,235 @@ class WebhookDelivery(models.Model):
 
     def __str__(self) -> str:
         return f"{self.event_type} -> {self.endpoint}"
+
+
+class IntegrationProvider(models.Model):
+    class ProviderType(models.TextChoices):
+        EMAIL = "email", _("Email")
+        ONE_C = "1c", _("1C")
+        GOOGLE_DRIVE = "google_drive", _("Google Drive")
+        ONEDRIVE = "onedrive", _("OneDrive")
+        SHAREPOINT = "sharepoint", _("SharePoint")
+        EXTERNAL_API = "external_api", _("External API")
+        OTHER = "other", _("Other")
+
+    code = models.SlugField(_("Code"), max_length=80, unique=True)
+    name = models.CharField(_("Name"), max_length=255)
+    provider_type = models.CharField(_("Provider type"), max_length=40, choices=ProviderType.choices, db_index=True)
+    description = models.TextField(_("Description"), blank=True, default="")
+    is_active = models.BooleanField(_("Active"), default=True, db_index=True)
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Integration provider")
+        verbose_name_plural = _("Integration providers")
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class IntegrationConnection(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", _("Draft")
+        ACTIVE = "ACTIVE", _("Active")
+        PAUSED = "PAUSED", _("Paused")
+        ERROR = "ERROR", _("Error")
+        DISABLED = "DISABLED", _("Disabled")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="integration_connections",
+        verbose_name=_("Organization"),
+    )
+    provider = models.ForeignKey(
+        IntegrationProvider,
+        on_delete=models.PROTECT,
+        related_name="connections",
+        verbose_name=_("Integration provider"),
+    )
+    name = models.CharField(_("Name"), max_length=255)
+    status = models.CharField(_("Status"), max_length=20, choices=Status.choices, default=Status.DRAFT, db_index=True)
+    credentials_metadata = models.JSONField(
+        _("Credentials metadata"),
+        default=dict,
+        blank=True,
+        validators=[validate_no_plaintext_secrets],
+    )
+    secret_ref = models.CharField(_("Secret reference"), max_length=255, blank=True, default="")
+    settings = models.JSONField(_("Settings"), default=dict, blank=True, validators=[validate_no_plaintext_secrets])
+    last_sync_at = models.DateTimeField(_("Last sync at"), null=True, blank=True)
+    created_by = models.ForeignKey(
+        AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_integration_connections",
+        verbose_name=_("Created by"),
+    )
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Integration connection")
+        verbose_name_plural = _("Integration connections")
+        ordering = ["organization__name", "provider__name", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "provider", "name"],
+                name="unique_integration_connection_name_per_provider",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["organization", "status"]),
+            models.Index(fields=["provider", "status"]),
+        ]
+
+    def clean(self):
+        super().clean()
+        validate_no_plaintext_secrets(self.credentials_metadata)
+        validate_no_plaintext_secrets(self.settings)
+        if self.secret_ref and any(part in self.secret_ref.lower() for part in ("token=", "secret=", "password=")):
+            raise ValidationError({"secret_ref": "Secret reference must point to external secret storage, not contain secret values."})
+
+    def __str__(self) -> str:
+        return f"{self.name} / {self.provider}"
+
+
+class IntegrationSyncJob(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", _("Pending")
+        RUNNING = "RUNNING", _("Running")
+        COMPLETED = "COMPLETED", _("Completed")
+        FAILED = "FAILED", _("Failed")
+        CANCELED = "CANCELED", _("Canceled")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="integration_sync_jobs",
+        verbose_name=_("Organization"),
+    )
+    connection = models.ForeignKey(
+        IntegrationConnection,
+        on_delete=models.CASCADE,
+        related_name="sync_jobs",
+        verbose_name=_("Integration connection"),
+    )
+    status = models.CharField(_("Status"), max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="started_integration_sync_jobs",
+        verbose_name=_("Started by"),
+    )
+    total_items = models.PositiveIntegerField(_("Total items"), default=0)
+    processed_items = models.PositiveIntegerField(_("Processed items"), default=0)
+    created_documents = models.PositiveIntegerField(_("Created documents"), default=0)
+    linked_references = models.PositiveIntegerField(_("Linked references"), default=0)
+    failed_items = models.PositiveIntegerField(_("Failed items"), default=0)
+    metadata = models.JSONField(_("Metadata"), default=dict, blank=True, validators=[validate_no_plaintext_secrets])
+    error_message = models.TextField(_("Error message"), blank=True, default="")
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    started_at = models.DateTimeField(_("Started at"), null=True, blank=True)
+    completed_at = models.DateTimeField(_("Completed at"), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("Integration sync job")
+        verbose_name_plural = _("Integration sync jobs")
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["organization", "-created_at"]),
+            models.Index(fields=["connection", "status", "-created_at"]),
+            models.Index(fields=["status", "-created_at"]),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.connection_id and self.organization_id and self.connection.organization_id != self.organization_id:
+            raise ValidationError("Integration sync job organization must match connection organization.")
+        validate_no_plaintext_secrets(self.metadata)
+
+    def __str__(self) -> str:
+        return f"{self.connection} / {self.status}"
+
+
+class ExternalReference(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="external_references",
+        verbose_name=_("Organization"),
+    )
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="external_references",
+        verbose_name=_("Document"),
+    )
+    provider = models.ForeignKey(
+        IntegrationProvider,
+        on_delete=models.PROTECT,
+        related_name="external_references",
+        verbose_name=_("Integration provider"),
+    )
+    connection = models.ForeignKey(
+        IntegrationConnection,
+        on_delete=models.CASCADE,
+        related_name="external_references",
+        verbose_name=_("Integration connection"),
+    )
+    sync_job = models.ForeignKey(
+        IntegrationSyncJob,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="external_references",
+        verbose_name=_("Integration sync job"),
+    )
+    external_id = models.CharField(_("External ID"), max_length=512)
+    external_type = models.CharField(_("External type"), max_length=80, blank=True, default="")
+    display_name = models.CharField(_("Display name"), max_length=255, blank=True, default="")
+    external_url = models.URLField(_("External URL"), max_length=1000, blank=True, default="")
+    metadata = models.JSONField(_("Metadata"), default=dict, blank=True, validators=[validate_no_plaintext_secrets])
+    first_seen_at = models.DateTimeField(_("First seen at"), auto_now_add=True)
+    last_seen_at = models.DateTimeField(_("Last seen at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("External reference")
+        verbose_name_plural = _("External references")
+        ordering = ["-last_seen_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["connection", "external_id"],
+                name="unique_external_reference_per_connection",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["organization", "-last_seen_at"]),
+            models.Index(fields=["document", "-last_seen_at"]),
+            models.Index(fields=["provider", "external_type"]),
+            models.Index(fields=["connection", "external_type"]),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.document_id and self.organization_id and self.document.organization_id != self.organization_id:
+            raise ValidationError("External reference organization must match document organization.")
+        if self.connection_id and self.organization_id and self.connection.organization_id != self.organization_id:
+            raise ValidationError("External reference organization must match connection organization.")
+        if self.connection_id and self.provider_id and self.connection.provider_id != self.provider_id:
+            raise ValidationError("External reference provider must match connection provider.")
+        if self.sync_job_id and self.connection_id and self.sync_job.connection_id != self.connection_id:
+            raise ValidationError("External reference sync job must match connection.")
+        validate_no_plaintext_secrets(self.metadata)
+
+    def __str__(self) -> str:
+        return f"{self.external_id} -> {self.document}"
 
 
 class ProcessingJob(models.Model):

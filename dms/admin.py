@@ -19,6 +19,10 @@ from .models import (
     ExtractedField,
     ImportBatch,
     ImportFile,
+    ExternalReference,
+    IntegrationConnection,
+    IntegrationProvider,
+    IntegrationSyncJob,
     Organization,
     OrganizationMember,
     ProcessingJob,
@@ -407,6 +411,41 @@ class WebhookDeliveryAdmin(admin.ModelAdmin):
     search_fields = ("endpoint__name", "endpoint__url", "event_type", "last_error")
     autocomplete_fields = ("organization", "endpoint", "usage_event")
     readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(IntegrationProvider)
+class IntegrationProviderAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "provider_type", "is_active", "created_at")
+    list_filter = ("provider_type", "is_active", "created_at")
+    search_fields = ("name", "code", "description")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(IntegrationConnection)
+class IntegrationConnectionAdmin(admin.ModelAdmin):
+    list_display = ("name", "organization", "provider", "status", "last_sync_at", "created_by", "created_at")
+    list_filter = ("status", "provider", "organization", "created_at")
+    search_fields = ("name", "organization__name", "provider__name", "provider__code", "secret_ref")
+    autocomplete_fields = ("organization", "provider", "created_by")
+    readonly_fields = ("created_at", "updated_at", "last_sync_at")
+
+
+@admin.register(IntegrationSyncJob)
+class IntegrationSyncJobAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "connection", "organization", "status", "processed_items", "linked_references", "failed_items")
+    list_filter = ("status", "connection__provider", "organization", "created_at")
+    search_fields = ("connection__name", "connection__provider__name", "error_message")
+    autocomplete_fields = ("organization", "connection", "started_by")
+    readonly_fields = ("created_at", "started_at", "completed_at")
+
+
+@admin.register(ExternalReference)
+class ExternalReferenceAdmin(admin.ModelAdmin):
+    list_display = ("last_seen_at", "document", "provider", "connection", "external_type", "external_id")
+    list_filter = ("provider", "connection", "external_type", "organization", "last_seen_at")
+    search_fields = ("document__title", "external_id", "display_name", "external_url")
+    autocomplete_fields = ("organization", "document", "provider", "connection", "sync_job")
+    readonly_fields = ("first_seen_at", "last_seen_at")
 
 
 @admin.register(DocumentRelation)
