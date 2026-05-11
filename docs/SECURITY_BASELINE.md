@@ -1,5 +1,7 @@
 # Security Baseline
 
+Status: foundation only
+
 This project uses incremental hardening around the existing Django DMS flows. This document records the current baseline and the boundaries intentionally left for later stages.
 
 ## Access Control
@@ -43,4 +45,5 @@ This project uses incremental hardening around the existing Django DMS flows. Th
 
 - `.env` is ignored by Git.
 - Production should set secure Django settings: HTTPS, secure cookies, strict allowed hosts, CSRF trusted origins, and external media storage policy.
-- Future stages may add SSO/SAML, real antivirus, SIEM forwarding, and compliance automation. They are intentionally out of scope for this stage.
+- Future stages may add SSO/SAML, real antivirus, SIEM forwarding, and compliance automation. They are intentionally out of scope for this baseline.
+- This document is not a SOC2, ISO, or other certification claim.
