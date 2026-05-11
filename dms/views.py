@@ -208,8 +208,15 @@ def populate_preservation_metadata(doc, uploaded_file=None):
             else detect_format_risk(doc.source_file_name or doc.file.name)
         )
 
-    if doc.file and getattr(doc.file, "path", None):
-        doc.checksum_sha256 = calculate_sha256(doc.file.path)
+    checksum_sha256 = ""
+    if uploaded_file is not None:
+        checksum_sha256 = calculate_file_sha256(uploaded_file)
+    if not checksum_sha256 and doc.file:
+        checksum_sha256 = calculate_file_sha256(doc.file)
+    if not checksum_sha256 and doc.file and getattr(doc.file, "path", None):
+        checksum_sha256 = calculate_sha256(doc.file.path)
+    if checksum_sha256:
+        doc.checksum_sha256 = checksum_sha256
 
 
 def get_status_badge_meta(status: str) -> tuple[str, str]:
@@ -766,6 +773,7 @@ from dms.services.folders import (
     attach_document_to_folder,
 )
 from dms.services.preservation import (
+    calculate_file_sha256,
     calculate_sha256,
     detect_format_risk,
     detect_mime_type,

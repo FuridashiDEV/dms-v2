@@ -106,15 +106,16 @@ class DocumentVersionAdmin(admin.ModelAdmin):
         "document",
         "number",
         "status",
+        "organization",
         "department",
         "doc_type",
         "language",
         "uploaded_by",
         "created_at",
     )
-    list_filter = ("status", "department", "doc_type", "language", "created_at")
+    list_filter = ("status", "organization", "department", "doc_type", "language", "created_at")
     search_fields = ("document__title", "title", "document_author", "uploaded_by__username", "checksum_sha256")
-    autocomplete_fields = ("document", "department", "doc_type", "folder", "uploaded_by")
+    autocomplete_fields = ("document", "organization", "department", "doc_type", "folder", "uploaded_by")
 
 
 @admin.register(DocumentRelation)

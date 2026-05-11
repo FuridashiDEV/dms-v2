@@ -439,8 +439,15 @@ class Document(models.Model):
     def create_version(self, *, uploaded_by=None):
         latest = self.latest_version
         next_number = 1 if latest is None else latest.number + 1
+        checksum_sha256 = self.checksum_sha256
+        if not checksum_sha256 and self.file:
+            from dms.services.preservation import calculate_file_sha256
+
+            checksum_sha256 = calculate_file_sha256(self.file)
+
         return DocumentVersion.objects.create(
             document=self,
+            organization=self.organization,
             number=next_number,
             title=self.title,
             description=self.description,
@@ -458,7 +465,7 @@ class Document(models.Model):
             file=self.file.name,
             source_file_name=self.source_file_name,
             mime_type=self.mime_type,
-            checksum_sha256=self.checksum_sha256,
+            checksum_sha256=checksum_sha256,
             source_system=self.source_system,
             format_risk_level=self.format_risk_level,
             uploaded_by=uploaded_by or self.uploaded_by,
@@ -471,6 +478,12 @@ class DocumentVersion(models.Model):
         on_delete=models.CASCADE,
         related_name="versions",
         verbose_name=_("Документ"),
+    )
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="document_versions",
+        verbose_name=_("Организация"),
     )
     number = models.PositiveIntegerField(_("Версия"))
     title = models.CharField(_("Название документа"), max_length=255)
@@ -589,6 +602,16 @@ class DocumentVersion(models.Model):
                 fields=["document", "number"],
                 name="unique_document_version_number",
             )
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "-created_at"],
+                name="dms_docver_org_created_idx",
+            ),
+            models.Index(
+                fields=["document", "-number"],
+                name="dms_docver_doc_number_idx",
+            ),
         ]
 
     def __str__(self) -> str:
