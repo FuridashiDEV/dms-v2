@@ -26,7 +26,7 @@ from .forms import (
     UserCreateForm,
     UserPasswordChangeForm,
 )
-from .models import Department, Document, DocumentActivity, DocumentType, DocumentVersion, Folder
+from .models import AuditEvent, Department, Document, DocumentActivity, DocumentType, DocumentVersion, Folder
 from dms.services.ai_parser import parse_document
 from dms.services.archive_intelligence import (
     build_card_quality,
@@ -35,6 +35,7 @@ from dms.services.archive_intelligence import (
     get_superseded_candidates,
 )
 from dms.services.document_indexing import delete_document_from_index, index_document
+from dms.services.audit import record_audit_event
 import tempfile
 
 from dms.services.text_extractor import extract_text_from_file
@@ -913,7 +914,7 @@ def document_upload(request):
                 doc.doc_type = dt
 
         doc.save()
-        doc.create_version(uploaded_by=user)
+        version = doc.create_version(uploaded_by=user)
 
         # =================================================
         # 5. EMBEDDING + QDRANT
@@ -937,6 +938,17 @@ def document_upload(request):
             user=user,
             document=doc,
             action=DocumentActivity.ACTION_UPLOADED,
+        )
+        record_audit_event(
+            event_type=AuditEvent.EventType.DOCUMENT_UPLOADED,
+            request=request,
+            document=doc,
+            document_version=version,
+            metadata={
+                "department_id": doc.department_id,
+                "folder_id": doc.folder_id,
+                "status": doc.status,
+            },
         )
 
         return redirect("dms:document_list")
@@ -1139,8 +1151,10 @@ def document_edit(request, pk):
         # ============================
         # СОХРАНЕНИЕ В БД
         # ============================
-        if document_snapshot_changed(original_doc, updated):
-            updated.create_version(uploaded_by=user)
+        version = None
+        snapshot_changed = document_snapshot_changed(original_doc, updated)
+        if snapshot_changed:
+            version = updated.create_version(uploaded_by=user)
 
         # ============================
         # ОБНОВЛЕНИЕ EMBEDDING / QDRANT
@@ -1154,6 +1168,18 @@ def document_edit(request, pk):
             user=user,
             document=updated,
             action=DocumentActivity.ACTION_UPDATED,
+        )
+        record_audit_event(
+            event_type=AuditEvent.EventType.DOCUMENT_UPDATED,
+            request=request,
+            document=updated,
+            document_version=version,
+            metadata={
+                "version_created": snapshot_changed,
+                "previous_status": original_doc.status,
+                "new_status": updated.status,
+                "file_changed": "file" in request.FILES,
+            },
         )
 
         return redirect("dms:document_list")
@@ -1210,6 +1236,11 @@ def document_view(request, pk):
         user=request.user,
         document=doc,
         action=DocumentActivity.ACTION_VIEWED,
+    )
+    record_audit_event(
+        event_type=AuditEvent.EventType.DOCUMENT_VIEWED,
+        request=request,
+        document=doc,
     )
 
     return FileResponse(
@@ -1358,6 +1389,11 @@ def document_download(request, pk):
         document=doc,
         action=DocumentActivity.ACTION_DOWNLOADED,
     )
+    record_audit_event(
+        event_type=AuditEvent.EventType.DOCUMENT_DOWNLOADED,
+        request=request,
+        document=doc,
+    )
 
     return FileResponse(
         doc.file.open("rb"),
@@ -1379,6 +1415,12 @@ def document_version_view(request, pk, version_pk):
     if not version.file:
         raise Http404("Файл версии не найден")
 
+    record_audit_event(
+        event_type=AuditEvent.EventType.DOCUMENT_VERSION_VIEWED,
+        request=request,
+        document_version=version,
+    )
+
     return FileResponse(
         version.file.open("rb"),
         as_attachment=False,
@@ -1398,6 +1440,12 @@ def document_version_download(request, pk, version_pk):
 
     if not version.file:
         raise Http404("Файл версии не найден")
+
+    record_audit_event(
+        event_type=AuditEvent.EventType.DOCUMENT_VERSION_DOWNLOADED,
+        request=request,
+        document_version=version,
+    )
 
     return FileResponse(
         version.file.open("rb"),
@@ -1425,9 +1473,10 @@ def _legacy_document_change_status(request, pk, status):
         return HttpResponseForbidden("Нет прав на смену статуса")
 
     if doc.status != status:
+        previous_status = doc.status
         doc.status = status
         doc.save(update_fields=["status"])
-        doc.create_version(uploaded_by=request.user)
+        version = doc.create_version(uploaded_by=request.user)
         action = {
             Document.Status.APPROVED: DocumentActivity.ACTION_UPDATED,
             Document.Status.ARCHIVED: DocumentActivity.ACTION_ARCHIVED,
@@ -1439,6 +1488,16 @@ def _legacy_document_change_status(request, pk, status):
                 document=doc,
                 action=action,
             )
+        record_audit_event(
+            event_type=AuditEvent.EventType.DOCUMENT_STATUS_CHANGED,
+            request=request,
+            document=doc,
+            document_version=version,
+            metadata={
+                "previous_status": previous_status,
+                "new_status": status,
+            },
+        )
 
     return redirect("dms:document_detail", pk=doc.pk)
 
@@ -1572,11 +1631,22 @@ def document_access_manage(request, pk):
         if form.is_valid():
             department = form.cleaned_data["department"]
 
-            DocumentAccess.objects.get_or_create(
+            access, created = DocumentAccess.objects.get_or_create(
                 document=doc,
                 department=department,
                 defaults={"granted_by": request.user}
             )
+            if created:
+                record_audit_event(
+                    event_type=AuditEvent.EventType.DOCUMENT_ACCESS_GRANTED,
+                    request=request,
+                    document=doc,
+                    metadata={
+                        "access_id": access.id,
+                        "granted_department_id": department.id,
+                        "granted_department_name": department.name,
+                    },
+                )
 
             return redirect(request.path)
 
@@ -1628,8 +1698,21 @@ def document_access_revoke(request, pk):
         if False and access.document.uploaded_by_id != request.user.id:
             return HttpResponseForbidden("Нет прав")
 
+    document = access.document
     document_id = access.document_id
+    metadata = {
+        "access_id": access.id,
+        "revoked_department_id": access.department_id,
+        "revoked_department_name": access.department.name,
+        "granted_by_id": access.granted_by_id,
+    }
     access.delete()
+    record_audit_event(
+        event_type=AuditEvent.EventType.DOCUMENT_ACCESS_REVOKED,
+        request=request,
+        document=document,
+        metadata=metadata,
+    )
 
     return redirect(
         "dms:document_access_manage",
@@ -1805,6 +1888,16 @@ def document_delete(request, pk):
         user=user,
         document=doc,
         action=DocumentActivity.ACTION_DELETED,
+    )
+    record_audit_event(
+        event_type=AuditEvent.EventType.DOCUMENT_DELETED,
+        request=request,
+        document=doc,
+        metadata={
+            "department_id": doc.department_id,
+            "folder_id": doc.folder_id,
+            "status": doc.status,
+        },
     )
 
     # ============================

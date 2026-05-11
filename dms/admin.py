@@ -3,6 +3,7 @@ from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from mptt.admin import MPTTModelAdmin
 
 from .models import (
+    AuditEvent,
     Department,
     Document,
     DocumentActivity,
@@ -98,6 +99,41 @@ class DocumentActivityAdmin(admin.ModelAdmin):
     search_fields = ("user__username", "document__title")
     date_hierarchy = "created_at"
     autocomplete_fields = ("user", "document")
+
+
+@admin.register(AuditEvent)
+class AuditEventAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "event_type",
+        "organization",
+        "user",
+        "document",
+        "document_version",
+        "ip_address",
+    )
+    list_filter = ("event_type", "organization", "created_at")
+    search_fields = (
+        "document__title",
+        "user__username",
+        "ip_address",
+        "user_agent",
+    )
+    readonly_fields = (
+        "created_at",
+        "event_type",
+        "organization",
+        "user",
+        "document",
+        "document_version",
+        "ip_address",
+        "user_agent",
+        "metadata",
+    )
+    autocomplete_fields = ("organization", "user", "document", "document_version")
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(DocumentVersion)

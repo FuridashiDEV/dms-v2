@@ -723,6 +723,90 @@ class DocumentActivity(models.Model):
     def __str__(self) -> str:
         return f"{self.user} - {self.action} - {self.document}"
 
+
+class AuditEvent(models.Model):
+    class EventType(models.TextChoices):
+        DOCUMENT_UPLOADED = "DOCUMENT_UPLOADED", _("Документ загружен")
+        DOCUMENT_UPDATED = "DOCUMENT_UPDATED", _("Документ обновлен")
+        DOCUMENT_VIEWED = "DOCUMENT_VIEWED", _("Документ просмотрен")
+        DOCUMENT_DOWNLOADED = "DOCUMENT_DOWNLOADED", _("Документ скачан")
+        DOCUMENT_VERSION_VIEWED = "DOCUMENT_VERSION_VIEWED", _("Версия документа просмотрена")
+        DOCUMENT_VERSION_DOWNLOADED = "DOCUMENT_VERSION_DOWNLOADED", _("Версия документа скачана")
+        DOCUMENT_DELETED = "DOCUMENT_DELETED", _("Документ удален")
+        DOCUMENT_ACCESS_GRANTED = "DOCUMENT_ACCESS_GRANTED", _("Доступ к документу выдан")
+        DOCUMENT_ACCESS_REVOKED = "DOCUMENT_ACCESS_REVOKED", _("Доступ к документу отозван")
+        DOCUMENT_STATUS_CHANGED = "DOCUMENT_STATUS_CHANGED", _("Статус документа изменен")
+
+    organization = models.ForeignKey(
+        Organization,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="audit_events",
+        verbose_name=_("Организация"),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="audit_events",
+        verbose_name=_("Пользователь"),
+    )
+    document = models.ForeignKey(
+        Document,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="audit_events",
+        verbose_name=_("Документ"),
+    )
+    document_version = models.ForeignKey(
+        DocumentVersion,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="audit_events",
+        verbose_name=_("Версия документа"),
+    )
+    event_type = models.CharField(
+        _("Тип события"),
+        max_length=64,
+        choices=EventType.choices,
+        db_index=True,
+    )
+    ip_address = models.GenericIPAddressField(
+        _("IP-адрес"),
+        null=True,
+        blank=True,
+    )
+    user_agent = models.TextField(
+        _("User-Agent"),
+        blank=True,
+        default="",
+    )
+    metadata = models.JSONField(
+        _("Метаданные"),
+        default=dict,
+        blank=True,
+    )
+    created_at = models.DateTimeField(_("Дата события"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Audit event")
+        verbose_name_plural = _("Audit events")
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["organization", "-created_at"]),
+            models.Index(fields=["document", "-created_at"]),
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["event_type", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.event_type} @ {self.created_at:%Y-%m-%d %H:%M:%S}"
+
+
 class DocumentAccess(models.Model):
     document = models.ForeignKey(
         "Document",
