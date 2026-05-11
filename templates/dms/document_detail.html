@@ -41,6 +41,9 @@
     <a class="btn btn-primary" href="{% url 'dms:document_edit' doc.id %}">Изменить</a>
     <a class="btn btn-ghost" href="{% url 'dms:document_view' doc.id %}" target="_blank">Открыть файл</a>
     <a class="btn btn-ghost" href="{% url 'dms:document_download' doc.id %}">Скачать</a>
+    {% if latest_processing_job and can_validate_ai %}
+      <a class="btn btn-ghost" href="{% url 'dms:document_ai_review' doc.id %}">Проверить AI-поля</a>
+    {% endif %}
   </div>
 </div>
 
@@ -79,6 +82,16 @@
     <div class="card" style="padding:22px;">
       <h2 class="section-title">AI-сводка</h2>
       <div class="section-sub">Краткое содержание документа для быстрого просмотра.</div>
+      {% if latest_processing_job %}
+        <div class="row-card" style="margin-top:16px;">
+          <div class="row-main">AI processing: {{ latest_processing_job.get_status_display }}</div>
+          <div class="row-meta">
+            {{ latest_processing_job.created_at|date:"d.m.Y H:i" }}
+            • предложений: {{ latest_processing_job.fields.count }}
+            {% if can_validate_ai %} • <a href="{% url 'dms:document_ai_review' doc.id %}">проверить поля</a>{% endif %}
+          </div>
+        </div>
+      {% endif %}
       {% if ai_summary %}
         <div style="margin-top:16px; color:rgba(15,23,42,0.84); line-height:1.7; font-weight:600;">{{ ai_summary }}</div>
       {% else %}

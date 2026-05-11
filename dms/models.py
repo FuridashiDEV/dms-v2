@@ -736,6 +736,12 @@ class AuditEvent(models.Model):
         DOCUMENT_ACCESS_GRANTED = "DOCUMENT_ACCESS_GRANTED", _("Доступ к документу выдан")
         DOCUMENT_ACCESS_REVOKED = "DOCUMENT_ACCESS_REVOKED", _("Доступ к документу отозван")
         DOCUMENT_STATUS_CHANGED = "DOCUMENT_STATUS_CHANGED", _("Статус документа изменен")
+        AI_PROCESSING_STARTED = "AI_PROCESSING_STARTED", _("AI-обработка начата")
+        AI_PROCESSING_COMPLETED = "AI_PROCESSING_COMPLETED", _("AI-обработка завершена")
+        AI_PROCESSING_FAILED = "AI_PROCESSING_FAILED", _("AI-обработка завершилась ошибкой")
+        AI_FIELD_CONFIRMED = "AI_FIELD_CONFIRMED", _("AI-поле подтверждено")
+        AI_FIELD_REJECTED = "AI_FIELD_REJECTED", _("AI-поле отклонено")
+        AI_FIELDS_APPLIED = "AI_FIELDS_APPLIED", _("AI-поля применены к документу")
 
     organization = models.ForeignKey(
         Organization,
@@ -805,6 +811,142 @@ class AuditEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.event_type} @ {self.created_at:%Y-%m-%d %H:%M:%S}"
+
+
+class ProcessingJob(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", _("Ожидает обработки")
+        RUNNING = "RUNNING", _("В обработке")
+        COMPLETED = "COMPLETED", _("Завершено")
+        FAILED = "FAILED", _("Ошибка")
+        REVIEWED = "REVIEWED", _("Проверено")
+
+    class Source(models.TextChoices):
+        UPLOAD = "UPLOAD", _("Загрузка документа")
+        MANUAL = "MANUAL", _("Ручной запуск")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="processing_jobs",
+        verbose_name=_("Организация"),
+    )
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="processing_jobs",
+        verbose_name=_("Документ"),
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_processing_jobs",
+        verbose_name=_("Инициатор"),
+    )
+    status = models.CharField(
+        _("Статус"),
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    source = models.CharField(
+        _("Источник"),
+        max_length=20,
+        choices=Source.choices,
+        default=Source.MANUAL,
+    )
+    parser_name = models.CharField(_("Parser"), max_length=100, default="ai_parser.parse_document")
+    extracted_text_length = models.PositiveIntegerField(_("Длина извлеченного текста"), default=0)
+    raw_result = models.JSONField(_("Raw AI result"), default=dict, blank=True)
+    error_message = models.TextField(_("Ошибка"), blank=True, default="")
+    created_at = models.DateTimeField(_("Дата создания"), auto_now_add=True)
+    started_at = models.DateTimeField(_("Дата старта"), null=True, blank=True)
+    completed_at = models.DateTimeField(_("Дата завершения"), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("AI processing job")
+        verbose_name_plural = _("AI processing jobs")
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["organization", "-created_at"]),
+            models.Index(fields=["document", "-created_at"]),
+            models.Index(fields=["status", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.document} / {self.status}"
+
+
+class ExtractedField(models.Model):
+    class Status(models.TextChoices):
+        SUGGESTED = "SUGGESTED", _("Предложено")
+        CONFIRMED = "CONFIRMED", _("Подтверждено")
+        REJECTED = "REJECTED", _("Отклонено")
+        APPLIED = "APPLIED", _("Применено")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="extracted_fields",
+        verbose_name=_("Организация"),
+    )
+    job = models.ForeignKey(
+        ProcessingJob,
+        on_delete=models.CASCADE,
+        related_name="fields",
+        verbose_name=_("Processing job"),
+    )
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="extracted_fields",
+        verbose_name=_("Документ"),
+    )
+    field_name = models.CharField(_("Поле"), max_length=64)
+    label = models.CharField(_("Название поля"), max_length=128)
+    value = models.TextField(_("Значение"), blank=True, default="")
+    confidence = models.DecimalField(_("Уверенность"), max_digits=4, decimal_places=2, null=True, blank=True)
+    status = models.CharField(
+        _("Статус"),
+        max_length=20,
+        choices=Status.choices,
+        default=Status.SUGGESTED,
+        db_index=True,
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reviewed_extracted_fields",
+        verbose_name=_("Проверил"),
+    )
+    reviewed_at = models.DateTimeField(_("Дата проверки"), null=True, blank=True)
+    applied_at = models.DateTimeField(_("Дата применения"), null=True, blank=True)
+    created_at = models.DateTimeField(_("Дата создания"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Дата обновления"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Extracted field")
+        verbose_name_plural = _("Extracted fields")
+        ordering = ["field_name", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["job", "field_name"],
+                name="unique_extracted_field_per_job",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["organization", "status"]),
+            models.Index(fields=["document", "status"]),
+            models.Index(fields=["job", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.document} / {self.field_name}"
 
 
 class DocumentAccess(models.Model):

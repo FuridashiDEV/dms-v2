@@ -26,7 +26,7 @@ from .forms import (
     UserCreateForm,
     UserPasswordChangeForm,
 )
-from .models import AuditEvent, Department, Document, DocumentActivity, DocumentType, DocumentVersion, Folder
+from .models import AuditEvent, Department, Document, DocumentActivity, DocumentType, DocumentVersion, ExtractedField, Folder, ProcessingJob
 from dms.services.ai_parser import parse_document
 from dms.services.archive_intelligence import (
     build_card_quality,
@@ -36,6 +36,7 @@ from dms.services.archive_intelligence import (
 )
 from dms.services.document_indexing import delete_document_from_index, index_document
 from dms.services.audit import record_audit_event
+from dms.services.ai_processing import apply_confirmed_fields, run_document_ai_processing
 import tempfile
 
 from dms.services.text_extractor import extract_text_from_file
@@ -863,11 +864,6 @@ def document_upload(request):
         extracted_text = extract_text_from_file(doc.file.path) or ""
         doc.extracted_text = extracted_text
 
-        # =================================================
-        # 4. AI
-        # =================================================
-        candidate_dates = extract_candidate_dates(extracted_text)
-
         ai_text = " ".join(filter(None, [
             doc.title,
             doc.description,
@@ -875,43 +871,15 @@ def document_upload(request):
         ])).strip()
         logger.info("Extracted text for uploaded document", extra={"text_length": len(extracted_text)})
 
-        allowed_types = set(
-            DocumentType.objects.filter(
-                organization=doc.organization,
-            ).values_list("name", flat=True)
-        )
-
-        meta = {}
         if ai_text:
-            try:
-                meta = parse_document(
-                    text=ai_text,
-                    candidate_dates=candidate_dates,
-                    allowed_doc_types=allowed_types,
-                )
-            except Exception:
-                meta = {}
-
-        if isinstance(meta, dict):
-            if not doc.title and meta.get("title_ru"):
-                doc.title = meta["title_ru"]
-
-            if not doc.description and meta.get("summary_ru"):
-                doc.description = meta["summary_ru"]
-
-            if not doc.doc_date:
-                idx = meta.get("date_index")
-                if isinstance(idx, int) and 0 <= idx < len(candidate_dates):
-                    doc.doc_date = candidate_dates[idx]
-                elif candidate_dates:
-                    doc.doc_date = candidate_dates[0]
-
-            if not doc.doc_type and meta.get("doc_type"):
-                dt, _ = DocumentType.objects.get_or_create(
-                    organization=doc.organization,
-                    name=meta["doc_type"],
-                )
-                doc.doc_type = dt
+            run_document_ai_processing(
+                document=doc,
+                text=ai_text,
+                user=user,
+                request=request,
+                source=ProcessingJob.Source.UPLOAD,
+                parser=parse_document,
+            )
 
         doc.save()
         version = doc.create_version(uploaded_by=user)
@@ -1304,6 +1272,14 @@ def get_similar_documents_for_user(doc, user, limit: int = 4):
     return list(queryset.order_by("-doc_date", "-id")[:limit])
 
 
+def can_validate_ai_fields(user, doc) -> bool:
+    if user.role == "ADMIN":
+        return True
+    if doc.uploaded_by_id == user.id:
+        return True
+    return bool(user.department_id and doc.department_id == user.department_id)
+
+
 @login_required
 def document_detail(request, pk):
     doc = get_object_or_404(
@@ -1344,6 +1320,12 @@ def document_detail(request, pk):
     preview_kind = get_document_preview_kind(doc.file.name if doc.file else "")
     ai_summary = build_document_ai_summary(doc)
     similar_documents = get_similar_documents_for_user(doc, request.user)
+    latest_processing_job = (
+        doc.processing_jobs
+        .prefetch_related("fields")
+        .order_by("-created_at")
+        .first()
+    )
 
     return render(
         request,
@@ -1363,6 +1345,94 @@ def document_detail(request, pk):
             "preview_kind": preview_kind,
             "ai_summary": ai_summary,
             "similar_documents": similar_documents,
+            "latest_processing_job": latest_processing_job,
+            "can_validate_ai": can_validate_ai_fields(request.user, doc),
+        },
+    )
+
+
+@login_required
+def document_ai_review(request, pk):
+    doc = get_object_or_404(
+        get_allowed_documents(request.user)
+        .select_related("organization", "department", "doc_type", "uploaded_by"),
+        pk=pk,
+    )
+
+    if not user_can_access_document(request.user, doc):
+        return HttpResponseForbidden("Нет доступа к документу")
+    if not can_validate_ai_fields(request.user, doc):
+        return HttpResponseForbidden("Нет прав на проверку AI-полей")
+
+    job = (
+        doc.processing_jobs
+        .prefetch_related("fields")
+        .order_by("-created_at")
+        .first()
+    )
+    if job is None:
+        messages.error(request, "Для документа пока нет AI-обработки.")
+        return redirect("dms:document_detail", pk=doc.pk)
+
+    if request.method == "POST":
+        fields = list(job.fields.all())
+        for field in fields:
+            old_status = field.status
+            field.value = request.POST.get(f"field_{field.id}", field.value).strip()
+            decision = request.POST.get(f"decision_{field.id}", "keep")
+            if decision == "confirm":
+                field.status = ExtractedField.Status.CONFIRMED
+            elif decision == "reject":
+                field.status = ExtractedField.Status.REJECTED
+
+            if field.status != old_status:
+                field.reviewed_by = request.user
+                field.reviewed_at = timezone.now()
+                field.save(update_fields=["value", "status", "reviewed_by", "reviewed_at", "updated_at"])
+                event_type = (
+                    AuditEvent.EventType.AI_FIELD_CONFIRMED
+                    if field.status == ExtractedField.Status.CONFIRMED
+                    else AuditEvent.EventType.AI_FIELD_REJECTED
+                )
+                record_audit_event(
+                    event_type=event_type,
+                    request=request,
+                    document=doc,
+                    metadata={
+                        "processing_job_id": job.id,
+                        "extracted_field_id": field.id,
+                        "field_name": field.field_name,
+                    },
+                )
+            else:
+                field.save(update_fields=["value", "updated_at"])
+
+        if request.POST.get("action") == "apply":
+            try:
+                applied_fields = apply_confirmed_fields(
+                    job=job,
+                    user=request.user,
+                    request=request,
+                )
+            except ValueError as exc:
+                messages.error(request, f"Не удалось применить AI-поля: {exc}")
+            else:
+                if applied_fields:
+                    messages.success(request, "Подтвержденные AI-поля применены к документу.")
+                else:
+                    messages.info(request, "Нет подтвержденных AI-полей для применения.")
+            return redirect("dms:document_detail", pk=doc.pk)
+
+        messages.success(request, "Решения по AI-полям сохранены.")
+        return redirect("dms:document_ai_review", pk=doc.pk)
+
+    return render(
+        request,
+        "dms/document_ai_review.html",
+        {
+            "doc": doc,
+            "job": job,
+            "fields": job.fields.all(),
         },
     )
 

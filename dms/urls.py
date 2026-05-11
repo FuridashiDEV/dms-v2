@@ -13,6 +13,7 @@ urlpatterns = [
     path("documents/<int:pk>/", views.document_detail, name="document_detail"),
     path("documents/upload/", views.document_upload, name="document_upload"),
     path("documents/<int:pk>/edit/", views.document_edit, name="document_edit"),
+    path("documents/<int:pk>/ai-review/", views.document_ai_review, name="document_ai_review"),
     path("users/create/", views.user_create, name="user_create"),
     path("documents/<int:pk>/view/", views.document_view, name="document_view"),
     path("documents/<int:pk>/download/", views.document_download, name="document_download"),

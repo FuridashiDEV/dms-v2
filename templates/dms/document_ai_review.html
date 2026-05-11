@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}AI-проверка - {{ doc.title }}{% endblock %}
+
+{% block content %}
+<style>
+  .page-top { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin:10px 0 18px; }
+  .page-title { margin:0; font-size:32px; font-weight:900; }
+  .page-sub { margin-top:10px; color:var(--muted); font-weight:600; max-width:820px; }
+  .top-actions { display:flex; gap:12px; flex-wrap:wrap; }
+  .section-title { margin:0; font-size:18px; font-weight:900; }
+  .section-sub { margin-top:6px; color:var(--muted); font-weight:600; }
+  .review-table { width:100%; border-collapse:separate; border-spacing:0 10px; margin-top:18px; }
+  .review-table th { text-align:left; font-size:12px; text-transform:uppercase; color:var(--muted); letter-spacing:.04em; padding:0 12px; }
+  .review-row { background:#fff; border:1px solid rgba(148,163,184,.22); }
+  .review-row td { padding:12px; vertical-align:top; border-top:1px solid rgba(148,163,184,.22); border-bottom:1px solid rgba(148,163,184,.22); }
+  .review-row td:first-child { border-left:1px solid rgba(148,163,184,.22); border-radius:12px 0 0 12px; }
+  .review-row td:last-child { border-right:1px solid rgba(148,163,184,.22); border-radius:0 12px 12px 0; }
+  .field-name { font-weight:900; color:rgba(15,23,42,.92); }
+  .field-meta { margin-top:6px; color:rgba(15,23,42,.56); font-size:13px; font-weight:700; }
+  .value-input { width:100%; min-height:42px; border:1px solid rgba(148,163,184,.35); border-radius:10px; padding:10px 12px; font:inherit; resize:vertical; }
+  .decision-group { display:grid; gap:8px; font-weight:800; color:rgba(15,23,42,.78); }
+  .decision-group label { display:flex; gap:8px; align-items:center; }
+  .actions { display:flex; gap:12px; flex-wrap:wrap; margin-top:18px; }
+  @media(max-width:860px){ .page-top{flex-direction:column;} .review-table,.review-table tbody,.review-table tr,.review-table td{display:block;width:100%;} .review-table thead{display:none;} .review-row td{border-left:1px solid rgba(148,163,184,.22);border-right:1px solid rgba(148,163,184,.22);border-radius:0;} .review-row td:first-child{border-radius:12px 12px 0 0;} .review-row td:last-child{border-radius:0 0 12px 12px;} }
+</style>
+
+<div class="page-top">
+  <div>
+    <h1 class="page-title">Проверка AI-полей</h1>
+    <div class="page-sub">AI-предложения сохраняются отдельно от карточки документа. Изменения попадут в документ только после подтверждения и применения.</div>
+  </div>
+  <div class="top-actions">
+    <a class="btn btn-ghost" href="{% url 'dms:document_detail' doc.id %}">К карточке</a>
+  </div>
+</div>
+
+<div class="card" style="padding:22px;">
+  <h2 class="section-title">Processing job #{{ job.id }}</h2>
+  <div class="section-sub">{{ job.get_status_display }} • {{ job.created_at|date:"d.m.Y H:i" }} • {{ job.get_source_display }}</div>
+
+  <form method="post">
+    {% csrf_token %}
+    <table class="review-table">
+      <thead>
+        <tr>
+          <th>Поле</th>
+          <th>AI-значение</th>
+          <th>Решение</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for field in fields %}
+          <tr class="review-row">
+            <td>
+              <div class="field-name">{{ field.label }}</div>
+              <div class="field-meta">{{ field.field_name }} • {{ field.get_status_display }}</div>
+            </td>
+            <td>
+              <textarea class="value-input" name="field_{{ field.id }}" rows="2">{{ field.value }}</textarea>
+            </td>
+            <td>
+              <div class="decision-group">
+                <label><input type="radio" name="decision_{{ field.id }}" value="keep" {% if field.status == "SUGGESTED" or field.status == "APPLIED" %}checked{% endif %}> Без изменений</label>
+                <label><input type="radio" name="decision_{{ field.id }}" value="confirm" {% if field.status == "CONFIRMED" %}checked{% endif %}> Подтвердить</label>
+                <label><input type="radio" name="decision_{{ field.id }}" value="reject" {% if field.status == "REJECTED" %}checked{% endif %}> Отклонить</label>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr class="review-row">
+            <td colspan="3">
+              <div class="field-name">AI-предложений пока нет</div>
+              <div class="field-meta">Pipeline завершился без полей, которые можно применить к документу.</div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="actions">
+      <button class="btn btn-ghost" type="submit" name="action" value="save">Сохранить решения</button>
+      <button class="btn btn-primary" type="submit" name="action" value="apply">Применить подтверждённые</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

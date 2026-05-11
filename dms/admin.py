@@ -11,8 +11,10 @@ from .models import (
     DocumentType,
     DocumentVersion,
     Folder,
+    ExtractedField,
     Organization,
     OrganizationMember,
+    ProcessingJob,
     User,
 )
 from .forms import UserAdminChangeForm
@@ -152,6 +154,38 @@ class DocumentVersionAdmin(admin.ModelAdmin):
     list_filter = ("status", "organization", "department", "doc_type", "language", "created_at")
     search_fields = ("document__title", "title", "document_author", "uploaded_by__username", "checksum_sha256")
     autocomplete_fields = ("document", "organization", "department", "doc_type", "folder", "uploaded_by")
+
+
+@admin.register(ProcessingJob)
+class ProcessingJobAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "document",
+        "organization",
+        "status",
+        "source",
+        "created_by",
+        "completed_at",
+    )
+    list_filter = ("status", "source", "organization", "created_at")
+    search_fields = ("document__title", "created_by__username", "error_message")
+    readonly_fields = ("raw_result", "error_message", "created_at", "started_at", "completed_at")
+    autocomplete_fields = ("organization", "document", "created_by")
+
+
+@admin.register(ExtractedField)
+class ExtractedFieldAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "document",
+        "field_name",
+        "status",
+        "reviewed_by",
+        "reviewed_at",
+    )
+    list_filter = ("status", "field_name", "organization", "created_at")
+    search_fields = ("document__title", "field_name", "value", "reviewed_by__username")
+    autocomplete_fields = ("organization", "job", "document", "reviewed_by")
 
 
 @admin.register(DocumentRelation)
