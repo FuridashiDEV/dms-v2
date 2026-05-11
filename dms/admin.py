@@ -25,7 +25,10 @@ from .models import (
     IntegrationSyncJob,
     Organization,
     OrganizationMember,
+    Plan,
+    PlanQuota,
     ProcessingJob,
+    Subscription,
     UsageEvent,
     User,
     WebhookDelivery,
@@ -393,6 +396,37 @@ class UsageEventAdmin(admin.ModelAdmin):
     search_fields = ("event_type", "source", "document__title", "user__username")
     autocomplete_fields = ("organization", "document", "user")
     readonly_fields = ("created_at",)
+
+
+class PlanQuotaInline(admin.TabularInline):
+    model = PlanQuota
+    extra = 0
+
+
+@admin.register(Plan)
+class PlanAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "billing_interval", "price_amount", "currency", "is_active", "created_at")
+    list_filter = ("billing_interval", "currency", "is_active")
+    search_fields = ("name", "code", "description")
+    readonly_fields = ("created_at", "updated_at")
+    inlines = (PlanQuotaInline,)
+
+
+@admin.register(Subscription)
+class SubscriptionAdmin(admin.ModelAdmin):
+    list_display = ("organization", "plan", "status", "current_period_start", "current_period_end", "is_default")
+    list_filter = ("status", "plan", "is_default", "current_period_end")
+    search_fields = ("organization__name", "organization__slug", "plan__name", "plan__code")
+    autocomplete_fields = ("organization", "plan", "created_by")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(PlanQuota)
+class PlanQuotaAdmin(admin.ModelAdmin):
+    list_display = ("plan", "usage_event_type", "limit", "is_unlimited")
+    list_filter = ("plan", "usage_event_type", "is_unlimited")
+    search_fields = ("plan__name", "plan__code", "usage_event_type")
+    autocomplete_fields = ("plan",)
 
 
 @admin.register(WebhookEndpoint)

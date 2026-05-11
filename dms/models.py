@@ -793,6 +793,7 @@ class AuditEvent(models.Model):
         INTEGRATION_CONNECTION_CREATED = "INTEGRATION_CONNECTION_CREATED", _("Integration connection created")
         INTEGRATION_SYNC_JOB_CREATED = "INTEGRATION_SYNC_JOB_CREATED", _("Integration sync job created")
         EXTERNAL_REFERENCE_LINKED = "EXTERNAL_REFERENCE_LINKED", _("External reference linked")
+        BILLING_SUBSCRIPTION_CREATED = "BILLING_SUBSCRIPTION_CREATED", _("Billing subscription created")
 
     organization = models.ForeignKey(
         Organization,
@@ -923,6 +924,124 @@ class UsageEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.event_type} / {self.organization}"
+
+
+class Plan(models.Model):
+    class BillingInterval(models.TextChoices):
+        MANUAL = "manual", _("Manual")
+        MONTHLY = "monthly", _("Monthly")
+        YEARLY = "yearly", _("Yearly")
+
+    code = models.SlugField(_("Code"), max_length=80, unique=True)
+    name = models.CharField(_("Name"), max_length=255)
+    description = models.TextField(_("Description"), blank=True, default="")
+    billing_interval = models.CharField(
+        _("Billing interval"),
+        max_length=20,
+        choices=BillingInterval.choices,
+        default=BillingInterval.MANUAL,
+    )
+    price_amount = models.DecimalField(_("Price amount"), max_digits=12, decimal_places=2, default=0)
+    currency = models.CharField(_("Currency"), max_length=3, default="KZT")
+    is_active = models.BooleanField(_("Active"), default=True, db_index=True)
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Plan")
+        verbose_name_plural = _("Plans")
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class PlanQuota(models.Model):
+    plan = models.ForeignKey(
+        Plan,
+        on_delete=models.CASCADE,
+        related_name="quotas",
+        verbose_name=_("Plan"),
+    )
+    usage_event_type = models.CharField(
+        _("Usage event type"),
+        max_length=80,
+        choices=UsageEvent.EventType.choices,
+        db_index=True,
+    )
+    limit = models.PositiveIntegerField(_("Limit"), default=0)
+    is_unlimited = models.BooleanField(_("Unlimited"), default=False)
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Plan quota")
+        verbose_name_plural = _("Plan quotas")
+        ordering = ["plan__name", "usage_event_type"]
+        constraints = [
+            models.UniqueConstraint(fields=["plan", "usage_event_type"], name="unique_plan_quota_per_event_type"),
+        ]
+        indexes = [
+            models.Index(fields=["plan", "usage_event_type"]),
+        ]
+
+    def effective_limit(self) -> int | None:
+        if self.is_unlimited:
+            return None
+        return self.limit
+
+    def __str__(self) -> str:
+        if self.is_unlimited:
+            return f"{self.plan} / {self.usage_event_type} / unlimited"
+        return f"{self.plan} / {self.usage_event_type} / {self.limit}"
+
+
+class Subscription(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", _("Active")
+        TRIALING = "TRIALING", _("Trialing")
+        PAUSED = "PAUSED", _("Paused")
+        CANCELED = "CANCELED", _("Canceled")
+        EXPIRED = "EXPIRED", _("Expired")
+
+    organization = models.OneToOneField(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="subscription",
+        verbose_name=_("Organization"),
+    )
+    plan = models.ForeignKey(
+        Plan,
+        on_delete=models.PROTECT,
+        related_name="subscriptions",
+        verbose_name=_("Plan"),
+    )
+    status = models.CharField(_("Status"), max_length=20, choices=Status.choices, default=Status.ACTIVE, db_index=True)
+    current_period_start = models.DateField(_("Current period start"), null=True, blank=True)
+    current_period_end = models.DateField(_("Current period end"), null=True, blank=True)
+    is_default = models.BooleanField(_("Default subscription"), default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_subscriptions",
+        verbose_name=_("Created by"),
+    )
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Subscription")
+        verbose_name_plural = _("Subscriptions")
+        ordering = ["organization__name"]
+        indexes = [
+            models.Index(fields=["plan", "status"]),
+            models.Index(fields=["status", "current_period_end"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.organization} / {self.plan}"
 
 
 class WebhookEndpoint(models.Model):
