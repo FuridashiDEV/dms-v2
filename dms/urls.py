@@ -5,6 +5,7 @@ app_name = "dms"
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
+    path("analytics/", views.analytics_dashboard, name="analytics_dashboard"),
     path("usage/", views.usage_dashboard, name="usage_dashboard"),
     path("folders/", views.folder_list, name="folder_list"),
     path("folders/create/", views.folder_create, name="folder_create"),

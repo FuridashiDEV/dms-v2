@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics{% endblock %}
+
+{% block content %}
+<style>
+  .analytics-top { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; margin:10px 0 18px; }
+  .analytics-title { margin:0; font-size:32px; font-weight:900; letter-spacing:-0.02em; }
+  .analytics-sub { margin-top:8px; color:var(--muted); font-weight:650; line-height:1.6; }
+  .analytics-filters { display:grid; grid-template-columns:repeat(4, minmax(140px, 1fr)); gap:12px; align-items:end; margin-bottom:18px; }
+  .analytics-grid { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; margin-bottom:18px; }
+  .analytics-card { padding:16px; border:1px solid rgba(148,163,184,.24); border-radius:14px; background:#fff; }
+  .analytics-label { color:rgba(15,23,42,.58); font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+  .analytics-value { margin-top:8px; font-size:28px; font-weight:900; color:rgba(15,23,42,.94); }
+  .analytics-section { margin-top:18px; }
+  .analytics-row { display:flex; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid var(--border); }
+  .analytics-row:last-child { border-bottom:0; }
+  .analytics-main { font-weight:850; }
+  .analytics-meta { color:var(--muted); font-size:13px; font-weight:700; }
+  @media(max-width:960px){ .analytics-top{display:grid;} .analytics-grid{grid-template-columns:repeat(2, minmax(0, 1fr));} .analytics-filters{grid-template-columns:1fr 1fr;} }
+  @media(max-width:640px){ .analytics-grid,.analytics-filters{grid-template-columns:1fr;} }
+</style>
+
+<div class="analytics-top">
+  <div>
+    <h1 class="analytics-title">Analytics</h1>
+    <div class="analytics-sub">
+      Internal product analytics from existing DMS data and UsageEvent records.
+    </div>
+  </div>
+  <div class="top-actions">
+    <a class="btn btn-ghost" href="{% url 'dms:dashboard' %}">Dashboard</a>
+  </div>
+</div>
+
+<form method="get" class="card analytics-filters">
+  <div>
+    <label for="start">Start</label>
+    <input id="start" type="date" name="start" value="{{ date_range.start|date:'Y-m-d' }}">
+  </div>
+  <div>
+    <label for="end">End</label>
+    <input id="end" type="date" name="end" value="{{ date_range.end|date:'Y-m-d' }}">
+  </div>
+  <div>
+    <label for="organization">Organization</label>
+    <select id="organization" name="organization">
+      {% for organization in allowed_organizations %}
+        <option value="{{ organization.id }}" {% if selected_organization and organization.id == selected_organization.id %}selected{% endif %}>{{ organization.name }}</option>
+      {% endfor %}
+      {% if is_platform_view and selected_organization and selected_organization not in allowed_organizations %}
+        <option value="{{ selected_organization.id }}" selected>{{ selected_organization.name }}</option>
+      {% endif %}
+    </select>
+  </div>
+  <div>
+    <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Apply</button>
+  </div>
+</form>
+
+{% if platform_metrics %}
+  <div class="card analytics-section">
+    <h2 class="section-title">Platform metrics</h2>
+    <div class="analytics-grid">
+      <div class="analytics-card"><div class="analytics-label">Active orgs</div><div class="analytics-value">{{ platform_metrics.active_organizations }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Orgs with usage</div><div class="analytics-value">{{ platform_metrics.organizations_with_usage }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Documents</div><div class="analytics-value">{{ platform_metrics.documents_uploaded }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">AI processed</div><div class="analytics-value">{{ platform_metrics.ai_documents_processed }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">AI fields reviewed</div><div class="analytics-value">{{ platform_metrics.ai_fields_confirmed }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Workflow started</div><div class="analytics-value">{{ platform_metrics.workflow_started }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Sent to counterparties</div><div class="analytics-value">{{ platform_metrics.documents_sent_to_counterparties }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Evidence exports</div><div class="analytics-value">{{ platform_metrics.evidence_exports }}</div></div>
+    </div>
+  </div>
+{% endif %}
+
+{% if organization_metrics %}
+  <div class="card analytics-section">
+    <h2 class="section-title">Organization metrics: {{ organization_metrics.organization.name }}</h2>
+    <div class="analytics-grid">
+      <div class="analytics-card"><div class="analytics-label">Documents uploaded</div><div class="analytics-value">{{ organization_metrics.documents_uploaded }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Total documents</div><div class="analytics-value">{{ organization_metrics.documents_total }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">AI processed</div><div class="analytics-value">{{ organization_metrics.ai_documents_processed }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">AI fields reviewed</div><div class="analytics-value">{{ organization_metrics.ai_fields_confirmed }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Workflow started</div><div class="analytics-value">{{ organization_metrics.workflow_started }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Workflow completed</div><div class="analytics-value">{{ organization_metrics.workflow_completed }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Counterparty sends</div><div class="analytics-value">{{ organization_metrics.documents_sent_to_counterparties }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Counterparties</div><div class="analytics-value">{{ organization_metrics.counterparties_created }}</div></div>
+    </div>
+  </div>
+
+  <div class="card analytics-section">
+    <h2 class="section-title">Usage by event</h2>
+    {% for item in organization_metrics.usage_summary %}
+      <div class="analytics-row">
+        <div>
+          <div class="analytics-main">{{ item.event_type }}</div>
+          <div class="analytics-meta">{{ item.events }} events</div>
+        </div>
+        <div class="analytics-main">{{ item.quantity|default:0 }}</div>
+      </div>
+    {% empty %}
+      <div class="analytics-row"><div class="analytics-main">No usage events in this period</div></div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% if platform_metrics %}
+  <div class="card analytics-section">
+    <h2 class="section-title">Organizations using product</h2>
+    {% for row in platform_metrics.organization_rows %}
+      <div class="analytics-row">
+        <div>
+          <div class="analytics-main">{{ row.organization.name }}</div>
+          <div class="analytics-meta">{{ row.documents_uploaded }} documents uploaded</div>
+        </div>
+        <div class="analytics-main">{{ row.usage_quantity }}</div>
+      </div>
+    {% empty %}
+      <div class="analytics-row"><div class="analytics-main">No organization usage in this period</div></div>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

@@ -34,7 +34,7 @@ from .forms import (
     WorkflowActionForm,
     WorkflowStartForm,
 )
-from .models import AuditEvent, Counterparty, Department, Document, DocumentActivity, DocumentExchange, DocumentType, DocumentVersion, ExchangeEvent, ExtractedField, Folder, ImportBatch, ProcessingJob, UsageEvent, WebhookDelivery, WorkflowInstance
+from .models import AuditEvent, Counterparty, Department, Document, DocumentActivity, DocumentExchange, DocumentType, DocumentVersion, ExchangeEvent, ExtractedField, Folder, ImportBatch, Organization, ProcessingJob, UsageEvent, WebhookDelivery, WorkflowInstance
 from dms.services.ai_parser import parse_document
 from dms.services.archive_intelligence import (
     build_card_quality,
@@ -45,6 +45,7 @@ from dms.services.archive_intelligence import (
 from dms.services.document_indexing import delete_document_from_index, index_document
 from dms.services.audit import record_audit_event
 from dms.services.ai_processing import apply_confirmed_fields, run_document_ai_processing
+from dms.services.analytics import build_organization_metrics, build_platform_metrics, parse_date_range
 from dms.services.document_creation import create_document_from_uploaded_file
 from dms.services.evidence import build_document_evidence_package
 from dms.services.security import protected_file_response
@@ -592,6 +593,50 @@ def usage_dashboard(request):
             "usage_events": usage_events,
             "usage_summary": usage_summary,
             "webhook_deliveries": webhook_deliveries,
+        },
+    )
+
+
+@login_required
+def analytics_dashboard(request):
+    date_range = parse_date_range(request.GET)
+    if request.user.is_superuser:
+        allowed_organizations = Organization.objects.filter(is_active=True).order_by("name", "id")
+    else:
+        allowed_organizations = get_user_organizations(request.user).order_by("name", "id")
+    selected_organization = None
+    organization_metrics = None
+    platform_metrics = None
+
+    if request.user.is_superuser:
+        platform_metrics = build_platform_metrics(date_range)
+        selected_organization_id = request.GET.get("organization")
+        if selected_organization_id:
+            selected_organization = get_object_or_404(Organization, id=selected_organization_id, is_active=True)
+        else:
+            selected_organization = allowed_organizations.first() or Organization.objects.filter(is_active=True).order_by("name", "id").first()
+    else:
+        selected_organization_id = request.GET.get("organization")
+        if selected_organization_id:
+            selected_organization = get_object_or_404(allowed_organizations, id=selected_organization_id)
+        else:
+            selected_organization = allowed_organizations.first()
+
+    if selected_organization is not None:
+        if not request.user.is_superuser and not allowed_organizations.filter(id=selected_organization.id).exists():
+            raise Http404
+        organization_metrics = build_organization_metrics(selected_organization, date_range)
+
+    return render(
+        request,
+        "dms/analytics_dashboard.html",
+        {
+            "date_range": date_range,
+            "allowed_organizations": allowed_organizations,
+            "selected_organization": selected_organization,
+            "organization_metrics": organization_metrics,
+            "platform_metrics": platform_metrics,
+            "is_platform_view": request.user.is_superuser,
         },
     )
 
