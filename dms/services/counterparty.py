@@ -129,11 +129,11 @@ def ensure_counterparty_contact(
     )
 
 
-def _build_portal_url(request, token: str) -> str:
-    path = reverse("dms:counterparty_portal", args=[token])
+def _portal_metadata(request) -> dict:
+    path = reverse("dms:counterparty_portal", args=["[redacted]"])
     if request is None:
-        return path
-    return request.build_absolute_uri(path)
+        return {"portal_path": path}
+    return {"portal_path": request.build_absolute_uri(path)}
 
 
 def _audit_event_type(event_type: str) -> str | None:
@@ -269,7 +269,7 @@ def create_document_exchange(
         actor_name=getattr(user, "get_full_name", lambda: "")() or getattr(user, "username", ""),
         actor_email=getattr(user, "email", ""),
         comment=message,
-        metadata={"portal_url": _build_portal_url(request, token)},
+        metadata=_portal_metadata(request),
     )
     if message:
         record_exchange_message(

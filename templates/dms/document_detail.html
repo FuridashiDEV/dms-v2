@@ -394,7 +394,6 @@
               {{ exchange.created_at|date:"d.m.Y H:i" }}
               {% if exchange.sent_by %} вЂў {{ exchange.sent_by.get_full_name|default:exchange.sent_by.username }}{% endif %}
               {% if exchange.expires_at %} вЂў expires {{ exchange.expires_at|date:"d.m.Y H:i" }}{% endif %}
-              {% if exchange.token_hint %} вЂў token ...{{ exchange.token_hint }}{% endif %}
             </div>
             <div class="stack" style="margin-top:12px;">
               {% for exchange_message in exchange.messages.all %}

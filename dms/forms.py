@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.utils.html import strip_tags
 
 from .models import Counterparty, CounterpartyContact, Department, Document, DocumentExchange, DocumentType, Folder, OrganizationMember, WorkflowTemplate
+from .services.security import validate_upload_security
 from .utils import get_allowed_departments, get_user_organizations
 
 
@@ -83,6 +84,12 @@ def validate_uploaded_file(uploaded_file):
     extension = os.path.splitext(uploaded_file.name.lower())[1]
     if extension in DISALLOWED_FILE_EXTENSIONS:
         raise ValidationError("Этот тип файла запрещен для загрузки.")
+
+    validate_upload_security(
+        uploaded_file,
+        disallowed_extensions=DISALLOWED_FILE_EXTENSIONS,
+        max_file_mb=MAX_FILE_MB,
+    )
 
     return uploaded_file
 

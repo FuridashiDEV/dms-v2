@@ -47,6 +47,7 @@ from dms.services.audit import record_audit_event
 from dms.services.ai_processing import apply_confirmed_fields, run_document_ai_processing
 from dms.services.document_creation import create_document_from_uploaded_file
 from dms.services.evidence import build_document_evidence_package
+from dms.services.security import protected_file_response
 from dms.services.usage import record_usage_event
 from dms.services.counterparty import (
     ExchangeError,
@@ -1155,7 +1156,7 @@ def document_edit(request, pk):
                 ),
             )
 
-        original_doc = Document.objects.get(pk=doc.pk)
+        original_doc = get_object_or_404(get_allowed_documents(user), pk=doc.pk)
         updated = form.save(commit=False)
         updated.organization = updated.department.organization
 
@@ -1311,10 +1312,7 @@ def document_view(request, pk):
         document=doc,
     )
 
-    return FileResponse(
-        doc.file.open("rb"),
-        as_attachment=False,
-    )
+    return protected_file_response(doc.file, as_attachment=False)
 
 
 def get_document_preview_kind(file_name: str) -> str:
@@ -1914,7 +1912,7 @@ def counterparty_portal_download(request, token):
     if exchange.status == DocumentExchange.Status.SENT:
         exchange = mark_exchange_opened(exchange=exchange, request=request)
     record_exchange_download(exchange=exchange, request=request)
-    return FileResponse(exchange.document.file.open("rb"), as_attachment=True)
+    return protected_file_response(exchange.document.file, as_attachment=True)
 
 
 @login_required
@@ -2031,10 +2029,7 @@ def document_download(request, pk):
         document=doc,
     )
 
-    return FileResponse(
-        doc.file.open("rb"),
-        as_attachment=True,
-    )
+    return protected_file_response(doc.file, as_attachment=True)
 
 
 @login_required
@@ -2057,10 +2052,7 @@ def document_version_view(request, pk, version_pk):
         document_version=version,
     )
 
-    return FileResponse(
-        version.file.open("rb"),
-        as_attachment=False,
-    )
+    return protected_file_response(version.file, as_attachment=False)
 
 
 @login_required
@@ -2083,10 +2075,7 @@ def document_version_download(request, pk, version_pk):
         document_version=version,
     )
 
-    return FileResponse(
-        version.file.open("rb"),
-        as_attachment=True,
-    )
+    return protected_file_response(version.file, as_attachment=True)
 
 
 @login_required
