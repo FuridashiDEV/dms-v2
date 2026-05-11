@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.shortcuts import redirect
 
+from dms.health import health_check
 from dms.views import CustomLoginView, logout_view
 
 
@@ -14,6 +15,7 @@ urlpatterns = [
     path("accounts/login/", accounts_login_redirect),
 
     path("admin/", admin.site.urls),
+    path("health/", health_check, name="health_check"),
 
     path("login/", CustomLoginView.as_view(), name="login"),
     path("logout/", logout_view, name="logout"),

@@ -36,6 +36,13 @@ def env_list(name: str, default: list[str]) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+def env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    return int(raw)
+
+
 DEBUG = env_bool("DJANGO_DEBUG", False)
 DEBUG_PROPAGATE_EXCEPTIONS = DEBUG
 
@@ -64,15 +71,17 @@ SESSION_COOKIE_AGE = int(os.getenv("DJANGO_SESSION_COOKIE_AGE", "1800"))
 SESSION_EXPIRE_AT_BROWSER_CLOSE = env_bool("DJANGO_SESSION_EXPIRE_AT_BROWSER_CLOSE", True)
 SESSION_SAVE_EVERY_REQUEST = env_bool("DJANGO_SESSION_SAVE_EVERY_REQUEST", True)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = env_bool("DJANGO_USE_X_FORWARDED_HOST", False)
+SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", False)
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "SAMEORIGIN"
-SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_SECURE_HSTS_SECONDS", "0" if DEBUG else "31536000"))
-SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
-SECURE_HSTS_PRELOAD = not DEBUG
+SECURE_HSTS_SECONDS = env_int("DJANGO_SECURE_HSTS_SECONDS", 0 if DEBUG else 31536000)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", not DEBUG)
+SECURE_HSTS_PRELOAD = env_bool("DJANGO_SECURE_HSTS_PRELOAD", not DEBUG)
 
-LOGIN_RATE_LIMIT_ATTEMPTS = int(os.getenv("DJANGO_LOGIN_RATE_LIMIT_ATTEMPTS", "5"))
-LOGIN_RATE_LIMIT_WINDOW = int(os.getenv("DJANGO_LOGIN_RATE_LIMIT_WINDOW", "900"))
+LOGIN_RATE_LIMIT_ATTEMPTS = env_int("DJANGO_LOGIN_RATE_LIMIT_ATTEMPTS", 5)
+LOGIN_RATE_LIMIT_WINDOW = env_int("DJANGO_LOGIN_RATE_LIMIT_WINDOW", 900)
 
 
 INSTALLED_APPS = [
@@ -135,7 +144,8 @@ DATABASES = {
         ),
         "HOST": os.getenv("POSTGRES_HOST", "localhost"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
-        "CONN_MAX_AGE": int(os.getenv("POSTGRES_CONN_MAX_AGE", "60")),
+        "CONN_MAX_AGE": env_int("POSTGRES_CONN_MAX_AGE", 60),
+        "CONN_HEALTH_CHECKS": env_bool("POSTGRES_CONN_HEALTH_CHECKS", True),
     }
 }
 
@@ -170,20 +180,23 @@ USE_I18N = True
 USE_TZ = True
 
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
-FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = env_int("DJANGO_DATA_UPLOAD_MAX_MEMORY_SIZE", 50 * 1024 * 1024)
+FILE_UPLOAD_MAX_MEMORY_SIZE = env_int("DJANGO_FILE_UPLOAD_MAX_MEMORY_SIZE", 50 * 1024 * 1024)
 FILE_UPLOAD_PERMISSIONS = 0o640
 
 
-STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_URL = os.getenv("DJANGO_STATIC_URL", "static/")
+STATIC_ROOT = Path(os.getenv("DJANGO_STATIC_ROOT", BASE_DIR / "staticfiles"))
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = os.getenv("DJANGO_MEDIA_URL", "/media/")
+MEDIA_ROOT = Path(os.getenv("DJANGO_MEDIA_ROOT", BASE_DIR / "media"))
 
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
 
+LOG_DIR = Path(os.getenv("DJANGO_LOG_DIR", BASE_DIR))
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_LEVEL = os.getenv("DJANGO_LOG_LEVEL", "INFO")
 
 LOGGING = {
     "version": 1,
@@ -195,13 +208,13 @@ LOGGING = {
     },
     "handlers": {
         "file": {
-            "level": os.getenv("DJANGO_LOG_LEVEL", "ERROR"),
+            "level": LOG_LEVEL,
             "class": "logging.FileHandler",
-            "filename": BASE_DIR / "errors.log",
+            "filename": LOG_DIR / os.getenv("DJANGO_LOG_FILE", "errors.log"),
             "formatter": "standard",
         },
         "console": {
-            "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+            "level": LOG_LEVEL,
             "class": "logging.StreamHandler",
             "formatter": "standard",
         },
@@ -209,12 +222,12 @@ LOGGING = {
     "loggers": {
         "django": {
             "handlers": ["file", "console"],
-            "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+            "level": LOG_LEVEL,
             "propagate": False,
         },
         "dms": {
             "handlers": ["file", "console"],
-            "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+            "level": LOG_LEVEL,
             "propagate": False,
         }
     },
@@ -222,5 +235,13 @@ LOGGING = {
 
 
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
-QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
+QDRANT_PORT = env_int("QDRANT_PORT", 6333)
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "documents")
+QDRANT_HEALTH_CHECK = env_bool("QDRANT_HEALTH_CHECK", False)
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL)
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL)
+
+HEALTH_CHECK_DATABASE = env_bool("HEALTH_CHECK_DATABASE", True)
+HEALTH_CHECK_QDRANT = env_bool("HEALTH_CHECK_QDRANT", QDRANT_HEALTH_CHECK)
