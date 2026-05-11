@@ -46,6 +46,7 @@ from dms.services.document_indexing import delete_document_from_index, index_doc
 from dms.services.audit import record_audit_event
 from dms.services.ai_processing import apply_confirmed_fields, run_document_ai_processing
 from dms.services.document_creation import create_document_from_uploaded_file
+from dms.services.evidence import build_document_evidence_package
 from dms.services.counterparty import (
     ExchangeError,
     ExchangePermissionError,
@@ -1447,6 +1448,35 @@ def document_detail(request, pk):
             "new_exchange_url": new_exchange_url,
         },
     )
+
+
+@login_required
+def document_evidence_export(request, pk):
+    doc = get_object_or_404(
+        get_allowed_documents(request.user).select_related("organization", "department", "uploaded_by"),
+        pk=pk,
+    )
+    if not user_can_access_document(request.user, doc):
+        return HttpResponseForbidden("РќРµС‚ РґРѕСЃС‚СѓРїР° Рє РґРѕРєСѓРјРµРЅС‚Сѓ")
+
+    package = build_document_evidence_package(document=doc, exported_by=request.user)
+    record_audit_event(
+        event_type=AuditEvent.EventType.DOCUMENT_DOWNLOADED,
+        request=request,
+        user=request.user,
+        document=doc,
+        organization=doc.organization,
+        metadata={
+            "evidence_exported": True,
+            "evidence_event_name": "evidence.exported",
+            "evidence_schema": package["schema"]["name"],
+            "evidence_schema_version": package["schema"]["version"],
+            "evidence_format": "json",
+        },
+    )
+    response = JsonResponse(package, json_dumps_params={"indent": 2})
+    response["Content-Disposition"] = f'attachment; filename="document-{doc.id}-evidence.json"'
+    return response
 
 
 @login_required
