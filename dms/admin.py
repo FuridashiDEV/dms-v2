@@ -312,18 +312,22 @@ class DocumentExchangeAdmin(admin.ModelAdmin):
         "document",
         "counterparty",
         "organization",
+        "direction",
         "status",
+        "business_document_type",
         "sent_by",
+        "received_by",
         "expires_at",
         "responded_at",
     )
-    list_filter = ("status", "organization", "created_at", "expires_at")
+    list_filter = ("direction", "status", "business_document_type", "organization", "created_at", "expires_at")
     search_fields = ("document__title", "counterparty__name", "counterparty__email", "sent_by__username", "token_hint")
-    autocomplete_fields = ("organization", "document", "counterparty", "sent_by")
+    autocomplete_fields = ("organization", "document", "counterparty", "sent_by", "received_by")
     readonly_fields = (
         "token_hash",
         "token_hint",
         "opened_at",
+        "received_at",
         "responded_at",
         "created_at",
         "updated_at",

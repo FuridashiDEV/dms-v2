@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Receive Incoming B2B Document{% endblock %}
+
+{% block content %}
+<style>
+  .incoming-shell { max-width:920px; margin:14px auto 44px; }
+  .incoming-title { margin:0; font-size:32px; font-weight:900; letter-spacing:-0.02em; }
+  .incoming-sub { margin-top:8px; color:var(--muted); font-weight:650; line-height:1.6; }
+  .incoming-form { margin-top:18px; padding:24px; display:grid; gap:16px; }
+  .incoming-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .incoming-field { display:grid; gap:7px; }
+  .incoming-field label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); font-weight:900; }
+  .incoming-field textarea { min-height:100px; }
+  @media(max-width:760px){ .incoming-grid{grid-template-columns:1fr;} }
+</style>
+
+<div class="incoming-shell">
+  <div>
+    <h1 class="incoming-title">Receive Incoming B2B Document</h1>
+    <div class="incoming-sub">The uploaded file will become a regular DMS document with its first document version and a linked incoming exchange record.</div>
+  </div>
+
+  <form class="card incoming-form" method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="alert alert-error">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="incoming-grid">
+      <div class="incoming-field">
+        <label>Existing counterparty</label>
+        {{ form.counterparty }}
+      </div>
+      <div class="incoming-field">
+        <label>Business document type</label>
+        {{ form.business_document_type }}
+      </div>
+    </div>
+
+    <div class="incoming-grid">
+      <div class="incoming-field">
+        <label>New counterparty name</label>
+        {{ form.new_counterparty_name }}
+      </div>
+      <div class="incoming-field">
+        <label>New counterparty email</label>
+        {{ form.new_counterparty_email }}
+      </div>
+    </div>
+
+    <div class="incoming-field">
+      <label>Contact name</label>
+      {{ form.new_contact_name }}
+    </div>
+
+    <div class="incoming-grid">
+      <div class="incoming-field">
+        <label>Department</label>
+        {{ form.department }}
+      </div>
+      <div class="incoming-field">
+        <label>Folder</label>
+        {{ form.folder }}
+      </div>
+    </div>
+
+    <div class="incoming-field">
+      <label>Document title</label>
+      {{ form.title }}
+    </div>
+
+    <div class="incoming-field">
+      <label>Description</label>
+      {{ form.description }}
+    </div>
+
+    <div class="incoming-field">
+      <label>Exchange note</label>
+      {{ form.message }}
+    </div>
+
+    <div class="incoming-field">
+      <label>File</label>
+      {{ form.file }}
+    </div>
+
+    <div class="top-actions">
+      <button class="btn btn-primary" type="submit">Receive document</button>
+      <a class="btn btn-ghost" href="{% url 'dms:exchange_list' %}">Exchange list</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

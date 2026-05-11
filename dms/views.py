@@ -20,9 +20,11 @@ from .forms import (
     DocumentAccessForm,
     DocumentSearchForm,
     DocumentUploadForm,
+    ExchangeListFilterForm,
     ExternalExchangeActionForm,
     FolderBrowserQueryForm,
     ImportBatchForm,
+    IncomingExchangeForm,
     FolderManageForm,
     ParentFolderSelectionForm,
     SemanticSearchForm,
@@ -50,6 +52,7 @@ from dms.services.counterparty import (
     can_send_document_exchange,
     comment_exchange,
     create_document_exchange,
+    create_incoming_document_exchange,
     expire_exchange,
     is_exchange_expired,
     mark_exchange_opened,
@@ -1582,6 +1585,7 @@ def document_exchange_send(request, pk):
             request=request,
             message=form.cleaned_data.get("message", ""),
             expires_at=expires_at,
+            business_document_type=form.cleaned_data.get("business_document_type", ""),
         )
     except ExchangePermissionError:
         return HttpResponseForbidden("Нет прав на отправку документа контрагенту")
@@ -1593,6 +1597,126 @@ def document_exchange_send(request, pk):
         )
         messages.success(request, "Counterparty exchange создан. Ссылка показана в карточке документа.")
     return redirect("dms:document_detail", pk=doc.pk)
+
+
+def _get_or_create_counterparty_from_form(form, organization, user):
+    counterparty = form.cleaned_data.get("counterparty")
+    if counterparty is not None:
+        return counterparty
+
+    counterparty, created = Counterparty.objects.get_or_create(
+        organization=organization,
+        name=form.cleaned_data["new_counterparty_name"],
+        defaults={
+            "email": form.cleaned_data.get("new_counterparty_email", ""),
+            "contact_name": form.cleaned_data.get("new_contact_name", ""),
+            "created_by": user,
+        },
+    )
+    updates = []
+    if not created:
+        email = form.cleaned_data.get("new_counterparty_email", "")
+        contact_name = form.cleaned_data.get("new_contact_name", "")
+        if email and not counterparty.email:
+            counterparty.email = email
+            updates.append("email")
+        if contact_name and not counterparty.contact_name:
+            counterparty.contact_name = contact_name
+            updates.append("contact_name")
+        if updates:
+            counterparty.save(update_fields=[*updates, "updated_at"])
+    return counterparty
+
+
+@login_required
+def exchange_list(request):
+    form = ExchangeListFilterForm(request.GET or None, user=request.user)
+    allowed_documents = get_allowed_documents(request.user).values("id")
+    exchanges = (
+        DocumentExchange.objects
+        .filter(
+            organization__in=get_user_organizations(request.user),
+            document_id__in=allowed_documents,
+        )
+        .select_related("document", "counterparty", "sent_by", "received_by")
+        .order_by("-created_at")
+    )
+
+    if form.is_valid():
+        direction = form.cleaned_data.get("direction")
+        status = form.cleaned_data.get("status")
+        counterparty_id = form.cleaned_data.get("counterparty")
+        if direction:
+            exchanges = exchanges.filter(direction=direction)
+        if status:
+            exchanges = exchanges.filter(status=status)
+        if counterparty_id:
+            exchanges = exchanges.filter(counterparty_id=counterparty_id)
+    else:
+        messages.error(request, "Invalid exchange filters.")
+
+    counterparties = Counterparty.objects.filter(
+        organization__in=get_user_organizations(request.user),
+        document_exchanges__document_id__in=allowed_documents,
+    ).distinct().order_by("name")
+
+    return render(
+        request,
+        "dms/exchange_list.html",
+        {
+            "form": form,
+            "exchanges": exchanges[:100],
+            "counterparties": counterparties,
+            "direction": request.GET.get("direction", ""),
+            "status": request.GET.get("status", ""),
+            "counterparty": request.GET.get("counterparty", ""),
+        },
+    )
+
+
+@login_required
+def incoming_exchange_create(request):
+    if request.method == "POST":
+        form = IncomingExchangeForm(request.POST, request.FILES, user=request.user)
+        if form.is_valid():
+            department = form.cleaned_data["department"]
+            if not get_allowed_departments(request.user).filter(id=department.id).exists():
+                return HttpResponseForbidden("Нет прав на прием документов в этот отдел")
+            try:
+                counterparty = _get_or_create_counterparty_from_form(
+                    form,
+                    department.organization,
+                    request.user,
+                )
+                exchange, document = create_incoming_document_exchange(
+                    uploaded_file=form.cleaned_data["file"],
+                    department=department,
+                    folder=form.cleaned_data.get("folder"),
+                    counterparty=counterparty,
+                    user=request.user,
+                    request=request,
+                    title=form.cleaned_data.get("title", ""),
+                    description=form.cleaned_data.get("description", ""),
+                    business_document_type=form.cleaned_data.get("business_document_type", ""),
+                    message=form.cleaned_data.get("message", ""),
+                )
+            except ExchangePermissionError:
+                return HttpResponseForbidden("Нет прав на прием документов в этот отдел")
+            except ExchangeError as exc:
+                messages.error(request, f"Could not receive incoming document: {exc}")
+            else:
+                messages.success(request, "Incoming B2B document received.")
+                return redirect("dms:document_detail", pk=document.pk)
+    else:
+        form = IncomingExchangeForm(user=request.user)
+
+    return render(
+        request,
+        "dms/incoming_exchange_form.html",
+        {
+            "form": form,
+        },
+    )
 
 
 def _get_exchange_by_token_or_404(token: str) -> DocumentExchange:

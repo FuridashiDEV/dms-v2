@@ -367,10 +367,14 @@
           </div>
           <div class="meta-label" style="margin-top:12px;">Message</div>
           <div style="margin-top:8px;">{{ counterparty_exchange_form.message }}</div>
+          <div class="meta-label" style="margin-top:12px;">Business document type</div>
+          <div style="margin-top:8px;">{{ counterparty_exchange_form.business_document_type }}</div>
           <div class="meta-label" style="margin-top:12px;">Expiration</div>
           <div style="margin-top:8px;">{{ counterparty_exchange_form.expires_days }}</div>
           <div class="row-actions">
             <button class="btn btn-primary" type="submit">Create secure link</button>
+            <a class="btn btn-ghost" href="{% url 'dms:exchange_list' %}">Exchange list</a>
+            <a class="btn btn-ghost" href="{% url 'dms:incoming_exchange_create' %}">Receive incoming</a>
           </div>
         </form>
       {% endif %}
@@ -378,7 +382,7 @@
       <div class="stack">
         {% for exchange in recent_exchanges %}
           <div class="row-card">
-            <div class="row-main">{{ exchange.counterparty.name }}: {{ exchange.get_status_display }}</div>
+            <div class="row-main">{{ exchange.counterparty.name }}: {{ exchange.get_direction_display }} / {{ exchange.get_status_display }}</div>
             <div class="row-meta">
               {{ exchange.created_at|date:"d.m.Y H:i" }}
               {% if exchange.sent_by %} вЂў {{ exchange.sent_by.get_full_name|default:exchange.sent_by.username }}{% endif %}

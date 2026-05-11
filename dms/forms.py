@@ -8,7 +8,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils.html import strip_tags
 
-from .models import Counterparty, Department, Document, DocumentType, Folder, OrganizationMember, WorkflowTemplate
+from .models import Counterparty, Department, Document, DocumentExchange, DocumentType, Folder, OrganizationMember, WorkflowTemplate
 from .utils import get_allowed_departments, get_user_organizations
 
 
@@ -666,6 +666,11 @@ class CounterpartyExchangeForm(forms.Form):
         max_length=2000,
         widget=forms.Textarea(attrs={"rows": 3}),
     )
+    business_document_type = forms.ChoiceField(
+        label="Business document type",
+        required=False,
+        choices=[("", "---------"), *DocumentExchange.BusinessDocumentType.choices],
+    )
     expires_days = forms.IntegerField(
         label="Expires in days",
         required=False,
@@ -725,6 +730,164 @@ class ExternalExchangeActionForm(forms.Form):
             self.cleaned_data.get("comment", ""),
             collapse_whitespace=False,
         )
+
+
+class IncomingExchangeForm(forms.Form):
+    counterparty = forms.ModelChoiceField(
+        queryset=Counterparty.objects.none(),
+        label="Counterparty",
+        required=False,
+    )
+    new_counterparty_name = forms.CharField(
+        label="New counterparty name",
+        required=False,
+        max_length=255,
+    )
+    new_counterparty_email = forms.EmailField(
+        label="New counterparty email",
+        required=False,
+    )
+    new_contact_name = forms.CharField(
+        label="Contact name",
+        required=False,
+        max_length=255,
+    )
+    department = forms.ModelChoiceField(
+        queryset=Department.objects.none(),
+        label="Department",
+        required=True,
+    )
+    folder = forms.ModelChoiceField(
+        queryset=Folder.objects.none(),
+        label="Folder",
+        required=False,
+    )
+    title = forms.CharField(
+        label="Document title",
+        required=False,
+        max_length=255,
+    )
+    description = forms.CharField(
+        label="Description",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3}),
+    )
+    business_document_type = forms.ChoiceField(
+        label="Business document type",
+        required=False,
+        choices=[("", "---------"), *DocumentExchange.BusinessDocumentType.choices],
+    )
+    message = forms.CharField(
+        label="Exchange note",
+        required=False,
+        max_length=2000,
+        widget=forms.Textarea(attrs={"rows": 3}),
+    )
+    file = forms.FileField(label="File", required=True)
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+        allowed_departments = get_allowed_departments(user) if user else Department.objects.none()
+        allowed_departments = allowed_departments.order_by("tree_id", "lft")
+        self.fields["department"].queryset = allowed_departments
+        self.fields["department"].choices = department_tree_choices(allowed_departments)
+
+        organization_ids = list(get_user_organizations(user).values_list("id", flat=True)) if user else []
+        self.fields["counterparty"].queryset = Counterparty.objects.filter(
+            organization_id__in=organization_ids,
+            is_active=True,
+        ).order_by("name")
+
+        current_department = None
+        if self.data.get("department"):
+            try:
+                current_department = allowed_departments.get(id=self.data.get("department"))
+            except Department.DoesNotExist:
+                current_department = None
+        elif user and user.role != "ADMIN" and user.department_id:
+            current_department = user.department
+            self.fields["department"].initial = user.department
+
+        if current_department:
+            self.fields["folder"].queryset = Folder.objects.filter(
+                department=current_department,
+                parent__isnull=True,
+            ).order_by("tree_id", "lft")
+        else:
+            self.fields["folder"].queryset = Folder.objects.none()
+
+    def clean_new_counterparty_name(self):
+        return normalize_text_input(self.cleaned_data.get("new_counterparty_name", ""))
+
+    def clean_new_contact_name(self):
+        return normalize_text_input(self.cleaned_data.get("new_contact_name", ""))
+
+    def clean_title(self):
+        return normalize_text_input(self.cleaned_data.get("title", ""))
+
+    def clean_description(self):
+        return normalize_text_input(
+            self.cleaned_data.get("description", ""),
+            collapse_whitespace=False,
+        )
+
+    def clean_message(self):
+        return normalize_text_input(
+            self.cleaned_data.get("message", ""),
+            collapse_whitespace=False,
+        )
+
+    def clean_file(self):
+        return validate_uploaded_file(self.cleaned_data.get("file"))
+
+    def clean(self):
+        cleaned_data = super().clean()
+        counterparty = cleaned_data.get("counterparty")
+        new_name = cleaned_data.get("new_counterparty_name") or ""
+        new_email = cleaned_data.get("new_counterparty_email") or ""
+        department = cleaned_data.get("department")
+        folder = cleaned_data.get("folder")
+
+        if counterparty and (new_name or new_email):
+            raise ValidationError("Choose an existing counterparty or create a new one, not both.")
+        if not counterparty and not new_name:
+            raise ValidationError("Choose a counterparty or enter a new counterparty name.")
+        if new_email and not new_name:
+            raise ValidationError("New counterparty name is required with email.")
+        if folder and department and folder.department_id != department.id:
+            raise ValidationError("Folder does not belong to the selected department.")
+        if counterparty and department and counterparty.organization_id != department.organization_id:
+            raise ValidationError("Counterparty belongs to another organization.")
+        return cleaned_data
+
+
+class ExchangeListFilterForm(forms.Form):
+    direction = forms.ChoiceField(
+        required=False,
+        choices=[("", "---------"), *DocumentExchange.Direction.choices],
+    )
+    status = forms.ChoiceField(
+        required=False,
+        choices=[("", "---------"), *DocumentExchange.Status.choices],
+    )
+    counterparty = forms.IntegerField(required=False, min_value=1)
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_counterparty(self):
+        counterparty_id = self.cleaned_data.get("counterparty")
+        if not counterparty_id:
+            return None
+        if not Counterparty.objects.filter(
+            id=counterparty_id,
+            organization__in=get_user_organizations(self.user),
+        ).exists():
+            raise ValidationError("Invalid counterparty.")
+        return counterparty_id
 
 
 class UserAdminChangeForm(UserChangeForm):

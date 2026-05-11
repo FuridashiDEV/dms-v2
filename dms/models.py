@@ -771,6 +771,7 @@ class AuditEvent(models.Model):
         EXCHANGE_ACCEPTED = "EXCHANGE_ACCEPTED", _("Document exchange accepted")
         EXCHANGE_REJECTED = "EXCHANGE_REJECTED", _("Document exchange rejected")
         EXCHANGE_COMMENTED = "EXCHANGE_COMMENTED", _("Document exchange commented")
+        EXCHANGE_RECEIVED = "EXCHANGE_RECEIVED", _("B2B document exchange received")
 
     organization = models.ForeignKey(
         Organization,
@@ -1370,13 +1371,25 @@ class Counterparty(models.Model):
 
 
 class DocumentExchange(models.Model):
+    class Direction(models.TextChoices):
+        OUTGOING = "OUTGOING", _("Outgoing")
+        INCOMING = "INCOMING", _("Incoming")
+
     class Status(models.TextChoices):
         SENT = "SENT", _("Sent")
         OPENED = "OPENED", _("Opened")
+        RECEIVED = "RECEIVED", _("Received")
         ACCEPTED = "ACCEPTED", _("Accepted")
         REJECTED = "REJECTED", _("Rejected")
         EXPIRED = "EXPIRED", _("Expired")
         REVOKED = "REVOKED", _("Revoked")
+
+    class BusinessDocumentType(models.TextChoices):
+        CONTRACT = "CONTRACT", _("Contract")
+        INVOICE = "INVOICE", _("Invoice")
+        ACT = "ACT", _("Act")
+        LETTER = "LETTER", _("Letter")
+        OTHER = "OTHER", _("Other")
 
     organization = models.ForeignKey(
         Organization,
@@ -1404,6 +1417,29 @@ class DocumentExchange(models.Model):
         related_name="sent_document_exchanges",
         verbose_name=_("Sent by"),
     )
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="received_document_exchanges",
+        verbose_name=_("Received by"),
+    )
+    direction = models.CharField(
+        _("Direction"),
+        max_length=20,
+        choices=Direction.choices,
+        default=Direction.OUTGOING,
+        db_index=True,
+    )
+    business_document_type = models.CharField(
+        _("Business document type"),
+        max_length=40,
+        choices=BusinessDocumentType.choices,
+        blank=True,
+        default="",
+        db_index=True,
+    )
     status = models.CharField(
         _("Status"),
         max_length=20,
@@ -1416,6 +1452,7 @@ class DocumentExchange(models.Model):
     message = models.TextField(_("Message"), blank=True, default="")
     expires_at = models.DateTimeField(_("Expires at"), null=True, blank=True)
     opened_at = models.DateTimeField(_("Opened at"), null=True, blank=True)
+    received_at = models.DateTimeField(_("Received at"), null=True, blank=True)
     responded_at = models.DateTimeField(_("Responded at"), null=True, blank=True)
     created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
     updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
@@ -1428,6 +1465,8 @@ class DocumentExchange(models.Model):
             models.Index(fields=["organization", "-created_at"]),
             models.Index(fields=["document", "-created_at"]),
             models.Index(fields=["counterparty", "-created_at"]),
+            models.Index(fields=["direction", "status", "-created_at"]),
+            models.Index(fields=["business_document_type", "-created_at"]),
             models.Index(fields=["status", "-created_at"]),
             models.Index(fields=["expires_at"]),
         ]
@@ -1450,6 +1489,7 @@ class ExchangeEvent(models.Model):
         SENT = "SENT", _("Sent")
         OPENED = "OPENED", _("Opened")
         DOWNLOADED = "DOWNLOADED", _("Downloaded")
+        RECEIVED = "RECEIVED", _("Received")
         ACCEPTED = "ACCEPTED", _("Accepted")
         REJECTED = "REJECTED", _("Rejected")
         COMMENTED = "COMMENTED", _("Commented")

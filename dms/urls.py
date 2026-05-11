@@ -14,6 +14,8 @@ urlpatterns = [
     path("documents/upload/", views.document_upload, name="document_upload"),
     path("documents/import/", views.document_import, name="document_import"),
     path("imports/<int:pk>/", views.import_batch_detail, name="import_batch_detail"),
+    path("exchanges/", views.exchange_list, name="exchange_list"),
+    path("exchanges/incoming/", views.incoming_exchange_create, name="incoming_exchange_create"),
     path("documents/<int:pk>/edit/", views.document_edit, name="document_edit"),
     path("documents/<int:pk>/workflow/start/", views.document_workflow_start, name="document_workflow_start"),
     path(

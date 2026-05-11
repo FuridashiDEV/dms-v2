@@ -14,8 +14,10 @@ from dms.models import (
     Document,
     DocumentExchange,
     ExchangeEvent,
+    Folder,
 )
 from dms.services.audit import get_client_ip, get_user_agent, record_audit_event
+from dms.services.document_creation import create_document_from_uploaded_file
 from dms.utils import get_allowed_departments, user_can_access_document
 
 
@@ -71,6 +73,7 @@ def _audit_event_type(event_type: str) -> str | None:
         ExchangeEvent.EventType.SENT: AuditEvent.EventType.EXCHANGE_SENT,
         ExchangeEvent.EventType.OPENED: AuditEvent.EventType.EXCHANGE_OPENED,
         ExchangeEvent.EventType.DOWNLOADED: AuditEvent.EventType.EXCHANGE_DOWNLOADED,
+        ExchangeEvent.EventType.RECEIVED: AuditEvent.EventType.EXCHANGE_RECEIVED,
         ExchangeEvent.EventType.ACCEPTED: AuditEvent.EventType.EXCHANGE_ACCEPTED,
         ExchangeEvent.EventType.REJECTED: AuditEvent.EventType.EXCHANGE_REJECTED,
         ExchangeEvent.EventType.COMMENTED: AuditEvent.EventType.EXCHANGE_COMMENTED,
@@ -132,6 +135,7 @@ def create_document_exchange(
     request=None,
     message: str = "",
     expires_at=None,
+    business_document_type: str = "",
 ) -> CreatedExchange:
     document = Document.objects.select_for_update().get(pk=document.pk)
     counterparty = Counterparty.objects.get(pk=counterparty.pk)
@@ -155,6 +159,8 @@ def create_document_exchange(
         counterparty=counterparty,
         sent_by=user,
         status=DocumentExchange.Status.SENT,
+        direction=DocumentExchange.Direction.OUTGOING,
+        business_document_type=business_document_type or "",
         token_hash=token_hash,
         token_hint=token[-8:],
         message=message or "",
@@ -171,6 +177,84 @@ def create_document_exchange(
         metadata={"portal_url": _build_portal_url(request, token)},
     )
     return CreatedExchange(exchange=exchange, token=token)
+
+
+@transaction.atomic
+def create_incoming_document_exchange(
+    *,
+    uploaded_file,
+    department,
+    counterparty: Counterparty,
+    user,
+    folder: Folder | None = None,
+    title: str = "",
+    description: str = "",
+    business_document_type: str = "",
+    message: str = "",
+    request=None,
+    indexer=None,
+) -> tuple[DocumentExchange, Document]:
+    counterparty = Counterparty.objects.get(pk=counterparty.pk)
+    if counterparty.organization_id != department.organization_id:
+        raise ExchangeError("Counterparty belongs to another organization.")
+    if not counterparty.is_active:
+        raise ExchangeError("Counterparty is inactive.")
+    if not get_allowed_departments(user).filter(id=department.id).exists():
+        raise ExchangePermissionError("User cannot receive documents for this department.")
+    if folder is not None and folder.department_id != department.id:
+        raise ExchangeError("Folder belongs to another department.")
+
+    document, version = create_document_from_uploaded_file(
+        uploaded_file=uploaded_file,
+        department=department,
+        folder=folder,
+        title=title,
+        description=description,
+        source_system="b2b_incoming_exchange",
+        uploaded_by=user,
+        request=request,
+        run_ai=False,
+        indexer=indexer or (lambda document: False),
+        audit_metadata={
+            "b2b_direction": DocumentExchange.Direction.INCOMING,
+            "counterparty_id": counterparty.id,
+            "counterparty_name": counterparty.name,
+        },
+    )
+
+    token = generate_exchange_token()
+    token_hash = hash_exchange_token(token)
+    while DocumentExchange.objects.filter(token_hash=token_hash).exists():
+        token = generate_exchange_token()
+        token_hash = hash_exchange_token(token)
+
+    exchange = DocumentExchange.objects.create(
+        organization=document.organization,
+        document=document,
+        counterparty=counterparty,
+        received_by=user,
+        direction=DocumentExchange.Direction.INCOMING,
+        status=DocumentExchange.Status.RECEIVED,
+        business_document_type=business_document_type or "",
+        token_hash=token_hash,
+        token_hint=token[-8:],
+        message=message or "",
+        received_at=timezone.now(),
+    )
+    record_exchange_event(
+        exchange=exchange,
+        event_type=ExchangeEvent.EventType.RECEIVED,
+        request=request,
+        user=user,
+        actor_name=getattr(user, "get_full_name", lambda: "")() or getattr(user, "username", ""),
+        actor_email=getattr(user, "email", ""),
+        comment=message,
+        metadata={
+            "document_version_id": version.id,
+            "document_version_number": version.number,
+        },
+    )
+    return exchange, document
 
 
 def resolve_exchange_token(token: str) -> DocumentExchange | None:
