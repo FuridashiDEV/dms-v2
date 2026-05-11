@@ -21,6 +21,18 @@ urlpatterns = [
         views.document_workflow_action,
         name="document_workflow_action",
     ),
+    path("documents/<int:pk>/exchanges/send/", views.document_exchange_send, name="document_exchange_send"),
+    path("portal/exchanges/<str:token>/", views.counterparty_portal, name="counterparty_portal"),
+    path(
+        "portal/exchanges/<str:token>/download/",
+        views.counterparty_portal_download,
+        name="counterparty_portal_download",
+    ),
+    path(
+        "portal/exchanges/<str:token>/<slug:action>/",
+        views.counterparty_portal_action,
+        name="counterparty_portal_action",
+    ),
     path("documents/<int:pk>/ai-review/", views.document_ai_review, name="document_ai_review"),
     path("users/create/", views.user_create, name="user_create"),
     path("documents/<int:pk>/view/", views.document_view, name="document_view"),

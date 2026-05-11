@@ -765,6 +765,12 @@ class AuditEvent(models.Model):
         WORKFLOW_CHANGES_REQUESTED = "WORKFLOW_CHANGES_REQUESTED", _("Workflow changes requested")
         WORKFLOW_COMMENTED = "WORKFLOW_COMMENTED", _("Workflow commented")
         WORKFLOW_COMPLETED = "WORKFLOW_COMPLETED", _("Workflow completed")
+        EXCHANGE_SENT = "EXCHANGE_SENT", _("Document exchange sent")
+        EXCHANGE_OPENED = "EXCHANGE_OPENED", _("Document exchange opened")
+        EXCHANGE_DOWNLOADED = "EXCHANGE_DOWNLOADED", _("Document exchange downloaded")
+        EXCHANGE_ACCEPTED = "EXCHANGE_ACCEPTED", _("Document exchange accepted")
+        EXCHANGE_REJECTED = "EXCHANGE_REJECTED", _("Document exchange rejected")
+        EXCHANGE_COMMENTED = "EXCHANGE_COMMENTED", _("Document exchange commented")
 
     organization = models.ForeignKey(
         Organization,
@@ -1320,6 +1326,180 @@ class WorkflowAction(models.Model):
 
     def __str__(self) -> str:
         return f"{self.action_type} / {self.document}"
+
+
+class Counterparty(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="counterparties",
+        verbose_name=_("Organization"),
+    )
+    name = models.CharField(_("Name"), max_length=255)
+    email = models.EmailField(_("Email"), blank=True, default="")
+    contact_name = models.CharField(_("Contact name"), max_length=255, blank=True, default="")
+    is_active = models.BooleanField(_("Active"), default=True, db_index=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_counterparties",
+        verbose_name=_("Created by"),
+    )
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Counterparty")
+        verbose_name_plural = _("Counterparties")
+        ordering = ["organization__name", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "name"],
+                name="unique_counterparty_name_per_organization",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["organization", "is_active"]),
+            models.Index(fields=["email"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class DocumentExchange(models.Model):
+    class Status(models.TextChoices):
+        SENT = "SENT", _("Sent")
+        OPENED = "OPENED", _("Opened")
+        ACCEPTED = "ACCEPTED", _("Accepted")
+        REJECTED = "REJECTED", _("Rejected")
+        EXPIRED = "EXPIRED", _("Expired")
+        REVOKED = "REVOKED", _("Revoked")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="document_exchanges",
+        verbose_name=_("Organization"),
+    )
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="exchanges",
+        verbose_name=_("Document"),
+    )
+    counterparty = models.ForeignKey(
+        Counterparty,
+        on_delete=models.PROTECT,
+        related_name="document_exchanges",
+        verbose_name=_("Counterparty"),
+    )
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="sent_document_exchanges",
+        verbose_name=_("Sent by"),
+    )
+    status = models.CharField(
+        _("Status"),
+        max_length=20,
+        choices=Status.choices,
+        default=Status.SENT,
+        db_index=True,
+    )
+    token_hash = models.CharField(_("Token hash"), max_length=64, unique=True, db_index=True)
+    token_hint = models.CharField(_("Token hint"), max_length=12, blank=True, default="")
+    message = models.TextField(_("Message"), blank=True, default="")
+    expires_at = models.DateTimeField(_("Expires at"), null=True, blank=True)
+    opened_at = models.DateTimeField(_("Opened at"), null=True, blank=True)
+    responded_at = models.DateTimeField(_("Responded at"), null=True, blank=True)
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Document exchange")
+        verbose_name_plural = _("Document exchanges")
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["organization", "-created_at"]),
+            models.Index(fields=["document", "-created_at"]),
+            models.Index(fields=["counterparty", "-created_at"]),
+            models.Index(fields=["status", "-created_at"]),
+            models.Index(fields=["expires_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.document} -> {self.counterparty}"
+
+    @property
+    def is_terminal(self) -> bool:
+        return self.status in {
+            self.Status.ACCEPTED,
+            self.Status.REJECTED,
+            self.Status.EXPIRED,
+            self.Status.REVOKED,
+        }
+
+
+class ExchangeEvent(models.Model):
+    class EventType(models.TextChoices):
+        SENT = "SENT", _("Sent")
+        OPENED = "OPENED", _("Opened")
+        DOWNLOADED = "DOWNLOADED", _("Downloaded")
+        ACCEPTED = "ACCEPTED", _("Accepted")
+        REJECTED = "REJECTED", _("Rejected")
+        COMMENTED = "COMMENTED", _("Commented")
+        EXPIRED = "EXPIRED", _("Expired")
+        REVOKED = "REVOKED", _("Revoked")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="exchange_events",
+        verbose_name=_("Organization"),
+    )
+    exchange = models.ForeignKey(
+        DocumentExchange,
+        on_delete=models.CASCADE,
+        related_name="events",
+        verbose_name=_("Document exchange"),
+    )
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="exchange_events",
+        verbose_name=_("Document"),
+    )
+    event_type = models.CharField(
+        _("Event type"),
+        max_length=20,
+        choices=EventType.choices,
+        db_index=True,
+    )
+    actor_name = models.CharField(_("Actor name"), max_length=255, blank=True, default="")
+    actor_email = models.EmailField(_("Actor email"), blank=True, default="")
+    comment = models.TextField(_("Comment"), blank=True, default="")
+    ip_address = models.GenericIPAddressField(_("IP address"), null=True, blank=True)
+    user_agent = models.TextField(_("User-Agent"), blank=True, default="")
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Exchange event")
+        verbose_name_plural = _("Exchange events")
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["organization", "-created_at"]),
+            models.Index(fields=["exchange", "-created_at"]),
+            models.Index(fields=["document", "-created_at"]),
+            models.Index(fields=["event_type", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.event_type} / {self.exchange}"
 
 
 class DocumentAccess(models.Model):

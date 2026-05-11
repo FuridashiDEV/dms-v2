@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Counterparty Portal - {{ doc.title }}{% endblock %}
+
+{% block content %}
+<style>
+  .portal-shell { max-width:960px; margin:24px auto 48px; display:grid; gap:18px; }
+  .portal-top { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+  .portal-title { margin:0; font-size:32px; font-weight:900; letter-spacing:-0.02em; }
+  .portal-sub { margin-top:8px; color:var(--muted); font-weight:650; line-height:1.6; }
+  .portal-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px; }
+  .portal-item { padding:14px 16px; border:1px solid rgba(148,163,184,.2); border-radius:14px; background:#fff; }
+  .portal-label { font-size:12px; font-weight:900; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .portal-value { margin-top:8px; font-weight:850; color:rgba(15,23,42,.9); word-break:break-word; }
+  .portal-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  .portal-form { display:grid; gap:10px; margin-top:14px; }
+  .portal-form textarea { width:100%; min-height:110px; }
+  @media(max-width:720px){ .portal-top{display:grid;} .portal-grid{grid-template-columns:1fr;} }
+</style>
+
+<div class="portal-shell">
+  <div class="card" style="padding:24px;">
+    <div class="portal-top">
+      <div>
+        <h1 class="portal-title">{{ doc.title }}</h1>
+        <div class="portal-sub">Secure document exchange for {{ exchange.counterparty.name }}.</div>
+      </div>
+      <div class="badge">{{ exchange.get_status_display }}</div>
+    </div>
+
+    <div class="portal-grid">
+      <div class="portal-item">
+        <div class="portal-label">Counterparty</div>
+        <div class="portal-value">{{ exchange.counterparty.name }}</div>
+      </div>
+      <div class="portal-item">
+        <div class="portal-label">Sent by</div>
+        <div class="portal-value">{{ exchange.sent_by.get_full_name|default:exchange.sent_by.username|default:"DMS" }}</div>
+      </div>
+      <div class="portal-item">
+        <div class="portal-label">Document date</div>
+        <div class="portal-value">{{ doc.doc_date|date:"d.m.Y"|default:"Not specified" }}</div>
+      </div>
+      <div class="portal-item">
+        <div class="portal-label">Expires</div>
+        <div class="portal-value">{{ exchange.expires_at|date:"d.m.Y H:i"|default:"No expiration" }}</div>
+      </div>
+      <div class="portal-item">
+        <div class="portal-label">SHA-256</div>
+        <div class="portal-value">{{ doc.checksum_sha256|default:"Not calculated" }}</div>
+      </div>
+      <div class="portal-item">
+        <div class="portal-label">File</div>
+        <div class="portal-value">{{ doc.source_file_name|default:doc.file.name }}</div>
+      </div>
+    </div>
+
+    {% if exchange.message %}
+      <div class="portal-item" style="margin-top:14px;">
+        <div class="portal-label">Message</div>
+        <div class="portal-value" style="line-height:1.6;">{{ exchange.message }}</div>
+      </div>
+    {% endif %}
+
+    {% if not is_expired and exchange.status != "REVOKED" %}
+      <div class="portal-actions">
+        <a class="btn btn-primary" href="{% url 'dms:counterparty_portal_download' token %}">Download document</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card" style="padding:24px;">
+    <h2 class="section-title">Response</h2>
+    {% if is_closed %}
+      <div class="portal-sub">This exchange is closed. New actions are not available.</div>
+    {% else %}
+      <form class="portal-form" method="post" action="{% url 'dms:counterparty_portal_action' token 'comment' %}">
+        {% csrf_token %}
+        {{ form.comment }}
+        <div class="portal-actions">
+          <button class="btn btn-ghost" type="submit">Comment</button>
+          <button class="btn btn-primary" type="submit" formaction="{% url 'dms:counterparty_portal_action' token 'accept' %}">Accept</button>
+          <button class="btn btn-ghost" type="submit" formaction="{% url 'dms:counterparty_portal_action' token 'reject' %}">Reject</button>
+        </div>
+      </form>
+    {% endif %}
+  </div>
+
+  <div class="card" style="padding:24px;">
+    <h2 class="section-title">Exchange events</h2>
+    <div class="stack">
+      {% for event in events %}
+        <div class="row-card">
+          <div class="row-main">{{ event.get_event_type_display }}</div>
+          <div class="row-meta">{{ event.created_at|date:"d.m.Y H:i" }}{% if event.actor_name %} вЂў {{ event.actor_name }}{% endif %}</div>
+          {% if event.comment %}<div class="row-meta">{{ event.comment }}</div>{% endif %}
+        </div>
+      {% empty %}
+        <div class="row-card">
+          <div class="row-main">No events yet</div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

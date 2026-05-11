@@ -342,6 +342,58 @@
         </div>
       {% endif %}
     </div>
+
+    <div class="card" style="padding:22px;">
+      <h2 class="section-title">Counterparty Portal</h2>
+      <div class="section-sub">Secure external document exchange links for counterparties.</div>
+
+      {% if new_exchange_url %}
+        <div class="row-card" style="margin-top:16px;">
+          <div class="row-main">New secure portal link</div>
+          <div class="row-meta" style="word-break:break-all;">{{ new_exchange_url }}</div>
+        </div>
+      {% endif %}
+
+      {% if counterparty_exchange_form %}
+        <form method="post" action="{% url 'dms:document_exchange_send' doc.id %}" style="margin-top:16px;">
+          {% csrf_token %}
+          <div class="meta-label">Existing counterparty</div>
+          <div style="margin-top:8px;">{{ counterparty_exchange_form.counterparty }}</div>
+          <div class="meta-label" style="margin-top:12px;">New counterparty</div>
+          <div style="margin-top:8px; display:grid; gap:8px;">
+            {{ counterparty_exchange_form.new_counterparty_name }}
+            {{ counterparty_exchange_form.new_counterparty_email }}
+            {{ counterparty_exchange_form.new_contact_name }}
+          </div>
+          <div class="meta-label" style="margin-top:12px;">Message</div>
+          <div style="margin-top:8px;">{{ counterparty_exchange_form.message }}</div>
+          <div class="meta-label" style="margin-top:12px;">Expiration</div>
+          <div style="margin-top:8px;">{{ counterparty_exchange_form.expires_days }}</div>
+          <div class="row-actions">
+            <button class="btn btn-primary" type="submit">Create secure link</button>
+          </div>
+        </form>
+      {% endif %}
+
+      <div class="stack">
+        {% for exchange in recent_exchanges %}
+          <div class="row-card">
+            <div class="row-main">{{ exchange.counterparty.name }}: {{ exchange.get_status_display }}</div>
+            <div class="row-meta">
+              {{ exchange.created_at|date:"d.m.Y H:i" }}
+              {% if exchange.sent_by %} вЂў {{ exchange.sent_by.get_full_name|default:exchange.sent_by.username }}{% endif %}
+              {% if exchange.expires_at %} вЂў expires {{ exchange.expires_at|date:"d.m.Y H:i" }}{% endif %}
+              {% if exchange.token_hint %} вЂў token ...{{ exchange.token_hint }}{% endif %}
+            </div>
+          </div>
+        {% empty %}
+          <div class="row-card">
+            <div class="row-main">No counterparty exchanges yet</div>
+            <div class="row-meta">Create a secure portal link to share this document externally.</div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

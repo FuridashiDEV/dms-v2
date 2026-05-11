@@ -10,15 +10,17 @@ from django.http import FileResponse, Http404, HttpResponseBadRequest, HttpRespo
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-from datetime import date
+from datetime import date, timedelta
 import logging
 from difflib import SequenceMatcher
 from .forms import (
     AiParseUploadForm,
+    CounterpartyExchangeForm,
     DepartmentSelectionForm,
     DocumentAccessForm,
     DocumentSearchForm,
     DocumentUploadForm,
+    ExternalExchangeActionForm,
     FolderBrowserQueryForm,
     ImportBatchForm,
     FolderManageForm,
@@ -29,7 +31,7 @@ from .forms import (
     WorkflowActionForm,
     WorkflowStartForm,
 )
-from .models import AuditEvent, Department, Document, DocumentActivity, DocumentType, DocumentVersion, ExtractedField, Folder, ImportBatch, ProcessingJob, WorkflowInstance
+from .models import AuditEvent, Counterparty, Department, Document, DocumentActivity, DocumentExchange, DocumentType, DocumentVersion, ExchangeEvent, ExtractedField, Folder, ImportBatch, ProcessingJob, WorkflowInstance
 from dms.services.ai_parser import parse_document
 from dms.services.archive_intelligence import (
     build_card_quality,
@@ -41,6 +43,20 @@ from dms.services.document_indexing import delete_document_from_index, index_doc
 from dms.services.audit import record_audit_event
 from dms.services.ai_processing import apply_confirmed_fields, run_document_ai_processing
 from dms.services.document_creation import create_document_from_uploaded_file
+from dms.services.counterparty import (
+    ExchangeError,
+    ExchangePermissionError,
+    accept_exchange,
+    can_send_document_exchange,
+    comment_exchange,
+    create_document_exchange,
+    expire_exchange,
+    is_exchange_expired,
+    mark_exchange_opened,
+    record_exchange_download,
+    reject_exchange,
+    resolve_exchange_token,
+)
 from dms.services.imports import create_import_batch, import_uploaded_files
 from dms.services.workflow import (
     WorkflowError,
@@ -1381,6 +1397,16 @@ def document_detail(request, pk):
         candidate_form = WorkflowStartForm(user=request.user, document=doc)
         if candidate_form.fields["template"].queryset.exists():
             workflow_start_form = candidate_form
+    recent_exchanges = (
+        doc.exchanges
+        .select_related("counterparty", "sent_by")
+        .prefetch_related("events")
+        .order_by("-created_at")[:8]
+    )
+    counterparty_exchange_form = None
+    if can_send_document_exchange(request.user, doc):
+        counterparty_exchange_form = CounterpartyExchangeForm(user=request.user, document=doc)
+    new_exchange_url = request.session.pop(f"counterparty_exchange_url:{doc.pk}", "")
 
     return render(
         request,
@@ -1411,6 +1437,9 @@ def document_detail(request, pk):
                 if active_workflow
                 else False
             ),
+            "recent_exchanges": recent_exchanges,
+            "counterparty_exchange_form": counterparty_exchange_form,
+            "new_exchange_url": new_exchange_url,
         },
     )
 
@@ -1500,6 +1529,146 @@ def document_workflow_action(request, pk, instance_pk, action):
     else:
         messages.success(request, "Workflow action saved.")
     return redirect("dms:document_detail", pk=doc.pk)
+
+
+@login_required
+@require_POST
+def document_exchange_send(request, pk):
+    doc = get_object_or_404(
+        get_allowed_documents(request.user).select_related("organization", "department", "uploaded_by"),
+        pk=pk,
+    )
+    if not user_can_access_document(request.user, doc):
+        return HttpResponseForbidden("Нет доступа к документу")
+    if not can_send_document_exchange(request.user, doc):
+        return HttpResponseForbidden("Нет прав на отправку документа контрагенту")
+
+    form = CounterpartyExchangeForm(request.POST, user=request.user, document=doc)
+    if not form.is_valid():
+        messages.error(request, "Не удалось создать exchange: проверьте контрагента и срок действия.")
+        return redirect("dms:document_detail", pk=doc.pk)
+
+    counterparty = form.cleaned_data.get("counterparty")
+    if counterparty is None:
+        counterparty, created = Counterparty.objects.get_or_create(
+            organization=doc.organization,
+            name=form.cleaned_data["new_counterparty_name"],
+            defaults={
+                "email": form.cleaned_data.get("new_counterparty_email", ""),
+                "contact_name": form.cleaned_data.get("new_contact_name", ""),
+                "created_by": request.user,
+            },
+        )
+        updates = []
+        if not created:
+            email = form.cleaned_data.get("new_counterparty_email", "")
+            contact_name = form.cleaned_data.get("new_contact_name", "")
+            if email and not counterparty.email:
+                counterparty.email = email
+                updates.append("email")
+            if contact_name and not counterparty.contact_name:
+                counterparty.contact_name = contact_name
+                updates.append("contact_name")
+            if updates:
+                counterparty.save(update_fields=[*updates, "updated_at"])
+
+    expires_days = form.cleaned_data.get("expires_days") or 14
+    expires_at = timezone.now() + timedelta(days=expires_days)
+    try:
+        created_exchange = create_document_exchange(
+            document=doc,
+            counterparty=counterparty,
+            user=request.user,
+            request=request,
+            message=form.cleaned_data.get("message", ""),
+            expires_at=expires_at,
+        )
+    except ExchangePermissionError:
+        return HttpResponseForbidden("Нет прав на отправку документа контрагенту")
+    except ExchangeError as exc:
+        messages.error(request, f"Не удалось создать exchange: {exc}")
+    else:
+        request.session[f"counterparty_exchange_url:{doc.pk}"] = request.build_absolute_uri(
+            created_exchange.portal_path()
+        )
+        messages.success(request, "Counterparty exchange создан. Ссылка показана в карточке документа.")
+    return redirect("dms:document_detail", pk=doc.pk)
+
+
+def _get_exchange_by_token_or_404(token: str) -> DocumentExchange:
+    exchange = resolve_exchange_token(token)
+    if exchange is None:
+        raise Http404("Exchange not found")
+    return exchange
+
+
+def counterparty_portal(request, token):
+    exchange = _get_exchange_by_token_or_404(token)
+    if is_exchange_expired(exchange):
+        exchange = expire_exchange(exchange=exchange, request=request)
+    elif not exchange.is_terminal:
+        exchange = mark_exchange_opened(exchange=exchange, request=request)
+
+    return render(
+        request,
+        "dms/counterparty_portal.html",
+        {
+            "exchange": exchange,
+            "doc": exchange.document,
+            "events": exchange.events.all()[:12],
+            "form": ExternalExchangeActionForm(),
+            "token": token,
+            "is_closed": exchange.is_terminal,
+            "is_expired": exchange.status == DocumentExchange.Status.EXPIRED,
+        },
+    )
+
+
+@require_POST
+def counterparty_portal_action(request, token, action):
+    exchange = _get_exchange_by_token_or_404(token)
+    if is_exchange_expired(exchange):
+        expire_exchange(exchange=exchange, request=request)
+        messages.error(request, "This exchange link has expired.")
+        return redirect("dms:counterparty_portal", token=token)
+
+    form = ExternalExchangeActionForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Could not save portal action.")
+        return redirect("dms:counterparty_portal", token=token)
+
+    comment = form.cleaned_data.get("comment", "")
+    try:
+        if action == "accept":
+            accept_exchange(exchange=exchange, request=request, comment=comment)
+            messages.success(request, "Document accepted.")
+        elif action == "reject":
+            reject_exchange(exchange=exchange, request=request, comment=comment)
+            messages.success(request, "Document rejected.")
+        elif action == "comment":
+            comment_exchange(exchange=exchange, request=request, comment=comment)
+            messages.success(request, "Comment saved.")
+        else:
+            return HttpResponseBadRequest("Unknown portal action")
+    except ExchangeError as exc:
+        messages.error(request, str(exc))
+    return redirect("dms:counterparty_portal", token=token)
+
+
+def counterparty_portal_download(request, token):
+    exchange = _get_exchange_by_token_or_404(token)
+    if is_exchange_expired(exchange):
+        expire_exchange(exchange=exchange, request=request)
+        raise Http404("Exchange expired")
+    if exchange.status == DocumentExchange.Status.REVOKED:
+        raise Http404("Exchange not available")
+    if not exchange.document.file:
+        raise Http404("Document file not found")
+
+    if exchange.status == DocumentExchange.Status.SENT:
+        exchange = mark_exchange_opened(exchange=exchange, request=request)
+    record_exchange_download(exchange=exchange, request=request)
+    return FileResponse(exchange.document.file.open("rb"), as_attachment=True)
 
 
 @login_required

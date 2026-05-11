@@ -4,12 +4,15 @@ from mptt.admin import MPTTModelAdmin
 
 from .models import (
     AuditEvent,
+    Counterparty,
     Department,
     Document,
     DocumentActivity,
+    DocumentExchange,
     DocumentRelation,
     DocumentType,
     DocumentVersion,
+    ExchangeEvent,
     Folder,
     ExtractedField,
     ImportBatch,
@@ -291,6 +294,49 @@ class WorkflowActionAdmin(admin.ModelAdmin):
     search_fields = ("document__title", "actor__username", "comment")
     autocomplete_fields = ("organization", "instance", "document", "step_template", "actor")
     readonly_fields = ("created_at",)
+
+
+@admin.register(Counterparty)
+class CounterpartyAdmin(admin.ModelAdmin):
+    list_display = ("name", "organization", "email", "contact_name", "is_active", "created_by", "created_at")
+    list_filter = ("is_active", "organization", "created_at")
+    search_fields = ("name", "email", "contact_name", "created_by__username")
+    autocomplete_fields = ("organization", "created_by")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(DocumentExchange)
+class DocumentExchangeAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "document",
+        "counterparty",
+        "organization",
+        "status",
+        "sent_by",
+        "expires_at",
+        "responded_at",
+    )
+    list_filter = ("status", "organization", "created_at", "expires_at")
+    search_fields = ("document__title", "counterparty__name", "counterparty__email", "sent_by__username", "token_hint")
+    autocomplete_fields = ("organization", "document", "counterparty", "sent_by")
+    readonly_fields = (
+        "token_hash",
+        "token_hint",
+        "opened_at",
+        "responded_at",
+        "created_at",
+        "updated_at",
+    )
+
+
+@admin.register(ExchangeEvent)
+class ExchangeEventAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "exchange", "document", "event_type", "actor_name", "actor_email")
+    list_filter = ("event_type", "organization", "created_at")
+    search_fields = ("document__title", "exchange__counterparty__name", "actor_name", "actor_email", "comment")
+    autocomplete_fields = ("organization", "exchange", "document")
+    readonly_fields = ("created_at", "ip_address", "user_agent")
 
 
 @admin.register(DocumentRelation)

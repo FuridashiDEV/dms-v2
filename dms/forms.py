@@ -8,7 +8,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils.html import strip_tags
 
-from .models import Department, Document, DocumentType, Folder, OrganizationMember, WorkflowTemplate
+from .models import Counterparty, Department, Document, DocumentType, Folder, OrganizationMember, WorkflowTemplate
 from .utils import get_allowed_departments, get_user_organizations
 
 
@@ -631,6 +631,93 @@ class WorkflowActionForm(forms.Form):
         required=False,
         max_length=2000,
         widget=forms.Textarea(attrs={"rows": 3}),
+    )
+
+    def clean_comment(self):
+        return normalize_text_input(
+            self.cleaned_data.get("comment", ""),
+            collapse_whitespace=False,
+        )
+
+
+class CounterpartyExchangeForm(forms.Form):
+    counterparty = forms.ModelChoiceField(
+        queryset=Counterparty.objects.none(),
+        label="Counterparty",
+        required=False,
+    )
+    new_counterparty_name = forms.CharField(
+        label="New counterparty name",
+        required=False,
+        max_length=255,
+    )
+    new_counterparty_email = forms.EmailField(
+        label="New counterparty email",
+        required=False,
+    )
+    new_contact_name = forms.CharField(
+        label="Contact name",
+        required=False,
+        max_length=255,
+    )
+    message = forms.CharField(
+        label="Message",
+        required=False,
+        max_length=2000,
+        widget=forms.Textarea(attrs={"rows": 3}),
+    )
+    expires_days = forms.IntegerField(
+        label="Expires in days",
+        required=False,
+        min_value=1,
+        max_value=90,
+        initial=14,
+    )
+
+    def __init__(self, *args, user=None, document=None, **kwargs):
+        self.user = user
+        self.document = document
+        super().__init__(*args, **kwargs)
+        if document is None:
+            return
+        self.fields["counterparty"].queryset = Counterparty.objects.filter(
+            organization=document.organization,
+            is_active=True,
+        ).order_by("name")
+
+    def clean_new_counterparty_name(self):
+        return normalize_text_input(self.cleaned_data.get("new_counterparty_name", ""))
+
+    def clean_new_contact_name(self):
+        return normalize_text_input(self.cleaned_data.get("new_contact_name", ""))
+
+    def clean_message(self):
+        return normalize_text_input(
+            self.cleaned_data.get("message", ""),
+            collapse_whitespace=False,
+        )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        counterparty = cleaned_data.get("counterparty")
+        new_name = cleaned_data.get("new_counterparty_name") or ""
+        new_email = cleaned_data.get("new_counterparty_email") or ""
+
+        if counterparty and (new_name or new_email):
+            raise ValidationError("Choose an existing counterparty or create a new one, not both.")
+        if not counterparty and not new_name:
+            raise ValidationError("Choose a counterparty or enter a new counterparty name.")
+        if new_email and not new_name:
+            raise ValidationError("New counterparty name is required with email.")
+        return cleaned_data
+
+
+class ExternalExchangeActionForm(forms.Form):
+    comment = forms.CharField(
+        label="Comment",
+        required=False,
+        max_length=2000,
+        widget=forms.Textarea(attrs={"rows": 4}),
     )
 
     def clean_comment(self):
