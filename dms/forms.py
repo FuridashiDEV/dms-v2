@@ -8,7 +8,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils.html import strip_tags
 
-from .models import Counterparty, Department, Document, DocumentExchange, DocumentType, Folder, OrganizationMember, WorkflowTemplate
+from .models import Counterparty, CounterpartyContact, Department, Document, DocumentExchange, DocumentType, Folder, OrganizationMember, WorkflowTemplate
 from .utils import get_allowed_departments, get_user_organizations
 
 
@@ -646,6 +646,11 @@ class CounterpartyExchangeForm(forms.Form):
         label="Counterparty",
         required=False,
     )
+    counterparty_contact = forms.ModelChoiceField(
+        queryset=CounterpartyContact.objects.none(),
+        label="Counterparty contact",
+        required=False,
+    )
     new_counterparty_name = forms.CharField(
         label="New counterparty name",
         required=False,
@@ -659,6 +664,10 @@ class CounterpartyExchangeForm(forms.Form):
         label="Contact name",
         required=False,
         max_length=255,
+    )
+    new_contact_email = forms.EmailField(
+        label="Contact email",
+        required=False,
     )
     message = forms.CharField(
         label="Message",
@@ -689,6 +698,11 @@ class CounterpartyExchangeForm(forms.Form):
             organization=document.organization,
             is_active=True,
         ).order_by("name")
+        self.fields["counterparty_contact"].queryset = CounterpartyContact.objects.filter(
+            counterparty__organization=document.organization,
+            counterparty__is_active=True,
+            is_active=True,
+        ).select_related("counterparty").order_by("counterparty__name", "name")
 
     def clean_new_counterparty_name(self):
         return normalize_text_input(self.cleaned_data.get("new_counterparty_name", ""))
@@ -705,15 +719,21 @@ class CounterpartyExchangeForm(forms.Form):
     def clean(self):
         cleaned_data = super().clean()
         counterparty = cleaned_data.get("counterparty")
+        counterparty_contact = cleaned_data.get("counterparty_contact")
         new_name = cleaned_data.get("new_counterparty_name") or ""
         new_email = cleaned_data.get("new_counterparty_email") or ""
 
+        if counterparty_contact and not counterparty:
+            cleaned_data["counterparty"] = counterparty_contact.counterparty
+            counterparty = counterparty_contact.counterparty
         if counterparty and (new_name or new_email):
             raise ValidationError("Choose an existing counterparty or create a new one, not both.")
         if not counterparty and not new_name:
             raise ValidationError("Choose a counterparty or enter a new counterparty name.")
         if new_email and not new_name:
             raise ValidationError("New counterparty name is required with email.")
+        if counterparty_contact and counterparty and counterparty_contact.counterparty_id != counterparty.id:
+            raise ValidationError("Counterparty contact belongs to another counterparty.")
         return cleaned_data
 
 
@@ -738,6 +758,11 @@ class IncomingExchangeForm(forms.Form):
         label="Counterparty",
         required=False,
     )
+    counterparty_contact = forms.ModelChoiceField(
+        queryset=CounterpartyContact.objects.none(),
+        label="Counterparty contact",
+        required=False,
+    )
     new_counterparty_name = forms.CharField(
         label="New counterparty name",
         required=False,
@@ -751,6 +776,10 @@ class IncomingExchangeForm(forms.Form):
         label="Contact name",
         required=False,
         max_length=255,
+    )
+    new_contact_email = forms.EmailField(
+        label="Contact email",
+        required=False,
     )
     department = forms.ModelChoiceField(
         queryset=Department.objects.none(),
@@ -799,6 +828,11 @@ class IncomingExchangeForm(forms.Form):
             organization_id__in=organization_ids,
             is_active=True,
         ).order_by("name")
+        self.fields["counterparty_contact"].queryset = CounterpartyContact.objects.filter(
+            counterparty__organization_id__in=organization_ids,
+            counterparty__is_active=True,
+            is_active=True,
+        ).select_related("counterparty").order_by("counterparty__name", "name")
 
         current_department = None
         if self.data.get("department"):
@@ -845,11 +879,15 @@ class IncomingExchangeForm(forms.Form):
     def clean(self):
         cleaned_data = super().clean()
         counterparty = cleaned_data.get("counterparty")
+        counterparty_contact = cleaned_data.get("counterparty_contact")
         new_name = cleaned_data.get("new_counterparty_name") or ""
         new_email = cleaned_data.get("new_counterparty_email") or ""
         department = cleaned_data.get("department")
         folder = cleaned_data.get("folder")
 
+        if counterparty_contact and not counterparty:
+            cleaned_data["counterparty"] = counterparty_contact.counterparty
+            counterparty = counterparty_contact.counterparty
         if counterparty and (new_name or new_email):
             raise ValidationError("Choose an existing counterparty or create a new one, not both.")
         if not counterparty and not new_name:
@@ -860,7 +898,29 @@ class IncomingExchangeForm(forms.Form):
             raise ValidationError("Folder does not belong to the selected department.")
         if counterparty and department and counterparty.organization_id != department.organization_id:
             raise ValidationError("Counterparty belongs to another organization.")
+        if counterparty_contact and counterparty and counterparty_contact.counterparty_id != counterparty.id:
+            raise ValidationError("Counterparty contact belongs to another counterparty.")
+        if counterparty_contact and department and counterparty_contact.counterparty.organization_id != department.organization_id:
+            raise ValidationError("Counterparty contact belongs to another organization.")
         return cleaned_data
+
+
+class ExchangeMessageForm(forms.Form):
+    body = forms.CharField(
+        label="Message",
+        required=True,
+        max_length=2000,
+        widget=forms.Textarea(attrs={"rows": 3}),
+    )
+
+    def clean_body(self):
+        body = normalize_text_input(
+            self.cleaned_data.get("body", ""),
+            collapse_whitespace=False,
+        )
+        if not body:
+            raise ValidationError("Message is required.")
+        return body
 
 
 class ExchangeListFilterForm(forms.Form):

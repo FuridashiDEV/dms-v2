@@ -24,6 +24,7 @@ urlpatterns = [
         name="document_workflow_action",
     ),
     path("documents/<int:pk>/exchanges/send/", views.document_exchange_send, name="document_exchange_send"),
+    path("exchanges/<int:exchange_id>/messages/", views.exchange_message_create, name="exchange_message_create"),
     path("portal/exchanges/<str:token>/", views.counterparty_portal, name="counterparty_portal"),
     path(
         "portal/exchanges/<str:token>/download/",

@@ -359,11 +359,14 @@
           {% csrf_token %}
           <div class="meta-label">Existing counterparty</div>
           <div style="margin-top:8px;">{{ counterparty_exchange_form.counterparty }}</div>
+          <div class="meta-label" style="margin-top:12px;">Existing contact</div>
+          <div style="margin-top:8px;">{{ counterparty_exchange_form.counterparty_contact }}</div>
           <div class="meta-label" style="margin-top:12px;">New counterparty</div>
           <div style="margin-top:8px; display:grid; gap:8px;">
             {{ counterparty_exchange_form.new_counterparty_name }}
             {{ counterparty_exchange_form.new_counterparty_email }}
             {{ counterparty_exchange_form.new_contact_name }}
+            {{ counterparty_exchange_form.new_contact_email }}
           </div>
           <div class="meta-label" style="margin-top:12px;">Message</div>
           <div style="margin-top:8px;">{{ counterparty_exchange_form.message }}</div>
@@ -383,12 +386,39 @@
         {% for exchange in recent_exchanges %}
           <div class="row-card">
             <div class="row-main">{{ exchange.counterparty.name }}: {{ exchange.get_direction_display }} / {{ exchange.get_status_display }}</div>
+            {% if exchange.counterparty_contact %}
+              <div class="row-meta">Contact: {{ exchange.counterparty_contact.name }}</div>
+            {% endif %}
             <div class="row-meta">
               {{ exchange.created_at|date:"d.m.Y H:i" }}
               {% if exchange.sent_by %} вЂў {{ exchange.sent_by.get_full_name|default:exchange.sent_by.username }}{% endif %}
               {% if exchange.expires_at %} вЂў expires {{ exchange.expires_at|date:"d.m.Y H:i" }}{% endif %}
               {% if exchange.token_hint %} вЂў token ...{{ exchange.token_hint }}{% endif %}
             </div>
+            <div class="stack" style="margin-top:12px;">
+              {% for exchange_message in exchange.messages.all %}
+                <div class="row-card" style="background:rgba(248,250,252,.72);">
+                  <div class="row-main">{{ exchange_message.get_author_type_display }}</div>
+                  <div class="row-meta">
+                    {{ exchange_message.created_at|date:"d.m.Y H:i" }}
+                    {% if exchange_message.user %} / {{ exchange_message.user.get_full_name|default:exchange_message.user.username }}{% endif %}
+                    {% if exchange_message.counterparty_contact %} / {{ exchange_message.counterparty_contact.name }}{% endif %}
+                  </div>
+                  <div class="row-meta">{{ exchange_message.body }}</div>
+                </div>
+              {% empty %}
+                <div class="row-meta">No messages yet.</div>
+              {% endfor %}
+            </div>
+            {% if not exchange.is_terminal %}
+              <form method="post" action="{% url 'dms:exchange_message_create' exchange.id %}" style="margin-top:12px;">
+                {% csrf_token %}
+                <textarea name="body" rows="2" maxlength="2000" placeholder="Internal message"></textarea>
+                <div class="row-actions">
+                  <button class="btn btn-ghost" type="submit">Send message</button>
+                </div>
+              </form>
+            {% endif %}
           </div>
         {% empty %}
           <div class="row-card">

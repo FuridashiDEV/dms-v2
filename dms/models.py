@@ -1370,6 +1370,44 @@ class Counterparty(models.Model):
         return self.name
 
 
+class CounterpartyContact(models.Model):
+    counterparty = models.ForeignKey(
+        Counterparty,
+        on_delete=models.CASCADE,
+        related_name="contacts",
+        verbose_name=_("Counterparty"),
+    )
+    name = models.CharField(_("Name"), max_length=255)
+    email = models.EmailField(_("Email"), blank=True, default="")
+    position = models.CharField(_("Position"), max_length=255, blank=True, default="")
+    phone = models.CharField(_("Phone"), max_length=64, blank=True, default="")
+    is_active = models.BooleanField(_("Active"), default=True, db_index=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_counterparty_contacts",
+        verbose_name=_("Created by"),
+    )
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Counterparty contact")
+        verbose_name_plural = _("Counterparty contacts")
+        ordering = ["counterparty__name", "name"]
+        indexes = [
+            models.Index(fields=["counterparty", "is_active"]),
+            models.Index(fields=["email"]),
+        ]
+
+    def __str__(self) -> str:
+        if self.email:
+            return f"{self.name} <{self.email}>"
+        return self.name
+
+
 class DocumentExchange(models.Model):
     class Direction(models.TextChoices):
         OUTGOING = "OUTGOING", _("Outgoing")
@@ -1408,6 +1446,14 @@ class DocumentExchange(models.Model):
         on_delete=models.PROTECT,
         related_name="document_exchanges",
         verbose_name=_("Counterparty"),
+    )
+    counterparty_contact = models.ForeignKey(
+        CounterpartyContact,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="document_exchanges",
+        verbose_name=_("Counterparty contact"),
     )
     sent_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -1465,6 +1511,7 @@ class DocumentExchange(models.Model):
             models.Index(fields=["organization", "-created_at"]),
             models.Index(fields=["document", "-created_at"]),
             models.Index(fields=["counterparty", "-created_at"]),
+            models.Index(fields=["counterparty_contact", "-created_at"]),
             models.Index(fields=["direction", "status", "-created_at"]),
             models.Index(fields=["business_document_type", "-created_at"]),
             models.Index(fields=["status", "-created_at"]),
@@ -1540,6 +1587,79 @@ class ExchangeEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.event_type} / {self.exchange}"
+
+
+class ExchangeMessage(models.Model):
+    class AuthorType(models.TextChoices):
+        INTERNAL = "INTERNAL", _("Internal")
+        EXTERNAL = "EXTERNAL", _("External")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="exchange_messages",
+        verbose_name=_("Organization"),
+    )
+    exchange = models.ForeignKey(
+        DocumentExchange,
+        on_delete=models.CASCADE,
+        related_name="messages",
+        verbose_name=_("Document exchange"),
+    )
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="exchange_messages",
+        verbose_name=_("Document"),
+    )
+    counterparty = models.ForeignKey(
+        Counterparty,
+        on_delete=models.PROTECT,
+        related_name="exchange_messages",
+        verbose_name=_("Counterparty"),
+    )
+    counterparty_contact = models.ForeignKey(
+        CounterpartyContact,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="exchange_messages",
+        verbose_name=_("Counterparty contact"),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="exchange_messages",
+        verbose_name=_("User"),
+    )
+    author_type = models.CharField(
+        _("Author type"),
+        max_length=20,
+        choices=AuthorType.choices,
+        db_index=True,
+    )
+    body = models.TextField(_("Body"))
+    source_event_type = models.CharField(_("Source event type"), max_length=20, blank=True, default="")
+    ip_address = models.GenericIPAddressField(_("IP address"), null=True, blank=True)
+    user_agent = models.TextField(_("User-Agent"), blank=True, default="")
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Exchange message")
+        verbose_name_plural = _("Exchange messages")
+        ordering = ["created_at", "id"]
+        indexes = [
+            models.Index(fields=["organization", "-created_at"]),
+            models.Index(fields=["exchange", "created_at"]),
+            models.Index(fields=["document", "-created_at"]),
+            models.Index(fields=["counterparty", "-created_at"]),
+            models.Index(fields=["author_type", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_author_type_display()} / {self.exchange}"
 
 
 class DocumentAccess(models.Model):

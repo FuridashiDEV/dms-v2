@@ -5,6 +5,7 @@ from mptt.admin import MPTTModelAdmin
 from .models import (
     AuditEvent,
     Counterparty,
+    CounterpartyContact,
     Department,
     Document,
     DocumentActivity,
@@ -13,6 +14,7 @@ from .models import (
     DocumentType,
     DocumentVersion,
     ExchangeEvent,
+    ExchangeMessage,
     Folder,
     ExtractedField,
     ImportBatch,
@@ -305,12 +307,22 @@ class CounterpartyAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at", "updated_at")
 
 
+@admin.register(CounterpartyContact)
+class CounterpartyContactAdmin(admin.ModelAdmin):
+    list_display = ("name", "counterparty", "email", "position", "phone", "is_active", "created_by", "created_at")
+    list_filter = ("is_active", "counterparty__organization", "created_at")
+    search_fields = ("name", "email", "position", "phone", "counterparty__name", "created_by__username")
+    autocomplete_fields = ("counterparty", "created_by")
+    readonly_fields = ("created_at", "updated_at")
+
+
 @admin.register(DocumentExchange)
 class DocumentExchangeAdmin(admin.ModelAdmin):
     list_display = (
         "created_at",
         "document",
         "counterparty",
+        "counterparty_contact",
         "organization",
         "direction",
         "status",
@@ -321,8 +333,16 @@ class DocumentExchangeAdmin(admin.ModelAdmin):
         "responded_at",
     )
     list_filter = ("direction", "status", "business_document_type", "organization", "created_at", "expires_at")
-    search_fields = ("document__title", "counterparty__name", "counterparty__email", "sent_by__username", "token_hint")
-    autocomplete_fields = ("organization", "document", "counterparty", "sent_by", "received_by")
+    search_fields = (
+        "document__title",
+        "counterparty__name",
+        "counterparty__email",
+        "counterparty_contact__name",
+        "counterparty_contact__email",
+        "sent_by__username",
+        "token_hint",
+    )
+    autocomplete_fields = ("organization", "document", "counterparty", "counterparty_contact", "sent_by", "received_by")
     readonly_fields = (
         "token_hash",
         "token_hint",
@@ -340,6 +360,22 @@ class ExchangeEventAdmin(admin.ModelAdmin):
     list_filter = ("event_type", "organization", "created_at")
     search_fields = ("document__title", "exchange__counterparty__name", "actor_name", "actor_email", "comment")
     autocomplete_fields = ("organization", "exchange", "document")
+    readonly_fields = ("created_at", "ip_address", "user_agent")
+
+
+@admin.register(ExchangeMessage)
+class ExchangeMessageAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "exchange", "document", "author_type", "user", "counterparty_contact")
+    list_filter = ("author_type", "organization", "created_at")
+    search_fields = (
+        "document__title",
+        "exchange__counterparty__name",
+        "counterparty_contact__name",
+        "counterparty_contact__email",
+        "user__username",
+        "body",
+    )
+    autocomplete_fields = ("organization", "exchange", "document", "counterparty", "counterparty_contact", "user")
     readonly_fields = ("created_at", "ip_address", "user_agent")
 
 

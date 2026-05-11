@@ -11,9 +11,11 @@ from django.utils import timezone
 from dms.models import (
     AuditEvent,
     Counterparty,
+    CounterpartyContact,
     Document,
     DocumentExchange,
     ExchangeEvent,
+    ExchangeMessage,
     Folder,
 )
 from dms.services.audit import get_client_ip, get_user_agent, record_audit_event
@@ -59,6 +61,70 @@ def can_send_document_exchange(user, document: Document) -> bool:
     if not getattr(user, "department_id", None):
         return False
     return get_allowed_departments(user).filter(id=document.department_id).exists()
+
+
+def can_access_document_exchange(user, exchange: DocumentExchange) -> bool:
+    return user_can_access_document(user, exchange.document)
+
+
+def _actor_display_name(user) -> str:
+    return getattr(user, "get_full_name", lambda: "")() or getattr(user, "username", "")
+
+
+def ensure_counterparty_contact(
+    *,
+    counterparty: Counterparty,
+    contact: CounterpartyContact | None = None,
+    name: str = "",
+    email: str = "",
+    user=None,
+) -> CounterpartyContact | None:
+    if contact is not None:
+        contact = CounterpartyContact.objects.select_related("counterparty").get(pk=contact.pk)
+        if contact.counterparty_id != counterparty.id:
+            raise ExchangeError("Counterparty contact belongs to another counterparty.")
+        if not contact.is_active:
+            raise ExchangeError("Counterparty contact is inactive.")
+        return contact
+
+    name = (name or "").strip()
+    email = (email or "").strip()
+    if not name and not email:
+        return None
+
+    existing = None
+    if email:
+        existing = CounterpartyContact.objects.filter(
+            counterparty=counterparty,
+            email__iexact=email,
+        ).first()
+    if existing is None and name:
+        existing = CounterpartyContact.objects.filter(
+            counterparty=counterparty,
+            name__iexact=name,
+            email="",
+        ).first()
+    if existing is not None:
+        updates = []
+        if name and existing.name != name:
+            existing.name = name
+            updates.append("name")
+        if email and not existing.email:
+            existing.email = email
+            updates.append("email")
+        if not existing.is_active:
+            existing.is_active = True
+            updates.append("is_active")
+        if updates:
+            existing.save(update_fields=[*updates, "updated_at"])
+        return existing
+
+    return CounterpartyContact.objects.create(
+        counterparty=counterparty,
+        name=name or email or counterparty.name,
+        email=email,
+        created_by=user if getattr(user, "is_authenticated", False) else None,
+    )
 
 
 def _build_portal_url(request, token: str) -> str:
@@ -109,6 +175,7 @@ def record_exchange_event(
             "document_exchange_id": exchange.id,
             "counterparty_id": exchange.counterparty_id,
             "counterparty_name": exchange.counterparty.name,
+            "counterparty_contact_id": exchange.counterparty_contact_id,
             "exchange_event_id": event.id,
             "exchange_event_type": event.event_type,
             "exchange_status": exchange.status,
@@ -136,6 +203,9 @@ def create_document_exchange(
     message: str = "",
     expires_at=None,
     business_document_type: str = "",
+    counterparty_contact: CounterpartyContact | None = None,
+    contact_name: str = "",
+    contact_email: str = "",
 ) -> CreatedExchange:
     document = Document.objects.select_for_update().get(pk=document.pk)
     counterparty = Counterparty.objects.get(pk=counterparty.pk)
@@ -146,6 +216,13 @@ def create_document_exchange(
         raise ExchangeError("Counterparty is inactive.")
     if not can_send_document_exchange(user, document):
         raise ExchangePermissionError("User cannot send this document to counterparty.")
+    counterparty_contact = ensure_counterparty_contact(
+        counterparty=counterparty,
+        contact=counterparty_contact,
+        name=contact_name,
+        email=contact_email,
+        user=user,
+    )
 
     token = generate_exchange_token()
     token_hash = hash_exchange_token(token)
@@ -157,6 +234,7 @@ def create_document_exchange(
         organization=document.organization,
         document=document,
         counterparty=counterparty,
+        counterparty_contact=counterparty_contact,
         sent_by=user,
         status=DocumentExchange.Status.SENT,
         direction=DocumentExchange.Direction.OUTGOING,
@@ -176,6 +254,16 @@ def create_document_exchange(
         comment=message,
         metadata={"portal_url": _build_portal_url(request, token)},
     )
+    if message:
+        record_exchange_message(
+            exchange=exchange,
+            author_type=ExchangeMessage.AuthorType.INTERNAL,
+            user=user,
+            body=message,
+            request=request,
+            source_event_type=ExchangeEvent.EventType.SENT,
+            create_comment_event=False,
+        )
     return CreatedExchange(exchange=exchange, token=token)
 
 
@@ -191,6 +279,9 @@ def create_incoming_document_exchange(
     description: str = "",
     business_document_type: str = "",
     message: str = "",
+    counterparty_contact: CounterpartyContact | None = None,
+    contact_name: str = "",
+    contact_email: str = "",
     request=None,
     indexer=None,
 ) -> tuple[DocumentExchange, Document]:
@@ -203,6 +294,13 @@ def create_incoming_document_exchange(
         raise ExchangePermissionError("User cannot receive documents for this department.")
     if folder is not None and folder.department_id != department.id:
         raise ExchangeError("Folder belongs to another department.")
+    counterparty_contact = ensure_counterparty_contact(
+        counterparty=counterparty,
+        contact=counterparty_contact,
+        name=contact_name,
+        email=contact_email,
+        user=user,
+    )
 
     document, version = create_document_from_uploaded_file(
         uploaded_file=uploaded_file,
@@ -232,6 +330,7 @@ def create_incoming_document_exchange(
         organization=document.organization,
         document=document,
         counterparty=counterparty,
+        counterparty_contact=counterparty_contact,
         received_by=user,
         direction=DocumentExchange.Direction.INCOMING,
         status=DocumentExchange.Status.RECEIVED,
@@ -254,14 +353,97 @@ def create_incoming_document_exchange(
             "document_version_number": version.number,
         },
     )
+    if message:
+        record_exchange_message(
+            exchange=exchange,
+            author_type=ExchangeMessage.AuthorType.EXTERNAL,
+            counterparty_contact=counterparty_contact,
+            body=message,
+            request=request,
+            source_event_type=ExchangeEvent.EventType.RECEIVED,
+            create_comment_event=False,
+        )
     return exchange, document
+
+
+@transaction.atomic
+def record_exchange_message(
+    *,
+    exchange: DocumentExchange,
+    author_type: str,
+    body: str,
+    request=None,
+    user=None,
+    counterparty_contact: CounterpartyContact | None = None,
+    source_event_type: str = "",
+    create_comment_event: bool = True,
+) -> ExchangeMessage:
+    exchange = (
+        DocumentExchange.objects
+        .select_for_update()
+        .select_related("organization", "document", "counterparty")
+        .get(pk=exchange.pk)
+    )
+    body = (body or "").strip()
+    if not body:
+        raise ExchangeError("Message is required.")
+
+    if author_type == ExchangeMessage.AuthorType.INTERNAL:
+        if user is None or not can_access_document_exchange(user, exchange):
+            raise ExchangePermissionError("User cannot message this exchange.")
+        counterparty_contact = exchange.counterparty_contact
+        actor_name = _actor_display_name(user)
+        actor_email = getattr(user, "email", "")
+    elif author_type == ExchangeMessage.AuthorType.EXTERNAL:
+        if counterparty_contact is None:
+            counterparty_contact = exchange.counterparty_contact
+        if counterparty_contact is not None and counterparty_contact.counterparty_id != exchange.counterparty_id:
+            raise ExchangeError("Counterparty contact belongs to another counterparty.")
+        actor_name = (
+            getattr(counterparty_contact, "name", "")
+            or exchange.counterparty.contact_name
+            or exchange.counterparty.name
+        )
+        actor_email = getattr(counterparty_contact, "email", "") or exchange.counterparty.email
+    else:
+        raise ExchangeError("Invalid message author type.")
+
+    message = ExchangeMessage.objects.create(
+        organization=exchange.organization,
+        exchange=exchange,
+        document=exchange.document,
+        counterparty=exchange.counterparty,
+        counterparty_contact=counterparty_contact,
+        user=user if author_type == ExchangeMessage.AuthorType.INTERNAL else None,
+        author_type=author_type,
+        body=body,
+        source_event_type=source_event_type or "",
+        ip_address=get_client_ip(request),
+        user_agent=get_user_agent(request),
+    )
+
+    if create_comment_event:
+        record_exchange_event(
+            exchange=exchange,
+            event_type=ExchangeEvent.EventType.COMMENTED,
+            request=request,
+            user=user if author_type == ExchangeMessage.AuthorType.INTERNAL else None,
+            actor_name=actor_name,
+            actor_email=actor_email,
+            comment=body,
+            metadata={
+                "exchange_message_id": message.id,
+                "exchange_message_author_type": author_type,
+            },
+        )
+    return message
 
 
 def resolve_exchange_token(token: str) -> DocumentExchange | None:
     token_hash = hash_exchange_token(token or "")
     return (
         DocumentExchange.objects
-        .select_related("organization", "document", "document__department", "counterparty", "sent_by")
+        .select_related("organization", "document", "document__department", "counterparty", "counterparty_contact", "sent_by")
         .filter(token_hash=token_hash)
         .first()
     )
@@ -329,6 +511,15 @@ def accept_exchange(*, exchange: DocumentExchange, request=None, comment: str = 
     exchange.status = DocumentExchange.Status.ACCEPTED
     exchange.responded_at = timezone.now()
     exchange.save(update_fields=["status", "responded_at", "updated_at"])
+    if comment:
+        record_exchange_message(
+            exchange=exchange,
+            author_type=ExchangeMessage.AuthorType.EXTERNAL,
+            body=comment,
+            request=request,
+            source_event_type=ExchangeEvent.EventType.ACCEPTED,
+            create_comment_event=False,
+        )
     record_exchange_event(
         exchange=exchange,
         event_type=ExchangeEvent.EventType.ACCEPTED,
@@ -348,6 +539,15 @@ def reject_exchange(*, exchange: DocumentExchange, request=None, comment: str = 
     exchange.status = DocumentExchange.Status.REJECTED
     exchange.responded_at = timezone.now()
     exchange.save(update_fields=["status", "responded_at", "updated_at"])
+    if comment:
+        record_exchange_message(
+            exchange=exchange,
+            author_type=ExchangeMessage.AuthorType.EXTERNAL,
+            body=comment,
+            request=request,
+            source_event_type=ExchangeEvent.EventType.REJECTED,
+            create_comment_event=False,
+        )
     record_exchange_event(
         exchange=exchange,
         event_type=ExchangeEvent.EventType.REJECTED,
@@ -360,17 +560,16 @@ def reject_exchange(*, exchange: DocumentExchange, request=None, comment: str = 
 
 
 @transaction.atomic
-def comment_exchange(*, exchange: DocumentExchange, request=None, comment: str) -> ExchangeEvent:
+def comment_exchange(*, exchange: DocumentExchange, request=None, comment: str) -> ExchangeMessage:
     exchange = DocumentExchange.objects.select_for_update().get(pk=exchange.pk)
     if exchange.is_terminal:
         raise ExchangeError("Exchange is already closed.")
     if not comment:
         raise ExchangeError("Comment is required.")
-    return record_exchange_event(
+    return record_exchange_message(
         exchange=exchange,
-        event_type=ExchangeEvent.EventType.COMMENTED,
+        author_type=ExchangeMessage.AuthorType.EXTERNAL,
         request=request,
-        actor_name=exchange.counterparty.contact_name or exchange.counterparty.name,
-        actor_email=exchange.counterparty.email,
-        comment=comment,
+        body=comment,
+        source_event_type=ExchangeEvent.EventType.COMMENTED,
     )

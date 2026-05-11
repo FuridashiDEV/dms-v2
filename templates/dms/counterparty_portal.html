@@ -87,6 +87,27 @@
   </div>
 
   <div class="card" style="padding:24px;">
+    <h2 class="section-title">Messages</h2>
+    <div class="stack">
+      {% for exchange_message in exchange_messages %}
+        <div class="row-card">
+          <div class="row-main">{{ exchange_message.get_author_type_display }}</div>
+          <div class="row-meta">
+            {{ exchange_message.created_at|date:"d.m.Y H:i" }}
+            {% if exchange_message.user %} / {{ exchange_message.user.get_full_name|default:exchange_message.user.username }}{% endif %}
+            {% if exchange_message.counterparty_contact %} / {{ exchange_message.counterparty_contact.name }}{% endif %}
+          </div>
+          <div class="row-meta">{{ exchange_message.body }}</div>
+        </div>
+      {% empty %}
+        <div class="row-card">
+          <div class="row-main">No messages yet</div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card" style="padding:24px;">
     <h2 class="section-title">Exchange events</h2>
     <div class="stack">
       {% for event in events %}

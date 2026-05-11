@@ -21,6 +21,7 @@ from .forms import (
     DocumentSearchForm,
     DocumentUploadForm,
     ExchangeListFilterForm,
+    ExchangeMessageForm,
     ExternalExchangeActionForm,
     FolderBrowserQueryForm,
     ImportBatchForm,
@@ -57,6 +58,7 @@ from dms.services.counterparty import (
     is_exchange_expired,
     mark_exchange_opened,
     record_exchange_download,
+    record_exchange_message,
     reject_exchange,
     resolve_exchange_token,
 )
@@ -1402,8 +1404,8 @@ def document_detail(request, pk):
             workflow_start_form = candidate_form
     recent_exchanges = (
         doc.exchanges
-        .select_related("counterparty", "sent_by")
-        .prefetch_related("events")
+        .select_related("counterparty", "counterparty_contact", "sent_by", "received_by")
+        .prefetch_related("events", "messages")
         .order_by("-created_at")[:8]
     )
     counterparty_exchange_form = None
@@ -1586,6 +1588,9 @@ def document_exchange_send(request, pk):
             message=form.cleaned_data.get("message", ""),
             expires_at=expires_at,
             business_document_type=form.cleaned_data.get("business_document_type", ""),
+            counterparty_contact=form.cleaned_data.get("counterparty_contact"),
+            contact_name=form.cleaned_data.get("new_contact_name", ""),
+            contact_email=form.cleaned_data.get("new_contact_email") or form.cleaned_data.get("new_counterparty_email", ""),
         )
     except ExchangePermissionError:
         return HttpResponseForbidden("Нет прав на отправку документа контрагенту")
@@ -1638,7 +1643,8 @@ def exchange_list(request):
             organization__in=get_user_organizations(request.user),
             document_id__in=allowed_documents,
         )
-        .select_related("document", "counterparty", "sent_by", "received_by")
+        .select_related("document", "counterparty", "counterparty_contact", "sent_by", "received_by")
+        .prefetch_related("messages")
         .order_by("-created_at")
     )
 
@@ -1699,6 +1705,9 @@ def incoming_exchange_create(request):
                     description=form.cleaned_data.get("description", ""),
                     business_document_type=form.cleaned_data.get("business_document_type", ""),
                     message=form.cleaned_data.get("message", ""),
+                    counterparty_contact=form.cleaned_data.get("counterparty_contact"),
+                    contact_name=form.cleaned_data.get("new_contact_name", ""),
+                    contact_email=form.cleaned_data.get("new_contact_email") or form.cleaned_data.get("new_counterparty_email", ""),
                 )
             except ExchangePermissionError:
                 return HttpResponseForbidden("Нет прав на прием документов в этот отдел")
@@ -1717,6 +1726,43 @@ def incoming_exchange_create(request):
             "form": form,
         },
     )
+
+
+@login_required
+@require_POST
+def exchange_message_create(request, exchange_id):
+    allowed_documents = get_allowed_documents(request.user).values("id")
+    exchange = get_object_or_404(
+        DocumentExchange.objects.select_related("document", "counterparty").filter(
+            organization__in=get_user_organizations(request.user),
+            document_id__in=allowed_documents,
+        ),
+        pk=exchange_id,
+    )
+    if not user_can_access_document(request.user, exchange.document):
+        return HttpResponseForbidden("РќРµС‚ РґРѕСЃС‚СѓРїР° Рє exchange")
+
+    form = ExchangeMessageForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Could not save exchange message.")
+        return redirect("dms:document_detail", pk=exchange.document_id)
+
+    try:
+        record_exchange_message(
+            exchange=exchange,
+            author_type="INTERNAL",
+            user=request.user,
+            request=request,
+            body=form.cleaned_data["body"],
+            source_event_type=ExchangeEvent.EventType.COMMENTED,
+        )
+    except ExchangePermissionError:
+        return HttpResponseForbidden("РќРµС‚ РїСЂР°РІ РЅР° СЃРѕРѕР±С‰РµРЅРёРµ РІ exchange")
+    except ExchangeError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, "Exchange message saved.")
+    return redirect("dms:document_detail", pk=exchange.document_id)
 
 
 def _get_exchange_by_token_or_404(token: str) -> DocumentExchange:
@@ -1740,6 +1786,7 @@ def counterparty_portal(request, token):
             "exchange": exchange,
             "doc": exchange.document,
             "events": exchange.events.all()[:12],
+            "exchange_messages": exchange.messages.select_related("user", "counterparty_contact")[:20],
             "form": ExternalExchangeActionForm(),
             "token": token,
             "is_closed": exchange.is_terminal,

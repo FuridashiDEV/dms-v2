@@ -72,6 +72,7 @@
         </div>
         <div class="exchange-meta">
           {{ exchange.get_direction_display }} / {{ exchange.get_status_display }}
+          {% if exchange.counterparty_contact %} / {{ exchange.counterparty_contact.name }}{% endif %}
           • {{ exchange.counterparty.name }}
           {% if exchange.business_document_type %} • {{ exchange.get_business_document_type_display }}{% endif %}
           • {{ exchange.created_at|date:"d.m.Y H:i" }}
