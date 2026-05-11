@@ -12,6 +12,8 @@ from .models import (
     DocumentVersion,
     Folder,
     ExtractedField,
+    ImportBatch,
+    ImportFile,
     Organization,
     OrganizationMember,
     ProcessingJob,
@@ -186,6 +188,43 @@ class ExtractedFieldAdmin(admin.ModelAdmin):
     list_filter = ("status", "field_name", "organization", "created_at")
     search_fields = ("document__title", "field_name", "value", "reviewed_by__username")
     autocomplete_fields = ("organization", "job", "document", "reviewed_by")
+
+
+@admin.register(ImportBatch)
+class ImportBatchAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "organization",
+        "department",
+        "folder",
+        "created_by",
+        "status",
+        "total_files",
+        "imported_files",
+        "duplicate_files",
+        "failed_files",
+    )
+    list_filter = ("status", "organization", "created_at")
+    search_fields = ("created_by__username", "department__name", "folder__name")
+    autocomplete_fields = ("organization", "department", "folder", "created_by")
+    readonly_fields = ("created_at", "completed_at")
+
+
+@admin.register(ImportFile)
+class ImportFileAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "batch",
+        "original_file_name",
+        "status",
+        "document",
+        "duplicate_of",
+        "checksum_sha256",
+    )
+    list_filter = ("status", "organization", "created_at")
+    search_fields = ("original_file_name", "checksum_sha256", "document__title")
+    autocomplete_fields = ("batch", "organization", "document", "duplicate_of")
+    readonly_fields = ("created_at",)
 
 
 @admin.register(DocumentRelation)

@@ -277,6 +277,7 @@
     </p>
     <div class="hero-actions">
       <a class="btn btn-primary" href="{% url 'dms:document_upload' %}">Загрузить документ</a>
+      <a class="btn btn-ghost" href="{% url 'dms:document_import' %}">Импорт файлов</a>
       <a class="btn btn-ghost" href="{% url 'dms:folder_list' %}">Открыть архив по папкам</a>
     </div>
   </div>
@@ -388,7 +389,10 @@
           {% if status %}<span class="tag">Статус: {{ status }}</span>{% endif %}
         </div>
       </div>
-      <a class="btn btn-ghost" href="{% url 'dms:document_upload' %}">Новый документ</a>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="btn btn-ghost" href="{% url 'dms:document_import' %}">Импорт</a>
+        <a class="btn btn-ghost" href="{% url 'dms:document_upload' %}">Новый документ</a>
+      </div>
     </div>
 
     {% if documents %}

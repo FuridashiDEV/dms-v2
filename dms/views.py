@@ -20,13 +20,14 @@ from .forms import (
     DocumentSearchForm,
     DocumentUploadForm,
     FolderBrowserQueryForm,
+    ImportBatchForm,
     FolderManageForm,
     ParentFolderSelectionForm,
     SemanticSearchForm,
     UserCreateForm,
     UserPasswordChangeForm,
 )
-from .models import AuditEvent, Department, Document, DocumentActivity, DocumentType, DocumentVersion, ExtractedField, Folder, ProcessingJob
+from .models import AuditEvent, Department, Document, DocumentActivity, DocumentType, DocumentVersion, ExtractedField, Folder, ImportBatch, ProcessingJob
 from dms.services.ai_parser import parse_document
 from dms.services.archive_intelligence import (
     build_card_quality,
@@ -37,6 +38,8 @@ from dms.services.archive_intelligence import (
 from dms.services.document_indexing import delete_document_from_index, index_document
 from dms.services.audit import record_audit_event
 from dms.services.ai_processing import apply_confirmed_fields, run_document_ai_processing
+from dms.services.document_creation import create_document_from_uploaded_file
+from dms.services.imports import create_import_batch, import_uploaded_files
 import tempfile
 
 from dms.services.text_extractor import extract_text_from_file
@@ -813,81 +816,42 @@ def document_upload(request):
                 ),
             )
 
-        # =================================================
-        # 1. СОЗДАНИЕ ДОКУМЕНТА (БЕЗ ПАПОК, БЕЗ AI)
-        # =================================================
-        doc = form.save(commit=False)
-        doc.uploaded_by = user
-        doc.organization = doc.department.organization
-        doc.source_system = doc.source_system or "manual_upload"
+        department = form.cleaned_data["department"]
 
         if user.role != "ADMIN":
             allowed = get_allowed_departments(user)
-            if not allowed.filter(id=doc.department_id).exists():
+            if not allowed.filter(id=department.id).exists():
                 return HttpResponseForbidden("Нельзя загрузить в этот отдел")
 
-        doc.save()
-        form.save_m2m()
-        populate_preservation_metadata(doc, form.cleaned_data.get("file"))
-
-        # =================================================
-        # 2. ПАПКИ / ПОДПАПКИ (ТОЛЬКО SERVICES)
-        # =================================================
-        # 1️⃣ Получаем subfolder отдельно
+        folder = form.cleaned_data.get("folder")
         subfolder = form.cleaned_data.get("subfolder")
-
-# 2️⃣ Создаём/получаем папку (если вводилась новая)
-        folder = get_or_create_folder_tree(
-            department=doc.department,
-            parent_folder=form.cleaned_data.get("folder"),
-            folder_name=form.cleaned_data.get("new_folder"),
-            subfolder_name=form.cleaned_data.get("new_subfolder"),
-        )
-
-# 3️⃣ Если выбрана подпапка — она приоритетнее
         if subfolder:
-            doc.folder = subfolder
-        elif folder:
-            doc.folder = folder
+            folder = subfolder
 
-        doc.save()
-
-# 4️⃣ Привязка документа к папке (если у тебя отдельная логика)
-        attach_document_to_folder(
-            document=doc,
-            folder=doc.folder,
-        )           
-
-        # =================================================
-        # 3. ИЗВЛЕЧЕНИЕ ТЕКСТА
-        # =================================================
-        extracted_text = extract_text_from_file(doc.file.path) or ""
-        doc.extracted_text = extracted_text
-
-        ai_text = " ".join(filter(None, [
-            doc.title,
-            doc.description,
-            extracted_text,
-        ])).strip()
-        logger.info("Extracted text for uploaded document", extra={"text_length": len(extracted_text)})
-
-        if ai_text:
-            run_document_ai_processing(
-                document=doc,
-                text=ai_text,
-                user=user,
-                request=request,
-                source=ProcessingJob.Source.UPLOAD,
-                parser=parse_document,
-            )
-
-        doc.save()
-        version = doc.create_version(uploaded_by=user)
-
-        # =================================================
-        # 5. EMBEDDING + QDRANT
-        # =================================================
-        index_document(doc)
+        doc, version = create_document_from_uploaded_file(
+            uploaded_file=form.cleaned_data["file"],
+            department=department,
+            folder=folder,
+            folder_name=form.cleaned_data.get("new_folder") or "",
+            subfolder_name=form.cleaned_data.get("new_subfolder") or "",
+            title=form.cleaned_data["title"],
+            description=form.cleaned_data.get("description") or "",
+            doc_type=form.cleaned_data.get("doc_type"),
+            doc_date=form.cleaned_data.get("doc_date"),
+            language=form.cleaned_data.get("language") or Document.Language.UNKNOWN,
+            document_author=form.cleaned_data.get("document_author") or "",
+            status=form.cleaned_data.get("status") or Document.Status.DRAFT,
+            retention_category=form.cleaned_data.get("retention_category") or "",
+            retention_until=form.cleaned_data.get("retention_until"),
+            legal_hold=form.cleaned_data.get("legal_hold") or False,
+            source_system=form.cleaned_data.get("source_system") or "manual_upload",
+            uploaded_by=user,
+            request=request,
+            run_ai=True,
+            parser=parse_document,
+            text_extractor=extract_text_from_file,
+            indexer=index_document,
+        )
 
         # =================================================
         # 6. ДОСТУПЫ
@@ -898,26 +862,6 @@ def document_upload(request):
                 department=dept,
                 defaults={"granted_by": user},
             )
-
-        # =================================================
-        # 7. ЛОГ
-        # =================================================
-        DocumentActivity.objects.create(
-            user=user,
-            document=doc,
-            action=DocumentActivity.ACTION_UPLOADED,
-        )
-        record_audit_event(
-            event_type=AuditEvent.EventType.DOCUMENT_UPLOADED,
-            request=request,
-            document=doc,
-            document_version=version,
-            metadata={
-                "department_id": doc.department_id,
-                "folder_id": doc.folder_id,
-                "status": doc.status,
-            },
-        )
 
         return redirect("dms:document_list")
 
@@ -933,6 +877,92 @@ def document_upload(request):
             user=user,
             mode="create",
         ),
+    )
+
+
+@login_required
+def document_import(request):
+    user = request.user
+
+    if user.role != "ADMIN" and not user.department_id:
+        return HttpResponseForbidden("У вас не указан отдел")
+
+    if request.method == "POST":
+        post_data = request.POST.copy()
+        if user.role != "ADMIN" and user.department_id and not post_data.get("department"):
+            post_data["department"] = str(user.department_id)
+
+        form = ImportBatchForm(post_data, request.FILES, user=user)
+        if form.is_valid():
+            department = form.cleaned_data["department"]
+            if not get_allowed_departments(user).filter(id=department.id).exists():
+                return HttpResponseForbidden("Нельзя импортировать в этот отдел")
+
+            folder = form.cleaned_data.get("folder")
+            if form.cleaned_data.get("new_folder"):
+                folder = get_or_create_folder_tree(
+                    department=department,
+                    folder_name=form.cleaned_data["new_folder"],
+                )
+
+            files = form.cleaned_data["files"]
+            batch = create_import_batch(
+                organization=department.organization,
+                department=department,
+                folder=folder,
+                created_by=user,
+                total_files=len(files),
+                request=request,
+            )
+            import_uploaded_files(
+                batch=batch,
+                files=files,
+                created_by=user,
+                request=request,
+            )
+            messages.success(request, "Импорт завершен")
+            return redirect("dms:import_batch_detail", pk=batch.id)
+    else:
+        form = ImportBatchForm(user=user)
+
+    recent_batches = (
+        ImportBatch.objects
+        .filter(organization__in=get_user_organizations(user))
+        .select_related("department", "folder", "created_by")
+        .order_by("-created_at")[:10]
+    )
+    return render(
+        request,
+        "dms/document_import.html",
+        {
+            "form": form,
+            "recent_batches": recent_batches,
+        },
+    )
+
+
+@login_required
+def import_batch_detail(request, pk):
+    batch = get_object_or_404(
+        ImportBatch.objects.select_related("organization", "department", "folder", "created_by"),
+        pk=pk,
+        organization__in=get_user_organizations(request.user),
+    )
+    if not get_allowed_departments(request.user).filter(id=batch.department_id).exists():
+        return HttpResponseForbidden("Нет доступа к партии импорта")
+
+    files = (
+        batch.files
+        .select_related("document", "duplicate_of")
+        .order_by("id")
+    )
+    return render(
+        request,
+        "dms/import_batch_detail.html",
+        {
+            "batch": batch,
+            "files": files,
+        },
     )
 
 from django.contrib.auth.decorators import login_required

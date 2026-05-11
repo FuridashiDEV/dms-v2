@@ -742,6 +742,10 @@ class AuditEvent(models.Model):
         AI_FIELD_CONFIRMED = "AI_FIELD_CONFIRMED", _("AI-поле подтверждено")
         AI_FIELD_REJECTED = "AI_FIELD_REJECTED", _("AI-поле отклонено")
         AI_FIELDS_APPLIED = "AI_FIELDS_APPLIED", _("AI-поля применены к документу")
+        IMPORT_BATCH_CREATED = "IMPORT_BATCH_CREATED", _("Партия импорта создана")
+        IMPORT_FILE_IMPORTED = "IMPORT_FILE_IMPORTED", _("Файл импортирован")
+        IMPORT_FILE_DUPLICATE = "IMPORT_FILE_DUPLICATE", _("Дубликат при импорте")
+        IMPORT_FILE_FAILED = "IMPORT_FILE_FAILED", _("Ошибка импорта файла")
 
     organization = models.ForeignKey(
         Organization,
@@ -947,6 +951,131 @@ class ExtractedField(models.Model):
 
     def __str__(self) -> str:
         return f"{self.document} / {self.field_name}"
+
+
+class ImportBatch(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", _("Ожидает импорта")
+        PROCESSING = "PROCESSING", _("В обработке")
+        COMPLETED = "COMPLETED", _("Завершено")
+        COMPLETED_WITH_ERRORS = "COMPLETED_WITH_ERRORS", _("Завершено с ошибками")
+        FAILED = "FAILED", _("Ошибка")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="import_batches",
+        verbose_name=_("Организация"),
+    )
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.PROTECT,
+        related_name="import_batches",
+        verbose_name=_("Отдел"),
+    )
+    folder = models.ForeignKey(
+        Folder,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="import_batches",
+        verbose_name=_("Папка"),
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="import_batches",
+        verbose_name=_("Инициатор"),
+    )
+    status = models.CharField(
+        _("Статус"),
+        max_length=30,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    source = models.CharField(_("Источник"), max_length=50, default="multiple_upload")
+    total_files = models.PositiveIntegerField(_("Всего файлов"), default=0)
+    imported_files = models.PositiveIntegerField(_("Импортировано"), default=0)
+    duplicate_files = models.PositiveIntegerField(_("Дубликаты"), default=0)
+    failed_files = models.PositiveIntegerField(_("Ошибки"), default=0)
+    created_at = models.DateTimeField(_("Дата создания"), auto_now_add=True)
+    completed_at = models.DateTimeField(_("Дата завершения"), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("Import batch")
+        verbose_name_plural = _("Import batches")
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["organization", "-created_at"]),
+            models.Index(fields=["created_by", "-created_at"]),
+            models.Index(fields=["status", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Import batch #{self.id}"
+
+
+class ImportFile(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", _("Ожидает")
+        IMPORTED = "IMPORTED", _("Импортирован")
+        DUPLICATE = "DUPLICATE", _("Дубликат")
+        FAILED = "FAILED", _("Ошибка")
+
+    batch = models.ForeignKey(
+        ImportBatch,
+        on_delete=models.CASCADE,
+        related_name="files",
+        verbose_name=_("Партия импорта"),
+    )
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="import_files",
+        verbose_name=_("Организация"),
+    )
+    document = models.ForeignKey(
+        Document,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="import_files",
+        verbose_name=_("Созданный документ"),
+    )
+    duplicate_of = models.ForeignKey(
+        Document,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="duplicate_import_files",
+        verbose_name=_("Дубликат документа"),
+    )
+    original_file_name = models.CharField(_("Исходное имя файла"), max_length=255)
+    checksum_sha256 = models.CharField(_("SHA-256"), max_length=64, blank=True, default="", db_index=True)
+    status = models.CharField(
+        _("Статус"),
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    error_message = models.TextField(_("Ошибка"), blank=True, default="")
+    created_at = models.DateTimeField(_("Дата создания"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Import file")
+        verbose_name_plural = _("Import files")
+        ordering = ["id"]
+        indexes = [
+            models.Index(fields=["batch", "status"]),
+            models.Index(fields=["organization", "checksum_sha256"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.original_file_name
 
 
 class DocumentAccess(models.Model):

@@ -486,6 +486,105 @@ class DocumentUploadForm(forms.ModelForm):
         return validate_uploaded_file(self.cleaned_data.get("file"))
 
 
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class MultipleFileField(forms.FileField):
+    def clean(self, data, initial=None):
+        files = data if isinstance(data, (list, tuple)) else [data]
+        cleaned = []
+        errors = []
+        for uploaded_file in files:
+            try:
+                cleaned.append(super().clean(uploaded_file, initial))
+            except ValidationError as exc:
+                errors.extend(exc.error_list)
+        if errors:
+            raise ValidationError(errors)
+        return cleaned
+
+
+class ImportBatchForm(forms.Form):
+    department = forms.ModelChoiceField(
+        queryset=Department.objects.none(),
+        label="Отдел",
+        required=True,
+    )
+    folder = forms.ModelChoiceField(
+        queryset=Folder.objects.none(),
+        label="Папка",
+        required=False,
+    )
+    new_folder = forms.CharField(
+        label="Новая папка",
+        required=False,
+        max_length=255,
+    )
+    files = MultipleFileField(
+        label="Файлы",
+        widget=MultipleFileInput(attrs={"multiple": True}),
+        required=True,
+    )
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+        allowed_departments = get_allowed_departments(user) if user else Department.objects.none()
+        allowed_departments = allowed_departments.order_by("tree_id", "lft")
+        self.fields["department"].queryset = allowed_departments
+        self.fields["department"].choices = department_tree_choices(allowed_departments)
+
+        current_department = None
+        if self.data.get("department"):
+            try:
+                current_department = allowed_departments.get(id=self.data.get("department"))
+            except Department.DoesNotExist:
+                current_department = None
+        elif user and user.role != "ADMIN" and user.department_id:
+            current_department = user.department
+            self.fields["department"].initial = user.department
+
+        if current_department:
+            self.fields["folder"].queryset = Folder.objects.filter(
+                department=current_department,
+                parent__isnull=True,
+            ).order_by("tree_id", "lft")
+        else:
+            self.fields["folder"].queryset = Folder.objects.none()
+
+    def clean_department(self):
+        department = self.cleaned_data.get("department")
+        if self.user and self.user.role != "ADMIN" and not department and self.user.department_id:
+            department = self.user.department
+        if not department:
+            raise ValidationError("Отдел обязателен.")
+        return department
+
+    def clean_new_folder(self):
+        return validate_folder_name(self.cleaned_data.get("new_folder", ""))
+
+    def clean_files(self):
+        files = self.cleaned_data.get("files") or []
+        return [validate_uploaded_file(uploaded_file) for uploaded_file in files]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        department = cleaned_data.get("department")
+        folder = cleaned_data.get("folder")
+        new_folder = cleaned_data.get("new_folder") or ""
+
+        if folder and department and folder.department_id != department.id:
+            raise ValidationError("Папка не принадлежит выбранному отделу.")
+        if folder and new_folder:
+            raise ValidationError("Выберите существующую папку или создайте новую, но не оба варианта.")
+        if not folder and not new_folder:
+            raise ValidationError("Выберите папку или создайте новую.")
+
+        return cleaned_data
+
+
 class UserAdminChangeForm(UserChangeForm):
     new_password = forms.CharField(
         label="Новый пароль",

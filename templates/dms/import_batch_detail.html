@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Партия импорта #{{ batch.id }}{% endblock %}
+
+{% block content %}
+<style>
+  .page-top { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin:10px 0 18px; }
+  .page-title { margin:0; font-size:32px; font-weight:900; }
+  .page-sub { margin-top:10px; color:var(--muted); font-weight:600; max-width:840px; }
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:18px; }
+  .stat { padding:14px 16px; border-radius:12px; border:1px solid rgba(148,163,184,.2); background:#fff; }
+  .stat-label { color:var(--muted); font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+  .stat-value { margin-top:8px; font-size:22px; font-weight:900; }
+  .file-row { padding:14px 16px; border-radius:12px; border:1px solid rgba(148,163,184,.2); background:#fff; }
+  .row-main { font-weight:900; color:rgba(15,23,42,.92); }
+  .row-main a { color:inherit; text-decoration:none; }
+  .row-main a:hover { text-decoration:underline; }
+  .row-meta { margin-top:6px; color:rgba(15,23,42,.56); font-size:13px; font-weight:700; overflow-wrap:anywhere; }
+  @media(max-width:900px){ .page-top{flex-direction:column;} .stats{grid-template-columns:1fr 1fr;} }
+</style>
+
+<div class="page-top">
+  <div>
+    <h1 class="page-title">Партия импорта #{{ batch.id }}</h1>
+    <div class="page-sub">{{ batch.department.name }}{% if batch.folder %} • {{ batch.folder.name }}{% endif %} • {{ batch.created_at|date:"d.m.Y H:i" }} • {{ batch.get_status_display }}</div>
+  </div>
+  <div class="top-actions">
+    <a class="btn btn-ghost" href="{% url 'dms:document_import' %}">Новый импорт</a>
+    <a class="btn btn-ghost" href="{% url 'dms:document_list' %}">К документам</a>
+  </div>
+</div>
+
+<div class="card" style="padding:22px;">
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Всего</div><div class="stat-value">{{ batch.total_files }}</div></div>
+    <div class="stat"><div class="stat-label">Импортировано</div><div class="stat-value">{{ batch.imported_files }}</div></div>
+    <div class="stat"><div class="stat-label">Дубликаты</div><div class="stat-value">{{ batch.duplicate_files }}</div></div>
+    <div class="stat"><div class="stat-label">Ошибки</div><div class="stat-value">{{ batch.failed_files }}</div></div>
+  </div>
+
+  <div style="display:grid; gap:10px; margin-top:18px;">
+    {% for file in files %}
+      <div class="file-row">
+        <div class="row-main">
+          {{ file.original_file_name }} • {{ file.get_status_display }}
+        </div>
+        <div class="row-meta">
+          {% if file.document %}<a href="{% url 'dms:document_detail' file.document.id %}">Документ: {{ file.document.title }}</a>{% endif %}
+          {% if file.duplicate_of %}Дубликат: <a href="{% url 'dms:document_detail' file.duplicate_of.id %}">{{ file.duplicate_of.title }}</a>{% endif %}
+          {% if file.error_message %}Ошибка: {{ file.error_message }}{% endif %}
+          {% if file.checksum_sha256 %}SHA-256: {{ file.checksum_sha256 }}{% endif %}
+        </div>
+      </div>
+    {% empty %}
+      <div class="file-row">
+        <div class="row-main">Файлы не найдены</div>
+        <div class="row-meta">Партия создана без файлов.</div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
