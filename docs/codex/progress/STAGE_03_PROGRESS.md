@@ -7,7 +7,7 @@ Organization / multi-tenancy foundation.
 stage-03-organization-tenancy
 
 ## Current status
-Completed with environment check caveat: Django is not installed in the local Python environment, so Django system checks/tests could not run here.
+Completed and verified locally.
 
 ## Scope
 - Add Organization and OrganizationMember.
@@ -25,12 +25,18 @@ Completed with environment check caveat: Django is not installed in the local Py
 - Added migration to attach existing data to Default Organization and create memberships.
 - Updated access helpers, forms, views, admin, seed commands, and indexing payload for organization awareness.
 - Added tenant isolation tests for allowed documents/departments and upload organization assignment.
+- Installed project dependencies into local ignored `.venv` with Python 3.14.
+- Started Docker Desktop and a disposable PostgreSQL test container on port `55432` to avoid the existing local PostgreSQL service on port `5432`.
+- Added migration `0019_alter_documenttype_options_and_more.py` so Django's migration state matches the current models after Stage 03.
 
 ## Checks
-- AST parse check passed for changed Python files.
+- `python manage.py check` passed.
+- `python manage.py makemigrations --check --dry-run` passed with no changes detected.
+- `python manage.py migrate --noinput` passed on a fresh PostgreSQL test database.
+- `python manage.py migrate --check` passed after applying migrations.
+- `python manage.py test dms.test_organization_tenancy --noinput` passed: 3 tests.
+- `python manage.py test dms --noinput` passed: 36 tests.
 - `git diff --check` passed.
-- `python manage.py check` failed before loading the project: `ModuleNotFoundError: No module named 'django'`.
-- `python manage.py test dms.test_organization_tenancy --noinput` failed for the same missing Django dependency.
 
 ## Manual check required
 - Run migrations and confirm existing departments, folders, documents, and document types are attached to Default Organization.
