@@ -273,6 +273,75 @@
         {% endfor %}
       </div>
     </div>
+
+    <div class="card" style="padding:22px;">
+      <h2 class="section-title">Workflow</h2>
+      <div class="section-sub">Basic document approval flow linked to this document.</div>
+
+      {% if active_workflow %}
+        <div class="row-card" style="margin-top:16px;">
+          <div class="row-main">{{ active_workflow.template.name }}: {{ active_workflow.get_status_display }}</div>
+          <div class="row-meta">
+            Started {{ active_workflow.started_at|date:"d.m.Y H:i" }}
+            {% if active_workflow.current_step_template %}
+              • Current step: {{ active_workflow.current_step_template.name }}
+              {% if active_workflow.current_step_template.approver_user %}
+                • {{ active_workflow.current_step_template.approver_user.get_full_name|default:active_workflow.current_step_template.approver_user.username }}
+              {% elif active_workflow.current_step_template.approver_department %}
+                • {{ active_workflow.current_step_template.approver_department.name }}
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+
+        {% if can_act_on_active_workflow %}
+          <form method="post" action="{% url 'dms:document_workflow_action' doc.id active_workflow.id 'comment' %}" style="margin-top:14px;">
+            {% csrf_token %}
+            {{ workflow_action_form.comment }}
+            <div class="row-actions">
+              <button class="btn btn-ghost" type="submit">Comment</button>
+              <button class="btn btn-primary" type="submit" formaction="{% url 'dms:document_workflow_action' doc.id active_workflow.id 'approve' %}">Approve</button>
+              <button class="btn btn-ghost" type="submit" formaction="{% url 'dms:document_workflow_action' doc.id active_workflow.id 'request-changes' %}">Request changes</button>
+              <button class="btn btn-ghost" type="submit" formaction="{% url 'dms:document_workflow_action' doc.id active_workflow.id 'reject' %}">Reject</button>
+            </div>
+          </form>
+        {% endif %}
+      {% elif workflow_start_form %}
+        <form method="post" action="{% url 'dms:document_workflow_start' doc.id %}" style="margin-top:16px;">
+          {% csrf_token %}
+          <div class="meta-label">Template</div>
+          <div style="margin-top:8px;">{{ workflow_start_form.template }}</div>
+          <div class="meta-label" style="margin-top:12px;">Comment</div>
+          <div style="margin-top:8px;">{{ workflow_start_form.comment }}</div>
+          <div class="row-actions">
+            <button class="btn btn-primary" type="submit">Start workflow</button>
+          </div>
+        </form>
+      {% else %}
+        <div class="row-card" style="margin-top:16px;">
+          <div class="row-main">No active workflow</div>
+          <div class="row-meta">Create an active workflow template with steps in Django admin to start approval.</div>
+        </div>
+      {% endif %}
+
+      {% if workflow_actions %}
+        <div class="stack">
+          {% for workflow_action in workflow_actions %}
+            <div class="row-card">
+              <div class="row-main">{{ workflow_action.get_action_type_display }}</div>
+              <div class="row-meta">
+                {{ workflow_action.created_at|date:"d.m.Y H:i" }}
+                {% if workflow_action.actor %} • {{ workflow_action.actor.get_full_name|default:workflow_action.actor.username }}{% endif %}
+                {% if workflow_action.step_template %} • {{ workflow_action.step_template.name }}{% endif %}
+              </div>
+              {% if workflow_action.comment %}
+                <div class="row-meta">{{ workflow_action.comment }}</div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
   </div>
 </div>
 {% endblock %}

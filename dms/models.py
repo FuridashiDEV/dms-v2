@@ -259,6 +259,9 @@ class Document(models.Model):
 
     class Status(models.TextChoices):
         DRAFT = "DRAFT", _("Черновик")
+        IN_REVIEW = "IN_REVIEW", _("In review")
+        CHANGES_REQUESTED = "CHANGES_REQUESTED", _("Changes requested")
+        REJECTED = "REJECTED", _("Rejected")
         APPROVED = "APPROVED", _("Актуальный")
         ARCHIVED = "ARCHIVED", _("В архиве")
 
@@ -682,6 +685,11 @@ class DocumentActivity(models.Model):
     ACTION_DELETED = "DELETED"
     ACTION_DOWNLOADED = "DOWNLOADED"
     ACTION_ARCHIVED = "ARCHIVED"
+    ACTION_WORKFLOW_STARTED = "WORKFLOW_STARTED"
+    ACTION_WORKFLOW_APPROVED = "WORKFLOW_APPROVED"
+    ACTION_WORKFLOW_REJECTED = "WORKFLOW_REJECTED"
+    ACTION_WORKFLOW_CHANGES_REQUESTED = "WORKFLOW_CHANGES_REQUESTED"
+    ACTION_WORKFLOW_COMMENTED = "WORKFLOW_COMMENTED"
 
     ACTION_CHOICES = [
         (ACTION_UPLOADED, _("Документ загружен")),
@@ -690,6 +698,11 @@ class DocumentActivity(models.Model):
         (ACTION_DELETED, _("Документ удален")),
         (ACTION_DOWNLOADED, _("Документ скачан")),
         (ACTION_ARCHIVED, _("Документ переведен в архив")),
+        (ACTION_WORKFLOW_STARTED, _("Workflow started")),
+        (ACTION_WORKFLOW_APPROVED, _("Workflow approved")),
+        (ACTION_WORKFLOW_REJECTED, _("Workflow rejected")),
+        (ACTION_WORKFLOW_CHANGES_REQUESTED, _("Workflow changes requested")),
+        (ACTION_WORKFLOW_COMMENTED, _("Workflow commented")),
     ]
 
     user = models.ForeignKey(
@@ -706,7 +719,7 @@ class DocumentActivity(models.Model):
     )
     action = models.CharField(
         _("Действие"),
-        max_length=20,
+        max_length=40,
         choices=ACTION_CHOICES,
     )
     created_at = models.DateTimeField(_("Дата"), auto_now_add=True)
@@ -746,6 +759,12 @@ class AuditEvent(models.Model):
         IMPORT_FILE_IMPORTED = "IMPORT_FILE_IMPORTED", _("Файл импортирован")
         IMPORT_FILE_DUPLICATE = "IMPORT_FILE_DUPLICATE", _("Дубликат при импорте")
         IMPORT_FILE_FAILED = "IMPORT_FILE_FAILED", _("Ошибка импорта файла")
+        WORKFLOW_STARTED = "WORKFLOW_STARTED", _("Workflow started")
+        WORKFLOW_APPROVED = "WORKFLOW_APPROVED", _("Workflow approved")
+        WORKFLOW_REJECTED = "WORKFLOW_REJECTED", _("Workflow rejected")
+        WORKFLOW_CHANGES_REQUESTED = "WORKFLOW_CHANGES_REQUESTED", _("Workflow changes requested")
+        WORKFLOW_COMMENTED = "WORKFLOW_COMMENTED", _("Workflow commented")
+        WORKFLOW_COMPLETED = "WORKFLOW_COMPLETED", _("Workflow completed")
 
     organization = models.ForeignKey(
         Organization,
@@ -1076,6 +1095,231 @@ class ImportFile(models.Model):
 
     def __str__(self) -> str:
         return self.original_file_name
+
+
+class WorkflowTemplate(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="workflow_templates",
+        verbose_name=_("Organization"),
+    )
+    name = models.CharField(_("Name"), max_length=255)
+    description = models.TextField(_("Description"), blank=True, default="")
+    is_active = models.BooleanField(_("Active"), default=True, db_index=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_workflow_templates",
+        verbose_name=_("Created by"),
+    )
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Workflow template")
+        verbose_name_plural = _("Workflow templates")
+        ordering = ["organization__name", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "name"],
+                name="unique_workflow_template_name_per_organization",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["organization", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class WorkflowStepTemplate(models.Model):
+    template = models.ForeignKey(
+        WorkflowTemplate,
+        on_delete=models.CASCADE,
+        related_name="steps",
+        verbose_name=_("Workflow template"),
+    )
+    order = models.PositiveIntegerField(_("Order"))
+    name = models.CharField(_("Name"), max_length=255)
+    approver_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="workflow_step_assignments",
+        verbose_name=_("Approver user"),
+    )
+    approver_department = models.ForeignKey(
+        Department,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="workflow_step_templates",
+        verbose_name=_("Approver department"),
+    )
+    instructions = models.TextField(_("Instructions"), blank=True, default="")
+
+    class Meta:
+        verbose_name = _("Workflow step template")
+        verbose_name_plural = _("Workflow step templates")
+        ordering = ["template", "order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["template", "order"],
+                name="unique_workflow_step_order_per_template",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["template", "order"]),
+            models.Index(fields=["approver_user"]),
+            models.Index(fields=["approver_department"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.template} / {self.order}. {self.name}"
+
+
+class WorkflowInstance(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", _("Active")
+        APPROVED = "APPROVED", _("Approved")
+        REJECTED = "REJECTED", _("Rejected")
+        CHANGES_REQUESTED = "CHANGES_REQUESTED", _("Changes requested")
+        CANCELED = "CANCELED", _("Canceled")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="workflow_instances",
+        verbose_name=_("Organization"),
+    )
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="workflow_instances",
+        verbose_name=_("Document"),
+    )
+    template = models.ForeignKey(
+        WorkflowTemplate,
+        on_delete=models.PROTECT,
+        related_name="instances",
+        verbose_name=_("Workflow template"),
+    )
+    current_step_template = models.ForeignKey(
+        WorkflowStepTemplate,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="active_instances",
+        verbose_name=_("Current step"),
+    )
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="started_workflow_instances",
+        verbose_name=_("Started by"),
+    )
+    status = models.CharField(
+        _("Status"),
+        max_length=30,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        db_index=True,
+    )
+    started_at = models.DateTimeField(_("Started at"), auto_now_add=True)
+    completed_at = models.DateTimeField(_("Completed at"), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("Workflow instance")
+        verbose_name_plural = _("Workflow instances")
+        ordering = ["-started_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["document"],
+                condition=models.Q(status="ACTIVE"),
+                name="unique_active_workflow_per_document",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["organization", "status", "-started_at"]),
+            models.Index(fields=["document", "status"]),
+            models.Index(fields=["current_step_template", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.document} / {self.status}"
+
+
+class WorkflowAction(models.Model):
+    class ActionType(models.TextChoices):
+        START = "START", _("Start")
+        APPROVE = "APPROVE", _("Approve")
+        REJECT = "REJECT", _("Reject")
+        REQUEST_CHANGES = "REQUEST_CHANGES", _("Request changes")
+        COMMENT = "COMMENT", _("Comment")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="workflow_actions",
+        verbose_name=_("Organization"),
+    )
+    instance = models.ForeignKey(
+        WorkflowInstance,
+        on_delete=models.CASCADE,
+        related_name="actions",
+        verbose_name=_("Workflow instance"),
+    )
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="workflow_actions",
+        verbose_name=_("Document"),
+    )
+    step_template = models.ForeignKey(
+        WorkflowStepTemplate,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="actions",
+        verbose_name=_("Workflow step"),
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="workflow_actions",
+        verbose_name=_("Actor"),
+    )
+    action_type = models.CharField(
+        _("Action"),
+        max_length=30,
+        choices=ActionType.choices,
+        db_index=True,
+    )
+    comment = models.TextField(_("Comment"), blank=True, default="")
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Workflow action")
+        verbose_name_plural = _("Workflow actions")
+        ordering = ["created_at", "id"]
+        indexes = [
+            models.Index(fields=["organization", "-created_at"]),
+            models.Index(fields=["instance", "created_at"]),
+            models.Index(fields=["document", "-created_at"]),
+            models.Index(fields=["actor", "-created_at"]),
+            models.Index(fields=["action_type", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.action_type} / {self.document}"
 
 
 class DocumentAccess(models.Model):

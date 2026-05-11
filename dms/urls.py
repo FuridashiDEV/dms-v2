@@ -15,6 +15,12 @@ urlpatterns = [
     path("documents/import/", views.document_import, name="document_import"),
     path("imports/<int:pk>/", views.import_batch_detail, name="import_batch_detail"),
     path("documents/<int:pk>/edit/", views.document_edit, name="document_edit"),
+    path("documents/<int:pk>/workflow/start/", views.document_workflow_start, name="document_workflow_start"),
+    path(
+        "documents/<int:pk>/workflow/<int:instance_pk>/<slug:action>/",
+        views.document_workflow_action,
+        name="document_workflow_action",
+    ),
     path("documents/<int:pk>/ai-review/", views.document_ai_review, name="document_ai_review"),
     path("users/create/", views.user_create, name="user_create"),
     path("documents/<int:pk>/view/", views.document_view, name="document_view"),

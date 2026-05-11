@@ -18,6 +18,10 @@ from .models import (
     OrganizationMember,
     ProcessingJob,
     User,
+    WorkflowAction,
+    WorkflowInstance,
+    WorkflowStepTemplate,
+    WorkflowTemplate,
 )
 from .forms import UserAdminChangeForm
 
@@ -224,6 +228,68 @@ class ImportFileAdmin(admin.ModelAdmin):
     list_filter = ("status", "organization", "created_at")
     search_fields = ("original_file_name", "checksum_sha256", "document__title")
     autocomplete_fields = ("batch", "organization", "document", "duplicate_of")
+    readonly_fields = ("created_at",)
+
+
+class WorkflowStepTemplateInline(admin.TabularInline):
+    model = WorkflowStepTemplate
+    extra = 1
+    autocomplete_fields = ("approver_user", "approver_department")
+
+
+@admin.register(WorkflowTemplate)
+class WorkflowTemplateAdmin(admin.ModelAdmin):
+    list_display = ("name", "organization", "is_active", "created_by", "created_at")
+    list_filter = ("is_active", "organization", "created_at")
+    search_fields = ("name", "description", "created_by__username")
+    autocomplete_fields = ("organization", "created_by")
+    inlines = (WorkflowStepTemplateInline,)
+
+
+@admin.register(WorkflowStepTemplate)
+class WorkflowStepTemplateAdmin(admin.ModelAdmin):
+    list_display = ("template", "order", "name", "approver_user", "approver_department")
+    list_filter = ("template__organization",)
+    search_fields = ("template__name", "name", "approver_user__username", "approver_department__name")
+    autocomplete_fields = ("template", "approver_user", "approver_department")
+
+
+@admin.register(WorkflowInstance)
+class WorkflowInstanceAdmin(admin.ModelAdmin):
+    list_display = (
+        "started_at",
+        "document",
+        "template",
+        "status",
+        "current_step_template",
+        "started_by",
+        "completed_at",
+    )
+    list_filter = ("status", "organization", "started_at")
+    search_fields = ("document__title", "template__name", "started_by__username")
+    autocomplete_fields = (
+        "organization",
+        "document",
+        "template",
+        "current_step_template",
+        "started_by",
+    )
+    readonly_fields = ("started_at", "completed_at")
+
+
+@admin.register(WorkflowAction)
+class WorkflowActionAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "instance",
+        "document",
+        "step_template",
+        "actor",
+        "action_type",
+    )
+    list_filter = ("action_type", "organization", "created_at")
+    search_fields = ("document__title", "actor__username", "comment")
+    autocomplete_fields = ("organization", "instance", "document", "step_template", "actor")
     readonly_fields = ("created_at",)
 
 

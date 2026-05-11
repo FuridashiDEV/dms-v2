@@ -26,8 +26,10 @@ from .forms import (
     SemanticSearchForm,
     UserCreateForm,
     UserPasswordChangeForm,
+    WorkflowActionForm,
+    WorkflowStartForm,
 )
-from .models import AuditEvent, Department, Document, DocumentActivity, DocumentType, DocumentVersion, ExtractedField, Folder, ImportBatch, ProcessingJob
+from .models import AuditEvent, Department, Document, DocumentActivity, DocumentType, DocumentVersion, ExtractedField, Folder, ImportBatch, ProcessingJob, WorkflowInstance
 from dms.services.ai_parser import parse_document
 from dms.services.archive_intelligence import (
     build_card_quality,
@@ -40,6 +42,18 @@ from dms.services.audit import record_audit_event
 from dms.services.ai_processing import apply_confirmed_fields, run_document_ai_processing
 from dms.services.document_creation import create_document_from_uploaded_file
 from dms.services.imports import create_import_batch, import_uploaded_files
+from dms.services.workflow import (
+    WorkflowError,
+    WorkflowPermissionError,
+    approve_workflow,
+    can_act_on_workflow,
+    can_start_workflow,
+    comment_workflow,
+    get_active_workflow,
+    reject_workflow,
+    request_workflow_changes,
+    start_workflow,
+)
 import tempfile
 
 from dms.services.text_extractor import extract_text_from_file
@@ -1356,6 +1370,17 @@ def document_detail(request, pk):
         .order_by("-created_at")
         .first()
     )
+    active_workflow = get_active_workflow(doc)
+    workflow_actions = (
+        doc.workflow_actions
+        .select_related("actor", "step_template", "instance")
+        .order_by("-created_at", "-id")[:12]
+    )
+    workflow_start_form = None
+    if active_workflow is None and can_start_workflow(request.user, doc):
+        candidate_form = WorkflowStartForm(user=request.user, document=doc)
+        if candidate_form.fields["template"].queryset.exists():
+            workflow_start_form = candidate_form
 
     return render(
         request,
@@ -1377,8 +1402,104 @@ def document_detail(request, pk):
             "similar_documents": similar_documents,
             "latest_processing_job": latest_processing_job,
             "can_validate_ai": can_validate_ai_fields(request.user, doc),
+            "active_workflow": active_workflow,
+            "workflow_actions": workflow_actions,
+            "workflow_start_form": workflow_start_form,
+            "workflow_action_form": WorkflowActionForm(),
+            "can_act_on_active_workflow": (
+                can_act_on_workflow(request.user, active_workflow)
+                if active_workflow
+                else False
+            ),
         },
     )
+
+
+@login_required
+@require_POST
+def document_workflow_start(request, pk):
+    doc = get_object_or_404(
+        get_allowed_documents(request.user).select_related("organization", "department", "uploaded_by"),
+        pk=pk,
+    )
+    if not user_can_access_document(request.user, doc):
+        return HttpResponseForbidden("Нет доступа к документу")
+    if not can_start_workflow(request.user, doc):
+        return HttpResponseForbidden("Нет прав на запуск workflow")
+
+    form = WorkflowStartForm(request.POST, user=request.user, document=doc)
+    if not form.is_valid():
+        messages.error(request, "Не удалось запустить workflow: проверьте шаблон.")
+        return redirect("dms:document_detail", pk=doc.pk)
+
+    try:
+        start_workflow(
+            document=doc,
+            template=form.cleaned_data["template"],
+            user=request.user,
+            request=request,
+            comment=form.cleaned_data.get("comment", ""),
+        )
+    except WorkflowPermissionError:
+        return HttpResponseForbidden("Нет прав на запуск workflow")
+    except WorkflowError as exc:
+        messages.error(request, f"Не удалось запустить workflow: {exc}")
+    else:
+        messages.success(request, "Workflow запущен.")
+    return redirect("dms:document_detail", pk=doc.pk)
+
+
+@login_required
+@require_POST
+def document_workflow_action(request, pk, instance_pk, action):
+    doc = get_object_or_404(
+        get_allowed_documents(request.user).select_related("organization", "department"),
+        pk=pk,
+    )
+    if not user_can_access_document(request.user, doc):
+        return HttpResponseForbidden("Нет доступа к документу")
+
+    instance = get_object_or_404(
+        WorkflowInstance.objects.select_related(
+            "document",
+            "template",
+            "current_step_template",
+        ),
+        pk=instance_pk,
+        document=doc,
+        organization__in=get_user_organizations(request.user),
+    )
+
+    form = WorkflowActionForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Не удалось сохранить действие workflow.")
+        return redirect("dms:document_detail", pk=doc.pk)
+
+    comment = form.cleaned_data.get("comment", "")
+    actions = {
+        "approve": approve_workflow,
+        "reject": reject_workflow,
+        "request-changes": request_workflow_changes,
+        "comment": comment_workflow,
+    }
+    handler = actions.get(action)
+    if handler is None:
+        return HttpResponseBadRequest("Unknown workflow action")
+
+    try:
+        handler(
+            instance=instance,
+            user=request.user,
+            request=request,
+            comment=comment,
+        )
+    except WorkflowPermissionError:
+        return HttpResponseForbidden("Нет прав на действие workflow")
+    except WorkflowError as exc:
+        messages.error(request, f"Workflow action failed: {exc}")
+    else:
+        messages.success(request, "Workflow action saved.")
+    return redirect("dms:document_detail", pk=doc.pk)
 
 
 @login_required

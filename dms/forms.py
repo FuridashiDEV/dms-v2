@@ -8,7 +8,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils.html import strip_tags
 
-from .models import Department, Document, DocumentType, Folder, OrganizationMember
+from .models import Department, Document, DocumentType, Folder, OrganizationMember, WorkflowTemplate
 from .utils import get_allowed_departments, get_user_organizations
 
 
@@ -583,6 +583,61 @@ class ImportBatchForm(forms.Form):
             raise ValidationError("Выберите папку или создайте новую.")
 
         return cleaned_data
+
+
+class WorkflowStartForm(forms.Form):
+    template = forms.ModelChoiceField(
+        queryset=WorkflowTemplate.objects.none(),
+        label="Workflow template",
+        required=True,
+    )
+    comment = forms.CharField(
+        label="Comment",
+        required=False,
+        max_length=2000,
+        widget=forms.Textarea(attrs={"rows": 3}),
+    )
+
+    def __init__(self, *args, user=None, document=None, **kwargs):
+        self.user = user
+        self.document = document
+        super().__init__(*args, **kwargs)
+
+        if document is None:
+            return
+
+        templates = (
+            WorkflowTemplate.objects
+            .filter(
+                organization=document.organization,
+                is_active=True,
+                steps__isnull=False,
+            )
+            .distinct()
+            .order_by("name")
+        )
+        self.fields["template"].queryset = templates
+
+    def clean_comment(self):
+        return normalize_text_input(
+            self.cleaned_data.get("comment", ""),
+            collapse_whitespace=False,
+        )
+
+
+class WorkflowActionForm(forms.Form):
+    comment = forms.CharField(
+        label="Comment",
+        required=False,
+        max_length=2000,
+        widget=forms.Textarea(attrs={"rows": 3}),
+    )
+
+    def clean_comment(self):
+        return normalize_text_input(
+            self.cleaned_data.get("comment", ""),
+            collapse_whitespace=False,
+        )
 
 
 class UserAdminChangeForm(UserChangeForm):
