@@ -17,9 +17,11 @@ from dms.models import (
     ExchangeEvent,
     ExchangeMessage,
     Folder,
+    UsageEvent,
 )
 from dms.services.audit import get_client_ip, get_user_agent, record_audit_event
 from dms.services.document_creation import create_document_from_uploaded_file
+from dms.services.usage import record_usage_event
 from dms.utils import get_allowed_departments, user_can_access_document
 
 
@@ -188,8 +190,23 @@ def record_exchange_event(
             user=user,
             document=exchange.document,
             organization=exchange.organization,
-            metadata=audit_metadata,
+                metadata=audit_metadata,
         )
+    record_usage_event(
+        event_type=UsageEvent.EventType.EXCHANGE_EVENT,
+        user=user,
+        document=exchange.document,
+        source="counterparty_exchange",
+        metadata={
+            "document_exchange_id": exchange.id,
+            "exchange_event_id": event.id,
+            "exchange_event_type": event.event_type,
+            "exchange_direction": exchange.direction,
+            "exchange_status": exchange.status,
+            "counterparty_id": exchange.counterparty_id,
+            "counterparty_contact_id": exchange.counterparty_contact_id,
+        },
+    )
     return event
 
 

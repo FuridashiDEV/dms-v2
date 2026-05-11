@@ -2,7 +2,7 @@ import os
 
 from django.db import transaction
 
-from dms.models import AuditEvent, Document, DocumentActivity, ProcessingJob
+from dms.models import AuditEvent, Document, DocumentActivity, ProcessingJob, UsageEvent
 from dms.services.ai_parser import parse_document
 from dms.services.ai_processing import run_document_ai_processing
 from dms.services.audit import record_audit_event
@@ -10,6 +10,7 @@ from dms.services.document_indexing import index_document
 from dms.services.folders import attach_document_to_folder, get_or_create_folder_tree
 from dms.services.preservation import calculate_file_sha256, calculate_sha256, detect_format_risk, detect_mime_type
 from dms.services.text_extractor import extract_text_from_file
+from dms.services.usage import record_usage_event
 
 
 def populate_document_preservation_metadata(document: Document, uploaded_file=None) -> None:
@@ -145,6 +146,19 @@ def create_document_from_uploaded_file(
         document=document,
         document_version=version,
         metadata=metadata,
+    )
+    record_usage_event(
+        event_type=UsageEvent.EventType.DOCUMENT_UPLOADED,
+        user=uploaded_by,
+        document=document,
+        source=document.source_system,
+        metadata={
+            "document_version_id": version.id,
+            "department_id": document.department_id,
+            "folder_id": document.folder_id,
+            "mime_type": document.mime_type,
+            "format_risk_level": document.format_risk_level,
+        },
     )
 
     return document, version

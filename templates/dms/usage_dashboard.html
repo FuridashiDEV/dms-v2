@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Usage{% endblock %}
+
+{% block content %}
+<style>
+  .usage-top { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin:10px 0 18px; }
+  .usage-title { margin:0; font-size:32px; font-weight:900; letter-spacing:-0.02em; }
+  .usage-sub { margin-top:8px; color:var(--muted); font-weight:650; line-height:1.6; }
+  .usage-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }
+  .usage-stack { display:grid; gap:12px; }
+  .usage-row { padding:14px 16px; border:1px solid rgba(148,163,184,.2); border-radius:14px; background:#fff; }
+  .usage-main { font-weight:900; color:rgba(15,23,42,.92); }
+  .usage-meta { margin-top:7px; color:rgba(15,23,42,.58); font-size:13px; font-weight:700; line-height:1.5; }
+  @media(max-width:900px){ .usage-top{display:grid;} .usage-grid{grid-template-columns:1fr;} }
+</style>
+
+<div class="usage-top">
+  <div>
+    <h1 class="usage-title">Usage</h1>
+    <div class="usage-sub">Organization-scoped product usage and queued webhook deliveries.</div>
+  </div>
+  <div class="top-actions">
+    <a class="btn btn-ghost" href="{% url 'dms:dashboard' %}">Dashboard</a>
+  </div>
+</div>
+
+<div class="usage-grid">
+  <div class="card" style="padding:20px;">
+    <h2 class="section-title">Summary</h2>
+    <div class="usage-stack">
+      {% for item in usage_summary %}
+        <div class="usage-row">
+          <div class="usage-main">{{ item.event_type }}</div>
+          <div class="usage-meta">{{ item.total }} events / quantity {{ item.quantity }}</div>
+        </div>
+      {% empty %}
+        <div class="usage-row">
+          <div class="usage-main">No usage events yet</div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card" style="padding:20px;">
+    <h2 class="section-title">Webhook queue</h2>
+    <div class="usage-stack">
+      {% for delivery in webhook_deliveries %}
+        <div class="usage-row">
+          <div class="usage-main">{{ delivery.event_type }} / {{ delivery.get_status_display }}</div>
+          <div class="usage-meta">{{ delivery.created_at|date:"d.m.Y H:i" }} / {{ delivery.endpoint.name }}</div>
+        </div>
+      {% empty %}
+        <div class="usage-row">
+          <div class="usage-main">No queued deliveries</div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card" style="padding:20px; margin-top:18px;">
+  <h2 class="section-title">Recent usage events</h2>
+  <div class="usage-stack">
+    {% for event in usage_events %}
+      <div class="usage-row">
+        <div class="usage-main">{{ event.event_type }}</div>
+        <div class="usage-meta">
+          {{ event.created_at|date:"d.m.Y H:i" }}
+          / {{ event.organization.name }}
+          {% if event.document %} / {{ event.document.title }}{% endif %}
+          {% if event.user %} / {{ event.user.get_full_name|default:event.user.username }}{% endif %}
+        </div>
+      </div>
+    {% empty %}
+      <div class="usage-row">
+        <div class="usage-main">No usage events yet</div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

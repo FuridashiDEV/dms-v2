@@ -22,7 +22,10 @@ from .models import (
     Organization,
     OrganizationMember,
     ProcessingJob,
+    UsageEvent,
     User,
+    WebhookDelivery,
+    WebhookEndpoint,
     WorkflowAction,
     WorkflowInstance,
     WorkflowStepTemplate,
@@ -377,6 +380,33 @@ class ExchangeMessageAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("organization", "exchange", "document", "counterparty", "counterparty_contact", "user")
     readonly_fields = ("created_at", "ip_address", "user_agent")
+
+
+@admin.register(UsageEvent)
+class UsageEventAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "organization", "event_type", "source", "quantity", "document", "user")
+    list_filter = ("event_type", "organization", "source", "created_at")
+    search_fields = ("event_type", "source", "document__title", "user__username")
+    autocomplete_fields = ("organization", "document", "user")
+    readonly_fields = ("created_at",)
+
+
+@admin.register(WebhookEndpoint)
+class WebhookEndpointAdmin(admin.ModelAdmin):
+    list_display = ("name", "organization", "url", "is_active", "created_by", "created_at")
+    list_filter = ("is_active", "organization", "created_at")
+    search_fields = ("name", "url", "created_by__username")
+    autocomplete_fields = ("organization", "created_by")
+    readonly_fields = ("secret_hash", "created_at", "updated_at")
+
+
+@admin.register(WebhookDelivery)
+class WebhookDeliveryAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "endpoint", "organization", "event_type", "status", "attempt_count", "response_status")
+    list_filter = ("status", "event_type", "organization", "created_at")
+    search_fields = ("endpoint__name", "endpoint__url", "event_type", "last_error")
+    autocomplete_fields = ("organization", "endpoint", "usage_event")
+    readonly_fields = ("created_at", "updated_at")
 
 
 @admin.register(DocumentRelation)

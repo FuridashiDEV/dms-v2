@@ -843,6 +843,154 @@ class AuditEvent(models.Model):
         return f"{self.event_type} @ {self.created_at:%Y-%m-%d %H:%M:%S}"
 
 
+class UsageEvent(models.Model):
+    class EventType(models.TextChoices):
+        DOCUMENT_UPLOADED = "document.uploaded", _("Document uploaded")
+        IMPORT_BATCH_CREATED = "import.batch_created", _("Import batch created")
+        IMPORT_FILE_IMPORTED = "import.file_imported", _("Import file imported")
+        IMPORT_FILE_DUPLICATE = "import.file_duplicate", _("Import file duplicate")
+        IMPORT_FILE_FAILED = "import.file_failed", _("Import file failed")
+        AI_PROCESSING_STARTED = "ai.processing_started", _("AI processing started")
+        AI_PROCESSING_COMPLETED = "ai.processing_completed", _("AI processing completed")
+        AI_PROCESSING_FAILED = "ai.processing_failed", _("AI processing failed")
+        WORKFLOW_STARTED = "workflow.started", _("Workflow started")
+        WORKFLOW_ACTION = "workflow.action", _("Workflow action")
+        EXCHANGE_EVENT = "exchange.event", _("Exchange event")
+        EVIDENCE_EXPORTED = "evidence.exported", _("Evidence exported")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="usage_events",
+        verbose_name=_("Organization"),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="usage_events",
+        verbose_name=_("User"),
+    )
+    document = models.ForeignKey(
+        Document,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="usage_events",
+        verbose_name=_("Document"),
+    )
+    event_type = models.CharField(_("Event type"), max_length=80, choices=EventType.choices, db_index=True)
+    source = models.CharField(_("Source"), max_length=80, blank=True, default="")
+    quantity = models.PositiveIntegerField(_("Quantity"), default=1)
+    metadata = models.JSONField(_("Metadata"), default=dict, blank=True)
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Usage event")
+        verbose_name_plural = _("Usage events")
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["organization", "-created_at"]),
+            models.Index(fields=["organization", "event_type", "-created_at"]),
+            models.Index(fields=["document", "-created_at"]),
+            models.Index(fields=["user", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.event_type} / {self.organization}"
+
+
+class WebhookEndpoint(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="webhook_endpoints",
+        verbose_name=_("Organization"),
+    )
+    name = models.CharField(_("Name"), max_length=255)
+    url = models.URLField(_("URL"), max_length=1000)
+    event_types = models.JSONField(_("Event types"), default=list, blank=True)
+    secret_hash = models.CharField(_("Secret hash"), max_length=128, blank=True, default="")
+    is_active = models.BooleanField(_("Active"), default=True, db_index=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_webhook_endpoints",
+        verbose_name=_("Created by"),
+    )
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Webhook endpoint")
+        verbose_name_plural = _("Webhook endpoints")
+        ordering = ["organization__name", "name"]
+        indexes = [
+            models.Index(fields=["organization", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name} / {self.organization}"
+
+    def accepts_event(self, event_type: str) -> bool:
+        return not self.event_types or event_type in self.event_types
+
+
+class WebhookDelivery(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", _("Pending")
+        SENT = "SENT", _("Sent")
+        FAILED = "FAILED", _("Failed")
+        CANCELED = "CANCELED", _("Canceled")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="webhook_deliveries",
+        verbose_name=_("Organization"),
+    )
+    endpoint = models.ForeignKey(
+        WebhookEndpoint,
+        on_delete=models.CASCADE,
+        related_name="deliveries",
+        verbose_name=_("Webhook endpoint"),
+    )
+    usage_event = models.ForeignKey(
+        UsageEvent,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="webhook_deliveries",
+        verbose_name=_("Usage event"),
+    )
+    event_type = models.CharField(_("Event type"), max_length=80, db_index=True)
+    payload = models.JSONField(_("Payload"), default=dict, blank=True)
+    status = models.CharField(_("Status"), max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    attempt_count = models.PositiveIntegerField(_("Attempt count"), default=0)
+    next_attempt_at = models.DateTimeField(_("Next attempt at"), null=True, blank=True)
+    response_status = models.PositiveIntegerField(_("Response status"), null=True, blank=True)
+    last_error = models.TextField(_("Last error"), blank=True, default="")
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Webhook delivery")
+        verbose_name_plural = _("Webhook deliveries")
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["organization", "-created_at"]),
+            models.Index(fields=["endpoint", "status", "-created_at"]),
+            models.Index(fields=["usage_event", "-created_at"]),
+            models.Index(fields=["event_type", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.event_type} -> {self.endpoint}"
+
+
 class ProcessingJob(models.Model):
     class Status(models.TextChoices):
         PENDING = "PENDING", _("Ожидает обработки")

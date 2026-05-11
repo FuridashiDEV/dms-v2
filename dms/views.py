@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.db.models import Q
+from django.db.models import Count, Q, Sum
 from django.http import FileResponse, Http404, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -34,7 +34,7 @@ from .forms import (
     WorkflowActionForm,
     WorkflowStartForm,
 )
-from .models import AuditEvent, Counterparty, Department, Document, DocumentActivity, DocumentExchange, DocumentType, DocumentVersion, ExchangeEvent, ExtractedField, Folder, ImportBatch, ProcessingJob, WorkflowInstance
+from .models import AuditEvent, Counterparty, Department, Document, DocumentActivity, DocumentExchange, DocumentType, DocumentVersion, ExchangeEvent, ExtractedField, Folder, ImportBatch, ProcessingJob, UsageEvent, WebhookDelivery, WorkflowInstance
 from dms.services.ai_parser import parse_document
 from dms.services.archive_intelligence import (
     build_card_quality,
@@ -47,6 +47,7 @@ from dms.services.audit import record_audit_event
 from dms.services.ai_processing import apply_confirmed_fields, run_document_ai_processing
 from dms.services.document_creation import create_document_from_uploaded_file
 from dms.services.evidence import build_document_evidence_package
+from dms.services.usage import record_usage_event
 from dms.services.counterparty import (
     ExchangeError,
     ExchangePermissionError,
@@ -559,6 +560,39 @@ def dashboard(request):
     }
 
     return render(request, "dms/dashboard.html", context)
+
+
+@login_required
+def usage_dashboard(request):
+    organizations = get_user_organizations(request.user)
+    usage_events = (
+        UsageEvent.objects
+        .filter(organization__in=organizations)
+        .select_related("organization", "user", "document")
+        .order_by("-created_at")[:100]
+    )
+    usage_summary = (
+        UsageEvent.objects
+        .filter(organization__in=organizations)
+        .values("event_type")
+        .annotate(total=Count("id"), quantity=Sum("quantity"))
+        .order_by("event_type")
+    )
+    webhook_deliveries = (
+        WebhookDelivery.objects
+        .filter(organization__in=organizations)
+        .select_related("endpoint", "usage_event")
+        .order_by("-created_at")[:50]
+    )
+    return render(
+        request,
+        "dms/usage_dashboard.html",
+        {
+            "usage_events": usage_events,
+            "usage_summary": usage_summary,
+            "webhook_deliveries": webhook_deliveries,
+        },
+    )
 
 
 from django.shortcuts import render
@@ -1469,6 +1503,17 @@ def document_evidence_export(request, pk):
         metadata={
             "evidence_exported": True,
             "evidence_event_name": "evidence.exported",
+            "evidence_schema": package["schema"]["name"],
+            "evidence_schema_version": package["schema"]["version"],
+            "evidence_format": "json",
+        },
+    )
+    record_usage_event(
+        event_type=UsageEvent.EventType.EVIDENCE_EXPORTED,
+        user=request.user,
+        document=doc,
+        source="evidence_export",
+        metadata={
             "evidence_schema": package["schema"]["name"],
             "evidence_schema_version": package["schema"]["version"],
             "evidence_format": "json",

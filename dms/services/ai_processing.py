@@ -6,10 +6,11 @@ from typing import Callable
 from django.db import transaction
 from django.utils import timezone
 
-from dms.models import AuditEvent, Document, DocumentType, ExtractedField, ProcessingJob
+from dms.models import AuditEvent, Document, DocumentType, ExtractedField, ProcessingJob, UsageEvent
 from dms.services.audit import record_audit_event
 from dms.services.ai_parser import parse_document
 from dms.services.document_metadata import extract_candidate_dates
+from dms.services.usage import record_usage_event
 
 
 FIELD_LABELS = {
@@ -85,6 +86,16 @@ def run_document_ai_processing(
         document=document,
         metadata={"processing_job_id": job.id, "source": source},
     )
+    record_usage_event(
+        event_type=UsageEvent.EventType.AI_PROCESSING_STARTED,
+        user=user,
+        document=document,
+        source=source,
+        metadata={
+            "processing_job_id": job.id,
+            "text_length": len(text or ""),
+        },
+    )
 
     try:
         candidate_dates = extract_candidate_dates(text or "")
@@ -129,6 +140,17 @@ def run_document_ai_processing(
                 "field_count": job.fields.count(),
             },
         )
+        record_usage_event(
+            event_type=UsageEvent.EventType.AI_PROCESSING_COMPLETED,
+            user=user,
+            document=document,
+            source=source,
+            quantity=max(job.fields.count(), 1),
+            metadata={
+                "processing_job_id": job.id,
+                "field_count": job.fields.count(),
+            },
+        )
     except Exception as exc:
         job.status = ProcessingJob.Status.FAILED
         job.error_message = str(exc)[:2000]
@@ -142,6 +164,15 @@ def run_document_ai_processing(
                 "processing_job_id": job.id,
                 "source": source,
                 "error": job.error_message,
+            },
+        )
+        record_usage_event(
+            event_type=UsageEvent.EventType.AI_PROCESSING_FAILED,
+            user=user,
+            document=document,
+            source=source,
+            metadata={
+                "processing_job_id": job.id,
             },
         )
 

@@ -11,8 +11,10 @@ from dms.models import (
     WorkflowInstance,
     WorkflowStepTemplate,
     WorkflowTemplate,
+    UsageEvent,
 )
 from dms.services.audit import record_audit_event
+from dms.services.usage import record_usage_event
 from dms.utils import get_allowed_departments, user_can_access_document
 
 
@@ -140,13 +142,31 @@ def _audit(
         )
     if metadata:
         data.update(metadata)
-    return record_audit_event(
+    audit_event = record_audit_event(
         event_type=event_type,
         request=request,
         document=instance.document,
         document_version=document_version,
         metadata=data,
     )
+    usage_type = (
+        UsageEvent.EventType.WORKFLOW_STARTED
+        if event_type == AuditEvent.EventType.WORKFLOW_STARTED
+        else UsageEvent.EventType.WORKFLOW_ACTION
+    )
+    record_usage_event(
+        event_type=usage_type,
+        user=action.actor if action is not None else None,
+        document=instance.document,
+        source="workflow",
+        metadata={
+            "workflow_instance_id": instance.id,
+            "workflow_action_id": action.id if action is not None else None,
+            "workflow_action_type": action.action_type if action is not None else "",
+            "audit_event_type": event_type,
+        },
+    )
+    return audit_event
 
 
 @transaction.atomic

@@ -3,10 +3,11 @@ import os
 from django.db import transaction
 from django.utils import timezone
 
-from dms.models import AuditEvent, Document, ImportBatch, ImportFile
+from dms.models import AuditEvent, Document, ImportBatch, ImportFile, UsageEvent
 from dms.services.audit import record_audit_event
 from dms.services.document_creation import create_document_from_uploaded_file
 from dms.services.preservation import calculate_file_sha256
+from dms.services.usage import record_usage_event
 
 
 def _default_title(file_name: str) -> str:
@@ -42,6 +43,18 @@ def create_import_batch(
             "department_id": department.id,
             "folder_id": folder.id if folder else None,
             "total_files": total_files,
+        },
+    )
+    record_usage_event(
+        event_type=UsageEvent.EventType.IMPORT_BATCH_CREATED,
+        organization=organization,
+        user=created_by,
+        source="multiple_upload",
+        quantity=total_files,
+        metadata={
+            "import_batch_id": batch.id,
+            "department_id": department.id,
+            "folder_id": folder.id if folder else None,
         },
     )
     return batch
@@ -96,6 +109,17 @@ def import_uploaded_files(
                     "checksum_sha256": checksum_sha256,
                 },
             )
+            record_usage_event(
+                event_type=UsageEvent.EventType.IMPORT_FILE_DUPLICATE,
+                user=created_by,
+                document=duplicate,
+                source="multiple_upload",
+                metadata={
+                    "import_batch_id": batch.id,
+                    "import_file_id": import_file.id,
+                    "original_file_name": import_file.original_file_name,
+                },
+            )
             continue
 
         try:
@@ -131,6 +155,17 @@ def import_uploaded_files(
                     "error": import_file.error_message,
                 },
             )
+            record_usage_event(
+                event_type=UsageEvent.EventType.IMPORT_FILE_FAILED,
+                organization=batch.organization,
+                user=created_by,
+                source="multiple_upload",
+                metadata={
+                    "import_batch_id": batch.id,
+                    "import_file_id": import_file.id,
+                    "original_file_name": import_file.original_file_name,
+                },
+            )
             continue
 
         import_file.status = ImportFile.Status.IMPORTED
@@ -148,6 +183,17 @@ def import_uploaded_files(
                 "import_file_id": import_file.id,
                 "original_file_name": import_file.original_file_name,
                 "checksum_sha256": import_file.checksum_sha256,
+            },
+        )
+        record_usage_event(
+            event_type=UsageEvent.EventType.IMPORT_FILE_IMPORTED,
+            user=created_by,
+            document=document,
+            source="multiple_upload",
+            metadata={
+                "import_batch_id": batch.id,
+                "import_file_id": import_file.id,
+                "original_file_name": import_file.original_file_name,
             },
         )
 
