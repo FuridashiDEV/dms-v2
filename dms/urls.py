@@ -13,6 +13,12 @@ urlpatterns = [
     path("folders/<int:pk>/delete/", views.folder_delete, name="folder_delete"),
     path("documents/", views.document_list, name="document_list"),
     path("documents/<int:pk>/", views.document_detail, name="document_detail"),
+    path("documents/<int:pk>/relations/add/", views.document_relation_add, name="document_relation_add"),
+    path(
+        "documents/<int:pk>/relations/<int:relation_pk>/delete/",
+        views.document_relation_delete,
+        name="document_relation_delete",
+    ),
     path("documents/<int:pk>/evidence/export/", views.document_evidence_export, name="document_evidence_export"),
     path("documents/upload/", views.document_upload, name="document_upload"),
     path("documents/import/", views.document_import, name="document_import"),

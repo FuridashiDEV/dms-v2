@@ -4,12 +4,14 @@ from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import Any
 
+from django.db.models import Q
 from django.utils import timezone
 
 from dms.models import (
     AuditEvent,
     Document,
     DocumentExchange,
+    DocumentRelation,
     ExchangeEvent,
     ExchangeMessage,
     ExtractedField,
@@ -17,6 +19,7 @@ from dms.models import (
     WorkflowAction,
     WorkflowInstance,
 )
+from dms.utils import get_allowed_documents
 
 
 SENSITIVE_KEY_PARTS = ("token", "secret", "api_key", "apikey", "password", "private_key", "portal_url")
@@ -113,6 +116,32 @@ def _counterparty_contact_ref(contact) -> dict[str, Any] | None:
     }
 
 
+def _document_relation_ref(relation: DocumentRelation, *, source_document: Document) -> dict[str, Any]:
+    if relation.from_document_id == source_document.id:
+        related_document = relation.to_document
+        direction = "outgoing"
+    else:
+        related_document = relation.from_document
+        direction = "incoming"
+    return {
+        "id": relation.id,
+        "direction": direction,
+        "relation_type": relation.relation_type,
+        "relation_type_display": relation.get_relation_type_display(),
+        "related_document": {
+            "id": related_document.id,
+            "public_id": str(related_document.public_id) if related_document.public_id else "",
+            "title": related_document.title,
+            "status": related_document.status,
+            "document_type": _document_type_ref(related_document.doc_type),
+            "document_date": _date(related_document.doc_date),
+            "department": _department_ref(related_document.department),
+            "checksum_sha256": related_document.checksum_sha256,
+        },
+        "created_at": _dt(relation.created_at),
+    }
+
+
 def _sanitize(value: Any) -> Any:
     if isinstance(value, Mapping):
         safe = {}
@@ -172,6 +201,31 @@ def build_document_evidence_package(*, document: Document, exported_by=None) -> 
         .filter(document=document, organization=organization)
         .select_related("user", "document_version")
         .order_by("created_at", "id")
+    )
+    if exported_by is not None:
+        visible_document_ids = get_allowed_documents(exported_by).filter(
+            organization=organization,
+        ).values("id")
+    else:
+        visible_document_ids = Document.objects.filter(
+            organization=organization,
+        ).values("id")
+    related_documents = (
+        DocumentRelation.objects
+        .filter(
+            Q(from_document=document, to_document_id__in=visible_document_ids)
+            | Q(to_document=document, from_document_id__in=visible_document_ids)
+        )
+        .filter(from_document__organization=organization, to_document__organization=organization)
+        .select_related(
+            "from_document",
+            "from_document__department",
+            "from_document__doc_type",
+            "to_document",
+            "to_document__department",
+            "to_document__doc_type",
+        )
+        .order_by("relation_type", "created_at", "id")
     )
 
     return {
@@ -233,6 +287,10 @@ def build_document_evidence_package(*, document: Document, exported_by=None) -> 
                 "created_at": _dt(version.created_at),
             }
             for version in versions
+        ],
+        "related_documents": [
+            _document_relation_ref(relation, source_document=document)
+            for relation in related_documents
         ],
         "ai": {
             "processing_jobs": [

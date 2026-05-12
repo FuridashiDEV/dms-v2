@@ -149,17 +149,45 @@
     <div class="card" style="padding:22px;">
       <h2 class="section-title">Связи документа</h2>
       <div class="section-sub">Контекст архива: какие документы этот файл заменяет, к чему относится и где фигурирует.</div>
+      {% if relation_form %}
+        <form method="post" action="{% url 'dms:document_relation_add' doc.id %}" class="inline-form" style="margin:14px 0;">
+          {% csrf_token %}
+          <div style="display:grid; grid-template-columns:minmax(0, 1fr) minmax(160px, 240px) auto; gap:10px; align-items:end;">
+            <label>
+              <span class="field-label">Related document</span>
+              {{ relation_form.to_document }}
+            </label>
+            <label>
+              <span class="field-label">Relation type</span>
+              {{ relation_form.relation_type }}
+            </label>
+            <button class="btn btn-primary" type="submit">Add relation</button>
+          </div>
+        </form>
+      {% endif %}
       <div class="stack">
         {% for relation in outgoing_relations %}
           <div class="row-card">
             <div class="row-main">{{ relation.get_relation_type_display }}: <a href="{% url 'dms:document_detail' relation.to_document.id %}">{{ relation.to_document.title }}</a></div>
             <div class="row-meta">{{ relation.to_document.department.name }}{% if relation.to_document.doc_type %} • {{ relation.to_document.doc_type.name }}{% endif %}{% if relation.confidence %} • AI: {{ relation.confidence }}{% endif %}</div>
+            {% if can_manage_relations %}
+              <form method="post" action="{% url 'dms:document_relation_delete' doc.id relation.id %}" class="row-actions">
+                {% csrf_token %}
+                <button class="btn btn-ghost" type="submit">Remove relation</button>
+              </form>
+            {% endif %}
           </div>
         {% endfor %}
         {% for relation in incoming_relations %}
           <div class="row-card">
-            <div class="row-main">{{ relation.from_document.title }} → {{ relation.get_relation_type_display|lower }} текущий документ</div>
+            <div class="row-main"><a href="{% url 'dms:document_detail' relation.from_document.id %}">{{ relation.from_document.title }}</a> -> {{ relation.get_relation_type_display|lower }} current document</div>
             <div class="row-meta">{{ relation.from_document.department.name }}{% if relation.from_document.doc_type %} • {{ relation.from_document.doc_type.name }}{% endif %}{% if relation.confidence %} • AI: {{ relation.confidence }}{% endif %}</div>
+            {% if can_manage_relations %}
+              <form method="post" action="{% url 'dms:document_relation_delete' doc.id relation.id %}" class="row-actions">
+                {% csrf_token %}
+                <button class="btn btn-ghost" type="submit">Remove relation</button>
+              </form>
+            {% endif %}
           </div>
         {% endfor %}
         {% if not outgoing_relations and not incoming_relations %}

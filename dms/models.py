@@ -641,6 +641,14 @@ class DocumentVersion(models.Model):
 
 class DocumentRelation(models.Model):
     class RelationType(models.TextChoices):
+        REPLACED_BY = "REPLACED_BY", _("Replaced by")
+        PRIMARY_DOCUMENT = "PRIMARY_DOCUMENT", _("Primary document")
+        ADDENDUM = "ADDENDUM", _("Addendum")
+        ACT = "ACT", _("Act")
+        INVOICE = "INVOICE", _("Invoice")
+        SIGNED_SCAN = "SIGNED_SCAN", _("Signed scan")
+        REVISION = "REVISION", _("Revision")
+        OTHER = "OTHER", _("Other")
         REPLACES = "REPLACES", _("Заменяет")
         APPENDIX_TO = "APPENDIX_TO", _("Приложение к")
         RELATED_TO = "RELATED_TO", _("Связан с")
@@ -757,6 +765,8 @@ class DocumentActivity(models.Model):
 
 class AuditEvent(models.Model):
     class EventType(models.TextChoices):
+        DOCUMENT_RELATION_CREATED = "DOCUMENT_RELATION_CREATED", _("Document relation created")
+        DOCUMENT_RELATION_DELETED = "DOCUMENT_RELATION_DELETED", _("Document relation deleted")
         DOCUMENT_UPLOADED = "DOCUMENT_UPLOADED", _("Документ загружен")
         DOCUMENT_UPDATED = "DOCUMENT_UPDATED", _("Документ обновлен")
         DOCUMENT_VIEWED = "DOCUMENT_VIEWED", _("Документ просмотрен")
@@ -867,6 +877,8 @@ class AuditEvent(models.Model):
 
 class UsageEvent(models.Model):
     class EventType(models.TextChoices):
+        DOCUMENT_RELATION_CREATED = "document.relation_created", _("Document relation created")
+        DOCUMENT_RELATION_DELETED = "document.relation_deleted", _("Document relation deleted")
         DOCUMENT_UPLOADED = "document.uploaded", _("Document uploaded")
         IMPORT_BATCH_CREATED = "import.batch_created", _("Import batch created")
         IMPORT_FILE_IMPORTED = "import.file_imported", _("Import file imported")

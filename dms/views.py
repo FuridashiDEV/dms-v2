@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.cache import cache
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Count, Q, Sum
 from django.http import FileResponse, Http404, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -18,6 +18,7 @@ from .forms import (
     CounterpartyExchangeForm,
     DepartmentSelectionForm,
     DocumentAccessForm,
+    DocumentRelationForm,
     DocumentSearchForm,
     DocumentUploadForm,
     ExchangeListFilterForm,
@@ -34,7 +35,7 @@ from .forms import (
     WorkflowActionForm,
     WorkflowStartForm,
 )
-from .models import AuditEvent, Counterparty, Department, Document, DocumentActivity, DocumentExchange, DocumentType, DocumentVersion, ExchangeEvent, ExtractedField, Folder, ImportBatch, Organization, ProcessingJob, UsageEvent, WebhookDelivery, WorkflowInstance
+from .models import AuditEvent, Counterparty, Department, Document, DocumentActivity, DocumentExchange, DocumentRelation, DocumentType, DocumentVersion, ExchangeEvent, ExtractedField, Folder, ImportBatch, Organization, ProcessingJob, UsageEvent, WebhookDelivery, WorkflowInstance
 from dms.services.ai_parser import parse_document
 from dms.services.archive_intelligence import (
     build_card_quality,
@@ -47,6 +48,12 @@ from dms.services.audit import record_audit_event
 from dms.services.ai_processing import apply_confirmed_fields, run_document_ai_processing
 from dms.services.analytics import build_organization_metrics, build_platform_metrics, parse_date_range
 from dms.services.document_creation import create_document_from_uploaded_file
+from dms.services.document_relations import (
+    can_manage_document_relations,
+    create_document_relation,
+    delete_document_relation,
+    get_visible_document_relations,
+)
 from dms.services.evidence import build_document_evidence_package
 from dms.services.security import protected_file_response
 from dms.services.usage import record_usage_event
@@ -1452,8 +1459,10 @@ def document_detail(request, pk):
     versions = doc.versions.all()
     accesses = doc.accesses.all()
     activities = doc.activities.all()[:12]
-    outgoing_relations = doc.outgoing_relations.select_related("to_document")
-    incoming_relations = doc.incoming_relations.select_related("from_document")
+    visible_relations = get_visible_document_relations(user=request.user, document=doc)
+    outgoing_relations = visible_relations.outgoing
+    incoming_relations = visible_relations.incoming
+    can_manage_relations = can_manage_document_relations(user=request.user, document=doc)
     allowed_queryset = get_allowed_documents(request.user)
     relation_suggestions = build_relation_suggestions(doc, allowed_queryset)
     superseded_candidates = get_superseded_candidates(doc, allowed_queryset)
@@ -1501,6 +1510,12 @@ def document_detail(request, pk):
             "activities": activities,
             "outgoing_relations": outgoing_relations,
             "incoming_relations": incoming_relations,
+            "relation_form": (
+                DocumentRelationForm(user=request.user, document=doc)
+                if can_manage_relations
+                else None
+            ),
+            "can_manage_relations": can_manage_relations,
             "relation_suggestions": relation_suggestions,
             "superseded_candidates": superseded_candidates,
             "retention_hint": retention_hint,
@@ -1525,6 +1540,80 @@ def document_detail(request, pk):
             "new_exchange_url": new_exchange_url,
         },
     )
+
+
+@login_required
+@require_POST
+def document_relation_add(request, pk):
+    doc = get_object_or_404(
+        get_allowed_documents(request.user).select_related("organization", "department", "uploaded_by"),
+        pk=pk,
+    )
+    if not user_can_access_document(request.user, doc):
+        return HttpResponseForbidden("РќРµС‚ РґРѕСЃС‚СѓРїР° Рє РґРѕРєСѓРјРµРЅС‚Сѓ")
+    if not can_manage_document_relations(user=request.user, document=doc):
+        return HttpResponseForbidden("РќРµС‚ РїСЂР°РІ РЅР° СѓРїСЂР°РІР»РµРЅРёРµ СЃРІСЏР·СЏРјРё")
+
+    form = DocumentRelationForm(request.POST, user=request.user, document=doc)
+    if not form.is_valid():
+        messages.error(request, "Could not create relation. Check the related document and relation type.")
+        return redirect("dms:document_detail", pk=doc.pk)
+
+    related_document = form.cleaned_data["to_document"]
+    try:
+        _relation, created = create_document_relation(
+            user=request.user,
+            from_document=doc,
+            to_document=related_document,
+            relation_type=form.cleaned_data["relation_type"],
+            request=request,
+        )
+    except PermissionDenied:
+        return HttpResponseForbidden("РќРµС‚ РїСЂР°РІ РЅР° СЃРѕР·РґР°РЅРёРµ СЌС‚РѕР№ СЃРІСЏР·Рё")
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+        return redirect("dms:document_detail", pk=doc.pk)
+
+    if created:
+        messages.success(request, "Document relation created.")
+    else:
+        messages.info(request, "This document relation already exists.")
+    return redirect("dms:document_detail", pk=doc.pk)
+
+
+@login_required
+@require_POST
+def document_relation_delete(request, pk, relation_pk):
+    doc = get_object_or_404(
+        get_allowed_documents(request.user).select_related("organization", "department", "uploaded_by"),
+        pk=pk,
+    )
+    relation = get_object_or_404(
+        DocumentRelation.objects.select_related(
+            "from_document",
+            "from_document__organization",
+            "from_document__department",
+            "to_document",
+            "to_document__organization",
+            "to_document__department",
+        ),
+        pk=relation_pk,
+    )
+    try:
+        delete_document_relation(
+            user=request.user,
+            relation=relation,
+            current_document=doc,
+            request=request,
+        )
+    except PermissionDenied:
+        return HttpResponseForbidden("РќРµС‚ РїСЂР°РІ РЅР° СѓРґР°Р»РµРЅРёРµ СЌС‚РѕР№ СЃРІСЏР·Рё")
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+        return redirect("dms:document_detail", pk=doc.pk)
+
+    messages.success(request, "Document relation deleted.")
+    return redirect("dms:document_detail", pk=doc.pk)
 
 
 @login_required

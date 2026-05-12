@@ -8,7 +8,8 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils.html import strip_tags
 
-from .models import Counterparty, CounterpartyContact, Department, Document, DocumentExchange, DocumentType, Folder, OrganizationMember, WorkflowTemplate
+from .models import Counterparty, CounterpartyContact, Department, Document, DocumentExchange, DocumentRelation, DocumentType, Folder, OrganizationMember, WorkflowTemplate
+from .services.document_relations import get_relation_target_queryset
 from .services.security import validate_upload_security
 from .utils import get_allowed_departments, get_user_organizations
 
@@ -1088,6 +1089,36 @@ class DocumentAccessForm(forms.Form):
         if document is not None:
             queryset = queryset.filter(organization_id=document.organization_id)
         self.fields["department"].queryset = queryset.order_by("tree_id", "lft")
+
+
+class DocumentRelationForm(forms.Form):
+    to_document = forms.ModelChoiceField(
+        queryset=Document.objects.none(),
+        label="Related document",
+        required=True,
+    )
+    relation_type = forms.ChoiceField(
+        choices=DocumentRelation.RelationType.choices,
+        label="Relation type",
+        required=True,
+    )
+
+    def __init__(self, *args, user=None, document=None, **kwargs):
+        self.user = user
+        self.document = document
+        super().__init__(*args, **kwargs)
+        if user is not None and document is not None:
+            self.fields["to_document"].queryset = get_relation_target_queryset(
+                user=user,
+                document=document,
+            )
+
+    def clean_relation_type(self):
+        relation_type = self.cleaned_data["relation_type"]
+        valid_values = {value for value, _label in DocumentRelation.RelationType.choices}
+        if relation_type not in valid_values:
+            raise ValidationError("Unsupported relation type.")
+        return relation_type
 
 
 class FolderManageForm(forms.ModelForm):
