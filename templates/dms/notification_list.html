@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+<style>
+  .notifications-top { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin:10px 0 18px; }
+  .notifications-title { margin:0; font-size:32px; font-weight:900; letter-spacing:-0.02em; }
+  .notifications-sub { margin-top:8px; color:var(--muted); font-weight:650; line-height:1.6; }
+  .notification-list { display:grid; gap:12px; }
+  .notification-row { padding:16px; border:1px solid rgba(148,163,184,.2); border-radius:14px; background:#fff; }
+  .notification-row.unread { border-color:rgba(47,111,237,.35); box-shadow:0 10px 24px rgba(47,111,237,.08); }
+  .notification-main { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .notification-title { font-weight:900; color:rgba(15,23,42,.92); }
+  .notification-meta { margin-top:6px; color:rgba(15,23,42,.58); font-size:13px; font-weight:700; line-height:1.5; }
+  .notification-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  .notification-badge { display:inline-flex; align-items:center; min-height:28px; padding:0 10px; border-radius:999px; background:rgba(15,23,42,.06); font-size:12px; font-weight:900; white-space:nowrap; }
+  .notification-badge.unread { color:#1d4ed8; background:rgba(37,99,235,.1); }
+  @media(max-width:760px){ .notifications-top{display:grid;} .notification-main{display:grid;} }
+</style>
+
+<div class="notifications-top">
+  <div>
+    <h1 class="notifications-title">Notifications</h1>
+    <div class="notifications-sub">Internal updates for workflow assignments, AI review, and B2B exchange activity.</div>
+  </div>
+  <div class="top-actions">
+    <a class="btn btn-ghost" href="{% url 'dms:document_list' %}">Documents</a>
+  </div>
+</div>
+
+<div class="notification-list">
+  {% for item in items %}
+    {% with notification=item.notification %}
+      <div class="notification-row {% if not notification.is_read %}unread{% endif %}">
+        <div class="notification-main">
+          <div>
+            <div class="notification-title">{{ notification.title }}</div>
+            <div class="notification-meta">{{ notification.message }}</div>
+            <div class="notification-meta">
+              {{ notification.created_at|date:"d.m.Y H:i" }}
+              / {{ notification.get_notification_type_display }}
+              {% if notification.actor %} / {{ notification.actor.get_full_name|default:notification.actor.username }}{% endif %}
+            </div>
+          </div>
+          <span class="notification-badge {% if not notification.is_read %}unread{% endif %}">
+            {% if notification.is_read %}Read{% else %}Unread{% endif %}
+          </span>
+        </div>
+        <div class="notification-actions">
+          {% if item.exchange_url %}
+            <a class="btn btn-ghost" href="{{ item.exchange_url }}">Open exchange</a>
+          {% endif %}
+          {% if item.document_url %}
+            <a class="btn btn-ghost" href="{{ item.document_url }}">Open document</a>
+          {% endif %}
+          {% if not notification.is_read %}
+            <form method="post" action="{% url 'dms:notification_mark_read' notification.id %}">
+              {% csrf_token %}
+              <button class="btn btn-primary" type="submit">Mark read</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    {% endwith %}
+  {% empty %}
+    <div class="notification-row">
+      <div class="notification-title">No notifications</div>
+      <div class="notification-meta">Workflow, AI review, and B2B exchange notifications will appear here.</div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

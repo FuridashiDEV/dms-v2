@@ -2219,6 +2219,85 @@ class ExchangeMessage(models.Model):
         return f"{self.get_author_type_display()} / {self.exchange}"
 
 
+class Notification(models.Model):
+    class Type(models.TextChoices):
+        WORKFLOW_ASSIGNED = "WORKFLOW_ASSIGNED", _("Workflow assigned")
+        AI_REVIEW_READY = "AI_REVIEW_READY", _("AI review ready")
+        EXCHANGE_OPENED = "EXCHANGE_OPENED", _("Exchange opened")
+        EXCHANGE_COMMENTED = "EXCHANGE_COMMENTED", _("Exchange commented")
+        EXCHANGE_ACCEPTED = "EXCHANGE_ACCEPTED", _("Exchange accepted")
+        EXCHANGE_REJECTED = "EXCHANGE_REJECTED", _("Exchange rejected")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="notifications",
+        verbose_name=_("Organization"),
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+        verbose_name=_("Recipient"),
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_notifications",
+        verbose_name=_("Actor"),
+    )
+    notification_type = models.CharField(
+        _("Notification type"),
+        max_length=40,
+        choices=Type.choices,
+        db_index=True,
+    )
+    title = models.CharField(_("Title"), max_length=255)
+    message = models.TextField(_("Message"), blank=True, default="")
+    related_document = models.ForeignKey(
+        Document,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="notifications",
+        verbose_name=_("Related document"),
+    )
+    related_exchange = models.ForeignKey(
+        DocumentExchange,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="notifications",
+        verbose_name=_("Related exchange"),
+    )
+    is_read = models.BooleanField(_("Read"), default=False, db_index=True)
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    read_at = models.DateTimeField(_("Read at"), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("Notification")
+        verbose_name_plural = _("Notifications")
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["recipient", "is_read", "-created_at"]),
+            models.Index(fields=["organization", "-created_at"]),
+            models.Index(fields=["related_document", "-created_at"]),
+            models.Index(fields=["related_exchange", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.recipient} / {self.notification_type}"
+
+    def mark_read(self):
+        if self.is_read:
+            return
+        self.is_read = True
+        self.read_at = timezone.now()
+        self.save(update_fields=["is_read", "read_at"])
+
+
 class DocumentAccess(models.Model):
     document = models.ForeignKey(
         "Document",

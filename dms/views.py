@@ -8,6 +8,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Count, Q, Sum
 from django.http import FileResponse, Http404, HttpResponseBadRequest, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from datetime import date, timedelta
@@ -36,7 +37,7 @@ from .forms import (
     WorkflowActionForm,
     WorkflowStartForm,
 )
-from .models import AuditEvent, Counterparty, Department, Document, DocumentActivity, DocumentExchange, DocumentRelation, DocumentType, DocumentVersion, ExchangeEvent, ExtractedField, Folder, ImportBatch, Organization, ProcessingJob, UsageEvent, WebhookDelivery, WorkflowInstance
+from .models import AuditEvent, Counterparty, Department, Document, DocumentActivity, DocumentExchange, DocumentRelation, DocumentType, DocumentVersion, ExchangeEvent, ExtractedField, Folder, ImportBatch, Notification, Organization, ProcessingJob, UsageEvent, WebhookDelivery, WorkflowInstance
 from dms.services.ai_parser import parse_document
 from dms.services.archive_intelligence import (
     build_card_quality,
@@ -2162,6 +2163,68 @@ def counterparty_portal_download(request, token):
         exchange = mark_exchange_opened(exchange=exchange, request=request)
     record_exchange_download(exchange=exchange, request=request)
     return protected_file_response(exchange.document.file, as_attachment=True)
+
+
+@login_required
+def notification_list(request):
+    notifications = (
+        Notification.objects
+        .filter(
+            recipient=request.user,
+            organization__in=get_user_organizations(request.user),
+        )
+        .select_related(
+            "actor",
+            "related_document",
+            "related_document__department",
+            "related_exchange",
+            "related_exchange__document",
+            "related_exchange__counterparty",
+        )
+        .order_by("-created_at", "-id")[:100]
+    )
+
+    items = []
+    for notification in notifications:
+        document_url = ""
+        exchange_url = ""
+        if notification.related_document_id and user_can_access_document(request.user, notification.related_document):
+            document_url = reverse("dms:document_detail", args=[notification.related_document_id])
+        if (
+            notification.related_exchange_id
+            and notification.related_exchange.document_id
+            and user_can_access_document(request.user, notification.related_exchange.document)
+        ):
+            exchange_url = reverse("dms:exchange_detail", args=[notification.related_exchange_id])
+        items.append(
+            {
+                "notification": notification,
+                "document_url": document_url,
+                "exchange_url": exchange_url,
+            }
+        )
+
+    return render(
+        request,
+        "dms/notification_list.html",
+        {
+            "items": items,
+        },
+    )
+
+
+@login_required
+@require_POST
+def notification_mark_read(request, pk):
+    notification = get_object_or_404(
+        Notification.objects.filter(
+            recipient=request.user,
+            organization__in=get_user_organizations(request.user),
+        ),
+        pk=pk,
+    )
+    notification.mark_read()
+    return redirect("dms:notification_list")
 
 
 @login_required

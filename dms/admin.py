@@ -23,6 +23,7 @@ from .models import (
     IntegrationConnection,
     IntegrationProvider,
     IntegrationSyncJob,
+    Notification,
     Organization,
     OrganizationMember,
     Plan,
@@ -157,6 +158,15 @@ class AuditEventAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "notification_type", "recipient", "organization", "is_read", "related_document", "related_exchange")
+    list_filter = ("notification_type", "is_read", "organization", "created_at")
+    search_fields = ("recipient__username", "title", "message", "related_document__title")
+    readonly_fields = ("created_at", "read_at")
+    autocomplete_fields = ("organization", "recipient", "actor", "related_document", "related_exchange")
 
 
 @admin.register(DocumentVersion)

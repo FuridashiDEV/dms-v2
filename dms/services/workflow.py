@@ -14,6 +14,7 @@ from dms.models import (
     UsageEvent,
 )
 from dms.services.audit import record_audit_event
+from dms.services.notifications import notify_workflow_assignment
 from dms.services.usage import record_usage_event
 from dms.utils import get_allowed_departments, user_can_access_document
 
@@ -226,6 +227,7 @@ def start_workflow(
             "new_status": document.status,
         },
     )
+    notify_workflow_assignment(instance=instance, actor=user)
     return instance
 
 
@@ -294,6 +296,7 @@ def approve_workflow(
             user=user,
             action=DocumentActivity.ACTION_WORKFLOW_APPROVED,
         )
+        notify_workflow_assignment(instance=instance, actor=user)
 
     _audit(
         event_type=AuditEvent.EventType.WORKFLOW_APPROVED,

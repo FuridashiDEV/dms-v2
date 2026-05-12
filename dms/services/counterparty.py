@@ -21,6 +21,7 @@ from dms.models import (
 )
 from dms.services.audit import get_client_ip, get_user_agent, record_audit_event
 from dms.services.document_creation import create_document_from_uploaded_file
+from dms.services.notifications import notify_exchange_event
 from dms.services.usage import record_usage_event
 from dms.utils import get_allowed_departments, user_can_access_document
 
@@ -217,6 +218,13 @@ def record_exchange_event(
             "counterparty_id": exchange.counterparty_id,
             "counterparty_contact_id": exchange.counterparty_contact_id,
         },
+    )
+    notify_exchange_event(
+        exchange=exchange,
+        event_type=event_type,
+        actor_name=actor_name,
+        user=user,
+        comment=comment,
     )
     return event
 

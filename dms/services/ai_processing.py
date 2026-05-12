@@ -10,6 +10,7 @@ from dms.models import AuditEvent, Document, DocumentType, ExtractedField, Proce
 from dms.services.audit import record_audit_event
 from dms.services.ai_parser import parse_document
 from dms.services.document_metadata import extract_candidate_dates
+from dms.services.notifications import notify_ai_review_ready
 from dms.services.usage import record_usage_event
 
 
@@ -151,6 +152,7 @@ def run_document_ai_processing(
                 "field_count": job.fields.count(),
             },
         )
+        notify_ai_review_ready(job=job, actor=user)
     except Exception as exc:
         job.status = ProcessingJob.Status.FAILED
         job.error_message = str(exc)[:2000]

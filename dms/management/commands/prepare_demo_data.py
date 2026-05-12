@@ -29,6 +29,7 @@ from dms.models import (
     Folder,
     ImportBatch,
     ImportFile,
+    Notification,
     Organization,
     OrganizationMember,
     ProcessingJob,
@@ -145,6 +146,7 @@ class Command(BaseCommand):
                     version.file.delete(save=False)
 
         UsageEvent.objects.filter(organization=organization).delete()
+        Notification.objects.filter(organization=organization).delete()
         AuditEvent.objects.filter(organization=organization).delete()
         ExchangeMessage.objects.filter(organization=organization).delete()
         ExchangeEvent.objects.filter(organization=organization).delete()
