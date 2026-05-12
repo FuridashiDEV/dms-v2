@@ -1091,15 +1091,30 @@ class DocumentAccessForm(forms.Form):
         self.fields["department"].queryset = queryset.order_by("tree_id", "lft")
 
 
+RELATED_DOCUMENT_RELATION_CHOICES = [
+    (DocumentRelation.RelationType.APPENDIX_TO, "Приложение к документу"),
+    (DocumentRelation.RelationType.PRIMARY_DOCUMENT, "Основной документ"),
+    (DocumentRelation.RelationType.ADDENDUM, "Дополнительное соглашение"),
+    (DocumentRelation.RelationType.ACT, "Акт"),
+    (DocumentRelation.RelationType.INVOICE, "Счет"),
+    (DocumentRelation.RelationType.REPLACES, "Заменяет"),
+    (DocumentRelation.RelationType.REPLACED_BY, "Заменен документом"),
+    (DocumentRelation.RelationType.SIGNED_SCAN, "Скан подписанной версии"),
+    (DocumentRelation.RelationType.REVISION, "Редакция документа"),
+    (DocumentRelation.RelationType.RELATED_TO, "Связан по теме"),
+    (DocumentRelation.RelationType.OTHER, "Другое"),
+]
+
+
 class DocumentRelationForm(forms.Form):
     to_document = forms.ModelChoiceField(
         queryset=Document.objects.none(),
-        label="Related document",
+        label="Связанный документ",
         required=True,
     )
     relation_type = forms.ChoiceField(
-        choices=DocumentRelation.RelationType.choices,
-        label="Relation type",
+        choices=RELATED_DOCUMENT_RELATION_CHOICES,
+        label="Тип связи",
         required=True,
     )
 

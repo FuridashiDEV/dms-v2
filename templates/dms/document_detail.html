@@ -154,14 +154,14 @@
           {% csrf_token %}
           <div style="display:grid; grid-template-columns:minmax(0, 1fr) minmax(160px, 240px) auto; gap:10px; align-items:end;">
             <label>
-              <span class="field-label">Related document</span>
+              <span class="field-label">Связанный документ</span>
               {{ relation_form.to_document }}
             </label>
             <label>
-              <span class="field-label">Relation type</span>
+              <span class="field-label">Тип связи</span>
               {{ relation_form.relation_type }}
             </label>
-            <button class="btn btn-primary" type="submit">Add relation</button>
+            <button class="btn btn-primary" type="submit">Добавить связь</button>
           </div>
         </form>
       {% endif %}
@@ -173,19 +173,19 @@
             {% if can_manage_relations %}
               <form method="post" action="{% url 'dms:document_relation_delete' doc.id relation.id %}" class="row-actions">
                 {% csrf_token %}
-                <button class="btn btn-ghost" type="submit">Remove relation</button>
+                <button class="btn btn-ghost" type="submit">Удалить связь</button>
               </form>
             {% endif %}
           </div>
         {% endfor %}
         {% for relation in incoming_relations %}
           <div class="row-card">
-            <div class="row-main"><a href="{% url 'dms:document_detail' relation.from_document.id %}">{{ relation.from_document.title }}</a> -> {{ relation.get_relation_type_display|lower }} current document</div>
+            <div class="row-main"><a href="{% url 'dms:document_detail' relation.from_document.id %}">{{ relation.from_document.title }}</a> -> {{ relation.get_relation_type_display|lower }} текущий документ</div>
             <div class="row-meta">{{ relation.from_document.department.name }}{% if relation.from_document.doc_type %} • {{ relation.from_document.doc_type.name }}{% endif %}{% if relation.confidence %} • AI: {{ relation.confidence }}{% endif %}</div>
             {% if can_manage_relations %}
               <form method="post" action="{% url 'dms:document_relation_delete' doc.id relation.id %}" class="row-actions">
                 {% csrf_token %}
-                <button class="btn btn-ghost" type="submit">Remove relation</button>
+                <button class="btn btn-ghost" type="submit">Удалить связь</button>
               </form>
             {% endif %}
           </div>

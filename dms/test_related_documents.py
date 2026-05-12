@@ -83,7 +83,7 @@ class RelatedDocumentsTests(TestCase):
         reverse_response = self.client.get(reverse("dms:document_detail", args=[self.related_document.id]))
 
         self.assertContains(detail_response, "Appendix A")
-        self.assertContains(detail_response, "Remove relation")
+        self.assertContains(detail_response, "Удалить связь")
         self.assertContains(reverse_response, "Master contract")
 
     def test_user_cannot_link_cross_organization_document(self):
