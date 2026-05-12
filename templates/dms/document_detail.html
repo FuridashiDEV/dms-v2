@@ -414,7 +414,9 @@
       <div class="stack">
         {% for exchange in recent_exchanges %}
           <div class="row-card">
-            <div class="row-main">{{ exchange.counterparty.name }}: {{ exchange.get_direction_display }} / {{ exchange.get_status_display }}</div>
+            <div class="row-main">
+              <a href="{% url 'dms:exchange_detail' exchange.id %}">{{ exchange.counterparty.name }}: {{ exchange.get_direction_display }} / {{ exchange.get_status_display }}</a>
+            </div>
             {% if exchange.counterparty_contact %}
               <div class="row-meta">Contact: {{ exchange.counterparty_contact.name }}</div>
             {% endif %}
@@ -422,6 +424,10 @@
               {{ exchange.created_at|date:"d.m.Y H:i" }}
               {% if exchange.sent_by %} вЂў {{ exchange.sent_by.get_full_name|default:exchange.sent_by.username }}{% endif %}
               {% if exchange.expires_at %} вЂў expires {{ exchange.expires_at|date:"d.m.Y H:i" }}{% endif %}
+              вЂў link {% if exchange.is_link_active %}active{% else %}inactive{% endif %}
+            </div>
+            <div class="row-actions">
+              <a class="btn btn-ghost" href="{% url 'dms:exchange_detail' exchange.id %}">Open exchange</a>
             </div>
             <div class="stack" style="margin-top:12px;">
               {% for exchange_message in exchange.messages.all %}

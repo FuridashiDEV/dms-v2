@@ -21,6 +21,7 @@ from .forms import (
     DocumentRelationForm,
     DocumentSearchForm,
     DocumentUploadForm,
+    ExchangeLinkResendForm,
     ExchangeListFilterForm,
     ExchangeMessageForm,
     ExternalExchangeActionForm,
@@ -70,7 +71,9 @@ from dms.services.counterparty import (
     mark_exchange_opened,
     record_exchange_download,
     record_exchange_message,
+    reissue_exchange_link,
     reject_exchange,
+    revoke_exchange_link,
     resolve_exchange_token,
 )
 from dms.services.imports import create_import_batch, import_uploaded_files
@@ -1887,6 +1890,109 @@ def exchange_list(request):
     )
 
 
+def _allowed_exchange_queryset(user):
+    allowed_documents = get_allowed_documents(user).values("id")
+    return (
+        DocumentExchange.objects
+        .filter(
+            organization__in=get_user_organizations(user),
+            document_id__in=allowed_documents,
+        )
+        .select_related(
+            "organization",
+            "document",
+            "document__department",
+            "counterparty",
+            "counterparty_contact",
+            "sent_by",
+            "received_by",
+        )
+    )
+
+
+@login_required
+def exchange_detail(request, exchange_id):
+    exchange = get_object_or_404(_allowed_exchange_queryset(request.user), pk=exchange_id)
+    if not user_can_access_document(request.user, exchange.document):
+        return HttpResponseForbidden("No access to exchange")
+
+    new_exchange_url = request.session.pop(f"exchange_portal_url:{exchange.pk}", "")
+    events = exchange.events.order_by("-created_at", "-id")[:50]
+    exchange_messages = exchange.messages.select_related("user", "counterparty_contact").order_by("created_at", "id")[:50]
+    can_manage_exchange = (
+        exchange.direction == DocumentExchange.Direction.OUTGOING
+        and can_send_document_exchange(request.user, exchange.document)
+    )
+    return render(
+        request,
+        "dms/exchange_detail.html",
+        {
+            "exchange": exchange,
+            "doc": exchange.document,
+            "events": events,
+            "exchange_messages": exchange_messages,
+            "message_form": ExchangeMessageForm(),
+            "resend_form": ExchangeLinkResendForm(initial={"expires_days": 14}),
+            "new_exchange_url": new_exchange_url,
+            "can_manage_exchange": can_manage_exchange,
+        },
+    )
+
+
+@login_required
+@require_POST
+def exchange_revoke(request, exchange_id):
+    exchange = get_object_or_404(_allowed_exchange_queryset(request.user), pk=exchange_id)
+    if not user_can_access_document(request.user, exchange.document):
+        return HttpResponseForbidden("No access to exchange")
+    try:
+        revoke_exchange_link(
+            exchange=exchange,
+            user=request.user,
+            request=request,
+            comment=request.POST.get("comment", ""),
+        )
+    except ExchangePermissionError:
+        return HttpResponseForbidden("No permission to revoke exchange")
+    except ExchangeError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, "Exchange link revoked.")
+    return redirect("dms:exchange_detail", exchange_id=exchange.id)
+
+
+@login_required
+@require_POST
+def exchange_resend(request, exchange_id):
+    exchange = get_object_or_404(_allowed_exchange_queryset(request.user), pk=exchange_id)
+    if not user_can_access_document(request.user, exchange.document):
+        return HttpResponseForbidden("No access to exchange")
+    form = ExchangeLinkResendForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Could not resend exchange link.")
+        return redirect("dms:exchange_detail", exchange_id=exchange.id)
+
+    expires_at = timezone.now() + timedelta(days=form.cleaned_data["expires_days"])
+    try:
+        created_exchange = reissue_exchange_link(
+            exchange=exchange,
+            user=request.user,
+            request=request,
+            expires_at=expires_at,
+            message=form.cleaned_data.get("message", ""),
+        )
+    except ExchangePermissionError:
+        return HttpResponseForbidden("No permission to resend exchange")
+    except ExchangeError as exc:
+        messages.error(request, str(exc))
+    else:
+        request.session[f"exchange_portal_url:{exchange.pk}"] = request.build_absolute_uri(
+            created_exchange.portal_path()
+        )
+        messages.success(request, "Exchange link resent.")
+    return redirect("dms:exchange_detail", exchange_id=exchange.id)
+
+
 @login_required
 def incoming_exchange_create(request):
     if request.method == "POST":
@@ -1969,6 +2075,8 @@ def exchange_message_create(request, exchange_id):
         messages.error(request, str(exc))
     else:
         messages.success(request, "Exchange message saved.")
+    if request.POST.get("next") == "exchange_detail":
+        return redirect("dms:exchange_detail", exchange_id=exchange.id)
     return redirect("dms:document_detail", pk=exchange.document_id)
 
 
@@ -1986,6 +2094,8 @@ def counterparty_portal(request, token):
     elif not exchange.is_terminal:
         exchange = mark_exchange_opened(exchange=exchange, request=request)
 
+    is_revoked = exchange.status == DocumentExchange.Status.REVOKED
+    is_expired = exchange.status == DocumentExchange.Status.EXPIRED
     return render(
         request,
         "dms/counterparty_portal.html",
@@ -1997,7 +2107,9 @@ def counterparty_portal(request, token):
             "form": ExternalExchangeActionForm(),
             "token": token,
             "is_closed": exchange.is_terminal,
-            "is_expired": exchange.status == DocumentExchange.Status.EXPIRED,
+            "is_expired": is_expired,
+            "is_revoked": is_revoked,
+            "is_link_unavailable": is_expired or is_revoked,
         },
     )
 
@@ -2008,6 +2120,9 @@ def counterparty_portal_action(request, token, action):
     if is_exchange_expired(exchange):
         expire_exchange(exchange=exchange, request=request)
         messages.error(request, "This exchange link has expired.")
+        return redirect("dms:counterparty_portal", token=token)
+    if exchange.status == DocumentExchange.Status.REVOKED:
+        messages.error(request, "This exchange link has been revoked.")
         return redirect("dms:counterparty_portal", token=token)
 
     form = ExternalExchangeActionForm(request.POST)

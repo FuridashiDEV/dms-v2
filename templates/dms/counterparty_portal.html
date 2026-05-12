@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Counterparty Portal - {{ doc.title }}{% endblock %}
+{% block title %}{% if is_link_unavailable %}Counterparty Portal - Link unavailable{% else %}Counterparty Portal - {{ doc.title }}{% endif %}{% endblock %}
 
 {% block content %}
 <style>
@@ -20,52 +20,72 @@
 
 <div class="portal-shell">
   <div class="card" style="padding:24px;">
-    <div class="portal-top">
-      <div>
-        <h1 class="portal-title">{{ doc.title }}</h1>
-        <div class="portal-sub">Secure document exchange for {{ exchange.counterparty.name }}.</div>
+    {% if is_link_unavailable %}
+      <div class="portal-top">
+        <div>
+          <h1 class="portal-title">Exchange link unavailable</h1>
+          <div class="portal-sub">
+            {% if is_revoked %}
+              This secure exchange link has been revoked by the sender.
+            {% else %}
+              This secure exchange link has expired.
+            {% endif %}
+          </div>
+        </div>
+        <div class="badge">{{ exchange.get_status_display }}</div>
       </div>
-      <div class="badge">{{ exchange.get_status_display }}</div>
-    </div>
-
-    <div class="portal-grid">
-      <div class="portal-item">
-        <div class="portal-label">Counterparty</div>
-        <div class="portal-value">{{ exchange.counterparty.name }}</div>
-      </div>
-      <div class="portal-item">
-        <div class="portal-label">Sent by</div>
-        <div class="portal-value">{{ exchange.sent_by.get_full_name|default:exchange.sent_by.username|default:"DMS" }}</div>
-      </div>
-      <div class="portal-item">
-        <div class="portal-label">Document date</div>
-        <div class="portal-value">{{ doc.doc_date|date:"d.m.Y"|default:"Not specified" }}</div>
-      </div>
-      <div class="portal-item">
-        <div class="portal-label">Expires</div>
-        <div class="portal-value">{{ exchange.expires_at|date:"d.m.Y H:i"|default:"No expiration" }}</div>
-      </div>
-      <div class="portal-item">
-        <div class="portal-label">SHA-256</div>
-        <div class="portal-value">{{ doc.checksum_sha256|default:"Not calculated" }}</div>
-      </div>
-      <div class="portal-item">
-        <div class="portal-label">File</div>
-        <div class="portal-value">{{ doc.source_file_name|default:doc.file.name }}</div>
-      </div>
-    </div>
-
-    {% if exchange.message %}
       <div class="portal-item" style="margin-top:14px;">
-        <div class="portal-label">Message</div>
-        <div class="portal-value" style="line-height:1.6;">{{ exchange.message }}</div>
+        <div class="portal-label">Status</div>
+        <div class="portal-value">The document and download are no longer available through this link.</div>
       </div>
-    {% endif %}
+    {% else %}
+      <div class="portal-top">
+        <div>
+          <h1 class="portal-title">{{ doc.title }}</h1>
+          <div class="portal-sub">Secure document exchange for {{ exchange.counterparty.name }}.</div>
+        </div>
+        <div class="badge">{{ exchange.get_status_display }}</div>
+      </div>
 
-    {% if not is_expired and exchange.status != "REVOKED" %}
-      <div class="portal-actions">
-        <a class="btn btn-primary" href="{% url 'dms:counterparty_portal_download' token %}">Download document</a>
+      <div class="portal-grid">
+        <div class="portal-item">
+          <div class="portal-label">Counterparty</div>
+          <div class="portal-value">{{ exchange.counterparty.name }}</div>
+        </div>
+        <div class="portal-item">
+          <div class="portal-label">Sent by</div>
+          <div class="portal-value">{{ exchange.sent_by.get_full_name|default:exchange.sent_by.username|default:"DMS" }}</div>
+        </div>
+        <div class="portal-item">
+          <div class="portal-label">Document date</div>
+          <div class="portal-value">{{ doc.doc_date|date:"d.m.Y"|default:"Not specified" }}</div>
+        </div>
+        <div class="portal-item">
+          <div class="portal-label">Expires</div>
+          <div class="portal-value">{{ exchange.expires_at|date:"d.m.Y H:i"|default:"No expiration" }}</div>
+        </div>
+        <div class="portal-item">
+          <div class="portal-label">SHA-256</div>
+          <div class="portal-value">{{ doc.checksum_sha256|default:"Not calculated" }}</div>
+        </div>
+        <div class="portal-item">
+          <div class="portal-label">File</div>
+          <div class="portal-value">{{ doc.source_file_name|default:doc.file.name }}</div>
+        </div>
       </div>
+
+      {% if exchange.message %}
+        <div class="portal-item" style="margin-top:14px;">
+          <div class="portal-label">Message</div>
+          <div class="portal-value" style="line-height:1.6;">{{ exchange.message }}</div>
+        </div>
+      {% endif %}
+
+      {% if not is_expired and exchange.status != "REVOKED" %}
+        <div class="portal-actions">
+          <a class="btn btn-primary" href="{% url 'dms:counterparty_portal_download' token %}">Download document</a>
+        </div>
+      {% endif %}
     {% endif %}
   </div>
 

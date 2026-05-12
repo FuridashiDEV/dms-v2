@@ -931,6 +931,28 @@ class ExchangeMessageForm(forms.Form):
         return body
 
 
+class ExchangeLinkResendForm(forms.Form):
+    expires_days = forms.IntegerField(
+        label="Expires in days",
+        required=True,
+        min_value=1,
+        max_value=90,
+        initial=14,
+    )
+    message = forms.CharField(
+        label="Message",
+        required=False,
+        max_length=2000,
+        widget=forms.Textarea(attrs={"rows": 3}),
+    )
+
+    def clean_message(self):
+        return normalize_text_input(
+            self.cleaned_data.get("message", ""),
+            collapse_whitespace=False,
+        )
+
+
 class ExchangeListFilterForm(forms.Form):
     direction = forms.ChoiceField(
         required=False,

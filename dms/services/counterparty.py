@@ -145,7 +145,18 @@ def _audit_event_type(event_type: str) -> str | None:
         ExchangeEvent.EventType.ACCEPTED: AuditEvent.EventType.EXCHANGE_ACCEPTED,
         ExchangeEvent.EventType.REJECTED: AuditEvent.EventType.EXCHANGE_REJECTED,
         ExchangeEvent.EventType.COMMENTED: AuditEvent.EventType.EXCHANGE_COMMENTED,
+        ExchangeEvent.EventType.EXPIRED: AuditEvent.EventType.EXCHANGE_EXPIRED,
+        ExchangeEvent.EventType.REVOKED: AuditEvent.EventType.EXCHANGE_REVOKED,
     }.get(event_type)
+
+
+def _unique_exchange_token() -> tuple[str, str]:
+    token = generate_exchange_token()
+    token_hash = hash_exchange_token(token)
+    while DocumentExchange.objects.filter(token_hash=token_hash).exists():
+        token = generate_exchange_token()
+        token_hash = hash_exchange_token(token)
+    return token, token_hash
 
 
 def record_exchange_event(
@@ -241,11 +252,7 @@ def create_document_exchange(
         user=user,
     )
 
-    token = generate_exchange_token()
-    token_hash = hash_exchange_token(token)
-    while DocumentExchange.objects.filter(token_hash=token_hash).exists():
-        token = generate_exchange_token()
-        token_hash = hash_exchange_token(token)
+    token, token_hash = _unique_exchange_token()
 
     exchange = DocumentExchange.objects.create(
         organization=document.organization,
@@ -337,11 +344,7 @@ def create_incoming_document_exchange(
         },
     )
 
-    token = generate_exchange_token()
-    token_hash = hash_exchange_token(token)
-    while DocumentExchange.objects.filter(token_hash=token_hash).exists():
-        token = generate_exchange_token()
-        token_hash = hash_exchange_token(token)
+    token, token_hash = _unique_exchange_token()
 
     exchange = DocumentExchange.objects.create(
         organization=document.organization,
@@ -506,6 +509,110 @@ def expire_exchange(*, exchange: DocumentExchange, request=None) -> DocumentExch
             actor_email=exchange.counterparty.email,
         )
     return exchange
+
+
+@transaction.atomic
+def revoke_exchange_link(
+    *,
+    exchange: DocumentExchange,
+    user,
+    request=None,
+    comment: str = "",
+) -> DocumentExchange:
+    exchange = (
+        DocumentExchange.objects
+        .select_for_update()
+        .select_related("document", "counterparty")
+        .get(pk=exchange.pk)
+    )
+    if exchange.direction != DocumentExchange.Direction.OUTGOING:
+        raise ExchangeError("Only outgoing exchange links can be revoked.")
+    if not can_send_document_exchange(user, exchange.document):
+        raise ExchangePermissionError("User cannot revoke this exchange link.")
+    if exchange.status in {DocumentExchange.Status.ACCEPTED, DocumentExchange.Status.REJECTED}:
+        raise ExchangeError("Accepted or rejected exchanges cannot be revoked.")
+    if exchange.status == DocumentExchange.Status.REVOKED:
+        return exchange
+
+    exchange.status = DocumentExchange.Status.REVOKED
+    exchange.save(update_fields=["status", "updated_at"])
+    record_exchange_event(
+        exchange=exchange,
+        event_type=ExchangeEvent.EventType.REVOKED,
+        request=request,
+        user=user,
+        actor_name=_actor_display_name(user),
+        actor_email=getattr(user, "email", ""),
+        comment=comment,
+        metadata={"revoked_by_user_id": getattr(user, "id", None)},
+    )
+    return exchange
+
+
+@transaction.atomic
+def reissue_exchange_link(
+    *,
+    exchange: DocumentExchange,
+    user,
+    request=None,
+    expires_at=None,
+    message: str = "",
+) -> CreatedExchange:
+    exchange = (
+        DocumentExchange.objects
+        .select_for_update()
+        .select_related("document", "counterparty")
+        .get(pk=exchange.pk)
+    )
+    if exchange.direction != DocumentExchange.Direction.OUTGOING:
+        raise ExchangeError("Only outgoing exchange links can be resent.")
+    if not can_send_document_exchange(user, exchange.document):
+        raise ExchangePermissionError("User cannot resend this exchange link.")
+    if exchange.status == DocumentExchange.Status.ACCEPTED:
+        raise ExchangeError("Accepted exchanges cannot be resent.")
+
+    token, token_hash = _unique_exchange_token()
+    exchange.token_hash = token_hash
+    exchange.token_hint = token[-8:]
+    exchange.status = DocumentExchange.Status.SENT
+    exchange.opened_at = None
+    exchange.responded_at = None
+    exchange.expires_at = expires_at
+    if message:
+        exchange.message = message
+    exchange.save(
+        update_fields=[
+            "token_hash",
+            "token_hint",
+            "status",
+            "opened_at",
+            "responded_at",
+            "expires_at",
+            "message",
+            "updated_at",
+        ]
+    )
+    record_exchange_event(
+        exchange=exchange,
+        event_type=ExchangeEvent.EventType.SENT,
+        request=request,
+        user=user,
+        actor_name=_actor_display_name(user),
+        actor_email=getattr(user, "email", ""),
+        comment=message or "Secure exchange link reissued.",
+        metadata={**_portal_metadata(request), "reissued": True},
+    )
+    if message:
+        record_exchange_message(
+            exchange=exchange,
+            author_type=ExchangeMessage.AuthorType.INTERNAL,
+            user=user,
+            body=message,
+            request=request,
+            source_event_type=ExchangeEvent.EventType.SENT,
+            create_comment_event=False,
+        )
+    return CreatedExchange(exchange=exchange, token=token)
 
 
 @transaction.atomic

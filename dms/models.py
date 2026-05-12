@@ -5,6 +5,7 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from mptt.models import MPTTModel, TreeForeignKey
 
@@ -800,6 +801,8 @@ class AuditEvent(models.Model):
         EXCHANGE_REJECTED = "EXCHANGE_REJECTED", _("Document exchange rejected")
         EXCHANGE_COMMENTED = "EXCHANGE_COMMENTED", _("Document exchange commented")
         EXCHANGE_RECEIVED = "EXCHANGE_RECEIVED", _("B2B document exchange received")
+        EXCHANGE_EXPIRED = "EXCHANGE_EXPIRED", _("Document exchange link expired")
+        EXCHANGE_REVOKED = "EXCHANGE_REVOKED", _("Document exchange link revoked")
         INTEGRATION_CONNECTION_CREATED = "INTEGRATION_CONNECTION_CREATED", _("Integration connection created")
         INTEGRATION_SYNC_JOB_CREATED = "INTEGRATION_SYNC_JOB_CREATED", _("Integration sync job created")
         EXTERNAL_REFERENCE_LINKED = "EXTERNAL_REFERENCE_LINKED", _("External reference linked")
@@ -2061,6 +2064,28 @@ class DocumentExchange(models.Model):
             self.Status.EXPIRED,
             self.Status.REVOKED,
         }
+
+    @property
+    def is_link_expired(self) -> bool:
+        return bool(self.expires_at and self.expires_at <= timezone.now())
+
+    @property
+    def is_link_active(self) -> bool:
+        return (
+            self.direction == self.Direction.OUTGOING
+            and self.status in {self.Status.SENT, self.Status.OPENED}
+            and not self.is_link_expired
+        )
+
+    @property
+    def last_downloaded_at(self):
+        event = (
+            self.events
+            .filter(event_type=ExchangeEvent.EventType.DOWNLOADED)
+            .order_by("-created_at")
+            .first()
+        )
+        return event.created_at if event else None
 
 
 class ExchangeEvent(models.Model):

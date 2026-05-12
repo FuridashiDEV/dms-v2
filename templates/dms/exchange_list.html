@@ -68,7 +68,7 @@
     {% for exchange in exchanges %}
       <div class="exchange-row">
         <div class="exchange-main">
-          <a href="{% url 'dms:document_detail' exchange.document.id %}">{{ exchange.document.title }}</a>
+          <a href="{% url 'dms:exchange_detail' exchange.id %}">{{ exchange.document.title }}</a>
         </div>
         <div class="exchange-meta">
           {{ exchange.get_direction_display }} / {{ exchange.get_status_display }}
@@ -80,6 +80,11 @@
         <div class="exchange-meta">
           {% if exchange.sent_by %}Sent by {{ exchange.sent_by.get_full_name|default:exchange.sent_by.username }}{% endif %}
           {% if exchange.received_by %}Received by {{ exchange.received_by.get_full_name|default:exchange.received_by.username }}{% endif %}
+          / link: {% if exchange.is_link_active %}active{% else %}inactive{% endif %}
+        </div>
+        <div class="row-actions">
+          <a class="btn btn-ghost" href="{% url 'dms:exchange_detail' exchange.id %}">Open exchange</a>
+          <a class="btn btn-ghost" href="{% url 'dms:document_detail' exchange.document.id %}">Document</a>
         </div>
       </div>
     {% empty %}
