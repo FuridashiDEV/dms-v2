@@ -100,15 +100,15 @@
 
 По умолчанию используется:
 
-- `SEARCH_EMBEDDING_MODEL=all-MiniLM-L6-v2`
-- `SEARCH_EMBEDDING_VECTOR_SIZE=384`
-- Qdrant collection: `documents_all_minilm_l6_v2`, если `QDRANT_COLLECTION` явно не задан.
+- `SEARCH_EMBEDDING_MODEL=BAAI/bge-m3`
+- `SEARCH_EMBEDDING_VECTOR_SIZE=1024`
+- Qdrant collection: `documents_baai_bge_m3`, если `QDRANT_COLLECTION` явно не задан.
 
-Переключение на BGE-M3:
+Переключение на all-MiniLM fallback:
 
 ```powershell
-$env:SEARCH_EMBEDDING_MODEL="BAAI/bge-m3"
-$env:SEARCH_EMBEDDING_VECTOR_SIZE="1024"
+$env:SEARCH_EMBEDDING_MODEL="all-MiniLM-L6-v2"
+$env:SEARCH_EMBEDDING_VECTOR_SIZE="384"
 ```
 
 Переключение на multilingual-e5-large:
@@ -118,7 +118,7 @@ $env:SEARCH_EMBEDDING_MODEL="intfloat/multilingual-e5-large"
 $env:SEARCH_EMBEDDING_VECTOR_SIZE="1024"
 ```
 
-Для каждой модели автоматически формируется отдельный collection suffix, если не переопределять `QDRANT_COLLECTION`. Полноценное использование BGE-M3/e5 зависит от возможности окружения скачать и загрузить модель через `sentence-transformers`; fallback остаётся `all-MiniLM-L6-v2`.
+Для каждой модели автоматически формируется отдельный collection suffix, если не переопределять `QDRANT_COLLECTION`. Полноценное использование BGE-M3/e5 зависит от возможности окружения скачать и загрузить модель через `sentence-transformers`; `all-MiniLM-L6-v2` остаётся лёгким fallback.
 
 ## Миграции
 
@@ -170,5 +170,5 @@ git status
 
 - Stage 25 не заявляет 100% точность извлечения сущностей.
 - AI suggestions не применяются к `Document` автоматически.
-- BGE-M3 и multilingual-e5-large подготовлены как переключаемые модели, но не сделаны обязательной runtime-зависимостью.
+- BGE-M3 теперь модель по умолчанию, но её первая загрузка зависит от доступа окружения к модели; `all-MiniLM-L6-v2` остаётся fallback через env.
 - Stage 26 не начат.
