@@ -96,10 +96,24 @@ def validate_uploaded_file(uploaded_file):
 
 
 class DocumentSearchForm(forms.Form):
+    SEARCH_MODE_CHOICES = (
+        ("hybrid", "Hybrid"),
+        ("exact", "Exact"),
+        ("semantic", "Semantic"),
+    )
+
     q = forms.CharField(required=False, max_length=MAX_QUERY_LENGTH)
+    search_mode = forms.ChoiceField(
+        required=False,
+        choices=SEARCH_MODE_CHOICES,
+        initial="hybrid",
+    )
     doc_type = forms.IntegerField(required=False, min_value=1)
     department = forms.IntegerField(required=False, min_value=1)
     folder = forms.IntegerField(required=False, min_value=1)
+    counterparty = forms.CharField(required=False, max_length=160)
+    amount_min = forms.DecimalField(required=False, min_value=0, max_digits=14, decimal_places=2)
+    amount_max = forms.DecimalField(required=False, min_value=0, max_digits=14, decimal_places=2)
     status = forms.ChoiceField(
         required=False,
         choices=[("", "---------"), *Document.Status.choices],
@@ -113,6 +127,9 @@ class DocumentSearchForm(forms.Form):
 
     def clean_q(self):
         return normalize_text_input(self.cleaned_data.get("q", ""))
+
+    def clean_counterparty(self):
+        return normalize_text_input(self.cleaned_data.get("counterparty", ""))
 
     def clean_department(self):
         department_id = self.cleaned_data.get("department")
@@ -139,9 +156,14 @@ class DocumentSearchForm(forms.Form):
         date_to = cleaned_data.get("date_to")
         department_id = cleaned_data.get("department")
         folder_id = cleaned_data.get("folder")
+        amount_min = cleaned_data.get("amount_min")
+        amount_max = cleaned_data.get("amount_max")
 
         if date_from and date_to and date_from > date_to:
             raise ValidationError("Дата начала не может быть позже даты окончания.")
+
+        if amount_min is not None and amount_max is not None and amount_min > amount_max:
+            raise ValidationError("Минимальная сумма не может быть больше максимальной.")
 
         if folder_id and department_id:
             folder = Folder.objects.filter(id=folder_id).only("department_id").first()

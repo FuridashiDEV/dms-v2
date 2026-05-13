@@ -163,6 +163,33 @@
     flex-wrap:wrap;
     gap:8px;
   }
+  .snippet-box{
+    margin-top:14px;
+    padding:14px 16px;
+    border-radius:16px;
+    background:#fff;
+    border:1px solid rgba(148,163,184,0.2);
+    color:rgba(15,23,42,0.72);
+    font-size:14px;
+    line-height:1.55;
+    font-weight:650;
+  }
+  .related-strip{
+    margin-top:12px;
+    display:grid;
+    gap:8px;
+  }
+  .related-link{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    padding:10px 12px;
+    border-radius:14px;
+    border:1px solid rgba(148,163,184,0.18);
+    background:rgba(248,250,252,0.86);
+    color:rgba(15,23,42,0.84);
+    font-weight:800;
+  }
   .doc-list{
     margin-top:18px;
     display:grid;
@@ -318,7 +345,7 @@
     <div class="kpi-card">
       <div class="kpi-label">Режим поиска</div>
       <div class="kpi-value">
-        {% if search_mode == "hybrid" %}Гибридный{% elif search_mode == "semantic" %}Семантический{% elif search_mode == "text" %}Текстовый{% else %}Обзор{% endif %}
+        {% if search_mode == "hybrid" %}Гибридный{% elif search_mode == "semantic" %}Семантический{% elif search_mode == "semantic_fallback" %}Семантика недоступна{% elif search_mode == "exact" %}Точный{% elif search_mode == "text" %}Текстовый{% else %}Обзор{% endif %}
       </div>
       <div class="kpi-note">
         {% if q %}
@@ -339,6 +366,15 @@
     <div class="field">
       <label for="id_q">Смысловой запрос</label>
       <input id="id_q" type="text" name="q" value="{{ q }}" placeholder="Например: положение по академической мобильности" />
+    </div>
+
+    <div class="field">
+      <label for="id_search_mode">Search mode</label>
+      <select id="id_search_mode" name="search_mode">
+        {% for value, label in search_mode_choices %}
+          <option value="{{ value }}" {% if requested_search_mode == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
     </div>
 
     <div class="field">
@@ -376,6 +412,21 @@
     </div>
 
     <div class="field">
+      <label for="id_counterparty">Counterparty</label>
+      <input id="id_counterparty" type="text" name="counterparty" value="{{ counterparty }}" placeholder="ИП Фирма, TOO InVision" />
+    </div>
+
+    <div class="field">
+      <label for="id_amount_min">Amount from</label>
+      <input id="id_amount_min" type="number" step="0.01" min="0" name="amount_min" value="{{ amount_min|default:'' }}" />
+    </div>
+
+    <div class="field">
+      <label for="id_amount_max">Amount to</label>
+      <input id="id_amount_max" type="number" step="0.01" min="0" name="amount_max" value="{{ amount_max|default:'' }}" />
+    </div>
+
+    <div class="field">
       <label for="id_status">Статус</label>
       <select id="id_status" name="status">
         <option value="">Любой статус</option>
@@ -408,13 +459,19 @@
         <div class="section-sub">На одной странице видно смысл, реквизиты, путь по папкам и статус актуальности документа.</div>
         <div class="summary-meta">
           <span class="tag tag-blue">
-            {% if search_mode == "hybrid" %}AI + реквизиты{% elif search_mode == "semantic" %}AI-поиск{% elif search_mode == "text" %}Полнотекстовый поиск{% else %}Обзор архива{% endif %}
+            {% if search_mode == "hybrid" %}AI + реквизиты{% elif search_mode == "semantic" %}AI-поиск{% elif search_mode == "semantic_fallback" %}Fallback без Qdrant{% elif search_mode == "exact" %}Точный поиск{% elif search_mode == "text" %}Полнотекстовый поиск{% else %}Обзор архива{% endif %}
           </span>
           {% if selected_department %}<span class="tag">Отдел: {{ selected_department.name }}</span>{% endif %}
           {% if selected_folder %}<span class="tag">Папка: {{ selected_folder.name }}</span>{% endif %}
           {% if selected_doc_type %}<span class="tag">Тип: {{ selected_doc_type.name }}</span>{% endif %}
+          {% if counterparty %}<span class="tag">Counterparty: {{ counterparty }}</span>{% endif %}
+          {% if amount_min %}<span class="tag">Amount from: {{ amount_min }}</span>{% endif %}
+          {% if amount_max %}<span class="tag">Amount to: {{ amount_max }}</span>{% endif %}
           {% if status %}<span class="tag">Статус: {{ status }}</span>{% endif %}
         </div>
+        {% if search_degraded %}
+          <div class="section-sub">Semantic index is unavailable or returned no usable vector. Results are shown with safe text/entity fallback and the same access rules.</div>
+        {% endif %}
       </div>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
         <a class="btn btn-ghost" href="{% url 'dms:document_import' %}">Импорт</a>
@@ -497,6 +554,10 @@
               </div>
             </div>
 
+            {% if doc.search_snippet %}
+              <div class="snippet-box">{{ doc.search_snippet }}</div>
+            {% endif %}
+
             <div class="doc-footer">
               <div class="doc-pills">
                 <span class="tag">Загружен: {{ doc.created_at|date:"d.m.Y" }}</span>
@@ -518,6 +579,23 @@
               <div class="reason-list">
                 {% for reason in doc.search_explanation %}
                   <span class="tag">{{ reason }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if doc.search_matched_entities %}
+              <div class="reason-list">
+                {% for entity in doc.search_matched_entities %}
+                  <span class="tag tag-blue">{{ entity }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if doc.search_related_documents %}
+              <div class="related-strip">
+                {% for item in doc.search_related_documents %}
+                  <a class="related-link" href="{% url 'dms:document_detail' item.document.pk %}">
+                    <span>{{ item.document.title }}</span>
+                    <span>{{ item.relation_type }}</span>
+                  </a>
                 {% endfor %}
               </div>
             {% endif %}

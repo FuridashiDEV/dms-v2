@@ -59,6 +59,17 @@ from dms.services.document_relations import (
 from dms.services.evidence import build_document_evidence_package
 from dms.services.security import protected_file_response
 from dms.services.search_intelligence import build_search_query, score_document_for_query
+from dms.services.search_experience import (
+    SEARCH_MODE_EXACT,
+    SEARCH_MODE_HYBRID,
+    SEARCH_MODE_SEMANTIC,
+    accessible_related_documents_for_search,
+    apply_experience_filters,
+    build_lexical_filter,
+    build_search_snippet,
+    matched_entities_for_document,
+    normalize_search_mode,
+)
 from dms.services.usage import record_usage_event
 from dms.services.counterparty import (
     ExchangeError,
@@ -679,9 +690,13 @@ def document_list(request):
 
     cleaned_filters = filter_form.cleaned_data if filter_form.is_valid() else {}
     q = cleaned_filters.get("q", "")
+    requested_search_mode = normalize_search_mode(cleaned_filters.get("search_mode") or SEARCH_MODE_HYBRID)
     doc_type_id = cleaned_filters.get("doc_type")
     department_id = cleaned_filters.get("department")
     folder_id = cleaned_filters.get("folder")
+    counterparty = cleaned_filters.get("counterparty", "")
+    amount_min = cleaned_filters.get("amount_min")
+    amount_max = cleaned_filters.get("amount_max")
     status = cleaned_filters.get("status") or ""
     date_from = cleaned_filters.get("date_from")
     date_to = cleaned_filters.get("date_to")
@@ -701,6 +716,13 @@ def document_list(request):
     if folder_id:
         base_qs = base_qs.filter(folder_id=folder_id)
 
+    base_qs = apply_experience_filters(
+        base_qs,
+        counterparty=counterparty,
+        amount_min=amount_min,
+        amount_max=amount_max,
+    )
+
     if status in {
         Document.Status.DRAFT,
         Document.Status.APPROVED,
@@ -718,45 +740,21 @@ def document_list(request):
     lexical_ids: list[int] = []
     semantic_ids: list[int] = []
     semantic_score_map: dict[int, float] = {}
+    search_degraded = False
 
     if q:
         search_query = build_search_query(q)
         query_tokens = search_query.tokens
-        entity_values = []
-        for key in ("document_type", "counterparty", "subject"):
-            if search_query.entities.get(key):
-                entity_values.append(search_query.entities[key])
-        if search_query.entities.get("amount", {}).get("raw"):
-            entity_values.append(search_query.entities["amount"]["raw"])
-        lexical_filter = (
-            Q(title__icontains=q)
-            | Q(description__icontains=q)
-            | Q(extracted_text__icontains=q)
-            | Q(document_author__icontains=q)
-            | Q(source_file_name__icontains=q)
-            | Q(public_id__icontains=q)
-            | Q(doc_type__name__icontains=q)
-            | Q(folder__name__icontains=q)
-            | Q(department__name__icontains=q)
-            | Q(search_text_normalized__icontains=search_query.normalized)
-        )
-        for token in [*query_tokens, *entity_values]:
-            lexical_filter |= (
-                Q(title__icontains=token)
-                | Q(description__icontains=token)
-                | Q(extracted_text__icontains=token)
-                | Q(document_author__icontains=token)
-                | Q(source_file_name__icontains=token)
-                | Q(doc_type__name__icontains=token)
-                | Q(folder__name__icontains=token)
-                | Q(department__name__icontains=token)
-                | Q(search_text_normalized__icontains=token)
-            )
-
+        lexical_filter = build_lexical_filter(q, search_query)
         lexical_qs = base_qs.filter(lexical_filter).order_by("-doc_date", "-created_at")
-        lexical_ids = list(lexical_qs.values_list("id", flat=True)[:120])
+        fallback_lexical_ids = list(lexical_qs.values_list("id", flat=True)[:120])
 
-        embedding = build_embedding(search_query.expanded_text)
+        if requested_search_mode in {SEARCH_MODE_HYBRID, SEARCH_MODE_EXACT}:
+            lexical_ids = fallback_lexical_ids
+
+        embedding = []
+        if requested_search_mode in {SEARCH_MODE_HYBRID, SEARCH_MODE_SEMANTIC}:
+            embedding = build_embedding(search_query.expanded_text)
         if embedding:
             try:
                 semantic_hits = search_documents(
@@ -780,6 +778,12 @@ def document_list(request):
             except Exception:
                 semantic_ids = []
                 semantic_score_map = {}
+                search_degraded = True
+        elif requested_search_mode == SEARCH_MODE_SEMANTIC:
+            search_degraded = True
+
+        if requested_search_mode == SEARCH_MODE_SEMANTIC and not semantic_ids:
+            lexical_ids = fallback_lexical_ids
 
         combined_ids: list[int] = []
         for doc_id in lexical_ids + semantic_ids:
@@ -823,10 +827,15 @@ def document_list(request):
             search_mode = "semantic"
         else:
             search_mode = "text"
+        if requested_search_mode == SEARCH_MODE_EXACT:
+            search_mode = "exact"
+        elif requested_search_mode == SEARCH_MODE_SEMANTIC and search_degraded:
+            search_mode = "semantic_fallback"
     else:
         search_query = None
         documents = list(base_qs.order_by("-doc_date", "-created_at")[:120])
 
+    allowed_documents_for_relations = get_allowed_documents(user).only("id")
     for doc in documents:
         doc.can_manage_access = (
             user.role == "ADMIN"
@@ -836,6 +845,12 @@ def document_list(request):
         doc.version_count = len(doc.versions.all()) or 1
         doc.status_label, doc.status_badge = get_status_badge_meta(doc.status)
         doc.folder_path = _folder_path(doc.folder) if doc.folder else "Без папки"
+        doc.search_snippet = build_search_snippet(doc, search_query)
+        doc.search_matched_entities = matched_entities_for_document(doc, search_query)
+        doc.search_related_documents = accessible_related_documents_for_search(
+            doc,
+            allowed_documents_for_relations,
+        )
 
     selected_department = None
     if department_id:
@@ -874,19 +889,25 @@ def document_list(request):
         "doc_type_id": str(doc_type_id or ""),
         "department_id": str(department_id or ""),
         "folder_id": str(folder_id or ""),
+        "counterparty": counterparty,
+        "amount_min": amount_min,
+        "amount_max": amount_max,
         "status": status,
         "status_choices": status_choices,
         "date_from": date_from.isoformat() if date_from else "",
         "date_to": date_to.isoformat() if date_to else "",
         "result_count": len(documents),
         "search_mode": search_mode,
+        "requested_search_mode": requested_search_mode,
+        "search_mode_choices": DocumentSearchForm.SEARCH_MODE_CHOICES,
+        "search_degraded": search_degraded,
         "query_entities": search_query.entities if q and search_query else {},
         "query_aliases": search_query.aliases if q and search_query else {},
         "selected_department": selected_department,
         "selected_folder": selected_folder,
         "selected_doc_type": selected_doc_type,
         "has_active_filters": any(
-            [q, doc_type_id, department_id, folder_id, status, date_from, date_to]
+            [q, doc_type_id, department_id, folder_id, counterparty, amount_min, amount_max, status, date_from, date_to]
         ),
     }
 
