@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 
 from django.utils.translation import gettext_lazy as _
@@ -235,9 +236,26 @@ LOGGING = {
 }
 
 
+SEARCH_EMBEDDING_MODEL = os.getenv("SEARCH_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+SEARCH_EMBEDDING_DIMENSIONS = {
+    "all-MiniLM-L6-v2": 384,
+    "BAAI/bge-m3": 1024,
+    "intfloat/multilingual-e5-large": 1024,
+}
+SEARCH_EMBEDDING_VECTOR_SIZE = env_int(
+    "SEARCH_EMBEDDING_VECTOR_SIZE",
+    SEARCH_EMBEDDING_DIMENSIONS.get(SEARCH_EMBEDDING_MODEL, 384),
+)
+SEARCH_INDEX_VERSION = env_int("SEARCH_INDEX_VERSION", 2)
+SEARCH_QDRANT_COLLECTION_BASE = os.getenv("SEARCH_QDRANT_COLLECTION_BASE", "documents")
+SEARCH_EMBEDDING_COLLECTION_SUFFIX = re.sub(r"[^a-z0-9]+", "_", SEARCH_EMBEDDING_MODEL.lower()).strip("_")
+
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = env_int("QDRANT_PORT", 6333)
-QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "documents")
+QDRANT_COLLECTION = os.getenv(
+    "QDRANT_COLLECTION",
+    f"{SEARCH_QDRANT_COLLECTION_BASE}_{SEARCH_EMBEDDING_COLLECTION_SUFFIX}",
+)
 QDRANT_HEALTH_CHECK = env_bool("QDRANT_HEALTH_CHECK", False)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")

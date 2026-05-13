@@ -41,9 +41,8 @@ from dms.models import (
     WorkflowTemplate,
 )
 from dms.services.counterparty import generate_exchange_token, hash_exchange_token
-from dms.services.embedding import build_embedding
+from dms.services.document_indexing import index_document
 from dms.services.preservation import calculate_sha256, detect_format_risk, detect_mime_type
-from dms.services.vector_store import upsert_document
 
 
 User = get_user_model()
@@ -899,24 +898,8 @@ class Command(BaseCommand):
     def _seed_vectors(self, documents: list[Document]) -> None:
         self.stdout.write("Indexing demo documents for semantic search...")
         for document in documents:
-            text = " ".join(
-                part for part in [document.title, document.description, document.extracted_text] if part
-            )
-            vector = build_embedding(text)
-            if not vector:
-                continue
             try:
-                upsert_document(
-                    doc_id=document.id,
-                    vector=vector,
-                    payload={
-                        "title": document.title,
-                        "department_id": document.department_id,
-                        "folder_id": document.folder_id,
-                        "doc_type_id": document.doc_type_id,
-                        "doc_date": document.doc_date.isoformat() if document.doc_date else None,
-                    },
-                )
+                index_document(document)
             except Exception:
                 self.stdout.write(self.style.WARNING(f"Vector indexing skipped for document {document.id}."))
 

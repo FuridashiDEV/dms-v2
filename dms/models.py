@@ -284,6 +284,11 @@ class Document(models.Model):
         APPROVED = "APPROVED", _("Актуальный")
         ARCHIVED = "ARCHIVED", _("В архиве")
 
+    search_text_normalized = models.TextField(blank=True, default="")
+    search_entities = models.JSONField(default=dict, blank=True)
+    search_embedding_model = models.CharField(max_length=255, blank=True, default="")
+    search_index_version = models.PositiveIntegerField(default=0)
+    search_indexed_at = models.DateTimeField(null=True, blank=True)
     public_id = models.UUIDField(
         _("Публичный идентификатор"),
         default=uuid.uuid4,

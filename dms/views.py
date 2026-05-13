@@ -58,6 +58,7 @@ from dms.services.document_relations import (
 )
 from dms.services.evidence import build_document_evidence_package
 from dms.services.security import protected_file_response
+from dms.services.search_intelligence import build_search_query, score_document_for_query
 from dms.services.usage import record_usage_event
 from dms.services.counterparty import (
     ExchangeError,
@@ -719,7 +720,14 @@ def document_list(request):
     semantic_score_map: dict[int, float] = {}
 
     if q:
-        query_tokens = _tokenize_search_query(q)
+        search_query = build_search_query(q)
+        query_tokens = search_query.tokens
+        entity_values = []
+        for key in ("document_type", "counterparty", "subject"):
+            if search_query.entities.get(key):
+                entity_values.append(search_query.entities[key])
+        if search_query.entities.get("amount", {}).get("raw"):
+            entity_values.append(search_query.entities["amount"]["raw"])
         lexical_filter = (
             Q(title__icontains=q)
             | Q(description__icontains=q)
@@ -730,8 +738,9 @@ def document_list(request):
             | Q(doc_type__name__icontains=q)
             | Q(folder__name__icontains=q)
             | Q(department__name__icontains=q)
+            | Q(search_text_normalized__icontains=search_query.normalized)
         )
-        for token in query_tokens:
+        for token in [*query_tokens, *entity_values]:
             lexical_filter |= (
                 Q(title__icontains=token)
                 | Q(description__icontains=token)
@@ -741,28 +750,33 @@ def document_list(request):
                 | Q(doc_type__name__icontains=token)
                 | Q(folder__name__icontains=token)
                 | Q(department__name__icontains=token)
+                | Q(search_text_normalized__icontains=token)
             )
 
         lexical_qs = base_qs.filter(lexical_filter).order_by("-doc_date", "-created_at")
         lexical_ids = list(lexical_qs.values_list("id", flat=True)[:120])
 
-        embedding = build_embedding(q)
+        embedding = build_embedding(search_query.expanded_text)
         if embedding:
             try:
                 semantic_hits = search_documents(
                     embedding=embedding,
                     limit=120,
                     filters={
-                        "department_id": [dept.id for dept in allowed_depts],
+                        "organization_id": list(get_user_organizations(user).values_list("id", flat=True)),
                     },
                 )
                 semantic_ids = []
                 for hit in semantic_hits:
-                    if not hit.get("id"):
+                    doc_id_value = hit.get("document_id") or hit.get("id")
+                    if not doc_id_value:
                         continue
-                    doc_id = int(hit["id"])
+                    doc_id = int(doc_id_value)
                     semantic_ids.append(doc_id)
-                    semantic_score_map[doc_id] = float(hit.get("score") or 0.0)
+                    semantic_score_map[doc_id] = max(
+                        semantic_score_map.get(doc_id, 0.0),
+                        float(hit.get("score") or 0.0),
+                    )
             except Exception:
                 semantic_ids = []
                 semantic_score_map = {}
@@ -776,28 +790,19 @@ def document_list(request):
             candidate_docs = list(base_qs.filter(id__in=combined_ids))
             ranked_docs: list[tuple[float, object]] = []
             for doc in candidate_docs:
-                lexical_score = _document_lexical_score(doc, query_tokens)
                 semantic_score = semantic_score_map.get(doc.id, 0.0)
-                title_signal = _field_match_score(doc.title, query_tokens)
-                description_signal = _field_match_score(doc.description, query_tokens)
-                filename_signal = _field_match_score(doc.source_file_name or "", query_tokens)
-                strongest_text_signal = max(title_signal, description_signal, filename_signal)
-
-                if semantic_score < 0.2 and lexical_score < 0.18:
-                    continue
-
-                if len(query_tokens) >= 2 and strongest_text_signal < 0.34 and lexical_score < 0.18:
-                    continue
-
-                if strongest_text_signal < 0.2 and semantic_score < 0.58:
-                    continue
-
-                combined_score = (
-                    semantic_score * 0.6
-                    + lexical_score * 0.4
-                    + (0.18 if strongest_text_signal >= 0.75 else 0.0)
-                    + (0.04 if semantic_score >= 0.45 else 0.0)
+                combined_score, reasons = score_document_for_query(
+                    doc,
+                    search_query,
+                    semantic_score=semantic_score,
                 )
+                if semantic_score < 0.2 and combined_score < 0.18:
+                    continue
+
+                if len(query_tokens) >= 2 and combined_score < 0.24:
+                    continue
+
+                doc.search_explanation = reasons or ["matched available document text"]
                 ranked_docs.append((combined_score, doc))
 
             ranked_docs.sort(
@@ -819,6 +824,7 @@ def document_list(request):
         else:
             search_mode = "text"
     else:
+        search_query = None
         documents = list(base_qs.order_by("-doc_date", "-created_at")[:120])
 
     for doc in documents:
@@ -874,6 +880,8 @@ def document_list(request):
         "date_to": date_to.isoformat() if date_to else "",
         "result_count": len(documents),
         "search_mode": search_mode,
+        "query_entities": search_query.entities if q and search_query else {},
+        "query_aliases": search_query.aliases if q and search_query else {},
         "selected_department": selected_department,
         "selected_folder": selected_folder,
         "selected_doc_type": selected_doc_type,

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import logging
+import uuid
 
 from django.conf import settings
 from qdrant_client import QdrantClient
@@ -6,6 +9,7 @@ from qdrant_client.models import (
     Distance,
     FieldCondition,
     Filter,
+    FilterSelector,
     MatchAny,
     MatchValue,
     PointStruct,
@@ -15,8 +19,8 @@ from qdrant_client.models import (
 
 logger = logging.getLogger(__name__)
 
-COLLECTION_NAME = getattr(settings, "QDRANT_COLLECTION", "documents")
-VECTOR_SIZE = 384
+COLLECTION_NAME = getattr(settings, "QDRANT_COLLECTION", "documents_all_minilm_l6_v2")
+VECTOR_SIZE = getattr(settings, "SEARCH_EMBEDDING_VECTOR_SIZE", 384)
 
 _client: QdrantClient | None = None
 _collection_ready = False
@@ -59,31 +63,66 @@ def ensure_collection() -> bool:
     return True
 
 
+def make_point_id(*, doc_id: int, chunk_key: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{COLLECTION_NAME}:{doc_id}:{chunk_key}"))
+
+
+def _valid_vector(vector: list[float]) -> bool:
+    return bool(vector) and len(vector) == VECTOR_SIZE
+
+
 def upsert_document(
     *,
     doc_id: int,
     vector: list[float],
     payload: dict,
 ) -> bool:
-    if not vector or len(vector) != VECTOR_SIZE:
+    if not _valid_vector(vector):
         return False
 
+    payload = {
+        **payload,
+        "document_id": doc_id,
+        "chunk_key": payload.get("chunk_key", "document"),
+        "embedding_model": getattr(settings, "SEARCH_EMBEDDING_MODEL", ""),
+    }
+    return upsert_document_chunks(
+        chunks=[
+            {
+                "point_id": doc_id,
+                "vector": vector,
+                "payload": payload,
+            }
+        ]
+    )
+
+
+def upsert_document_chunks(*, chunks: list[dict]) -> bool:
+    points = []
+    for chunk in chunks:
+        vector = chunk.get("vector") or []
+        if not _valid_vector(vector):
+            continue
+        points.append(
+            PointStruct(
+                id=chunk["point_id"],
+                vector=vector,
+                payload=chunk.get("payload") or {},
+            )
+        )
+
+    if not points:
+        return False
     if not ensure_collection():
         return False
 
     try:
         get_client().upsert(
             collection_name=COLLECTION_NAME,
-            points=[
-                PointStruct(
-                    id=doc_id,
-                    vector=vector,
-                    payload=payload,
-                )
-            ],
+            points=points,
         )
     except Exception:
-        logger.warning("Qdrant upsert failed", exc_info=True, extra={"document_id": doc_id})
+        logger.warning("Qdrant upsert failed", exc_info=True)
         return False
 
     return True
@@ -92,14 +131,27 @@ def upsert_document(
 def delete_document(doc_id: int) -> bool:
     if not doc_id:
         return False
-
     if not ensure_collection():
         return False
 
     try:
-        get_client().delete(
+        client = get_client()
+        client.delete(
             collection_name=COLLECTION_NAME,
             points_selector=[doc_id],
+        )
+        client.delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=FilterSelector(
+                filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key="document_id",
+                            match=MatchValue(value=doc_id),
+                        )
+                    ]
+                )
+            ),
         )
     except Exception:
         logger.warning("Qdrant delete failed", exc_info=True, extra={"document_id": doc_id})
@@ -118,10 +170,13 @@ def _build_filter(filters: dict | None) -> Filter | None:
             continue
 
         if isinstance(value, (list, tuple, set)):
+            values = [item for item in value if item is not None]
+            if not values:
+                continue
             conditions.append(
                 FieldCondition(
                     key=field,
-                    match=MatchAny(any=list(value)),
+                    match=MatchAny(any=values),
                 )
             )
         else:
@@ -132,10 +187,7 @@ def _build_filter(filters: dict | None) -> Filter | None:
                 )
             )
 
-    if not conditions:
-        return None
-
-    return Filter(must=conditions)
+    return Filter(must=conditions) if conditions else None
 
 
 def search_documents(
@@ -174,6 +226,7 @@ def search_documents(
     return [
         {
             "id": point.id,
+            "document_id": (point.payload or {}).get("document_id") or point.id,
             "score": point.score,
             "payload": point.payload,
         }

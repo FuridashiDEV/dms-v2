@@ -104,11 +104,21 @@ class DocumentAdmin(admin.ModelAdmin):
         "doc_type",
         "language",
         "retention_until",
+        "search_embedding_model",
+        "search_indexed_at",
         "uploaded_by",
         "created_at",
     )
     list_filter = ("status", "organization", "department", "doc_type", "language", "doc_date", "retention_until", "legal_hold")
-    search_fields = ("title", "description", "document_author", "public_id", "uploaded_by__username", "checksum_sha256")
+    search_fields = (
+        "title",
+        "description",
+        "document_author",
+        "public_id",
+        "uploaded_by__username",
+        "checksum_sha256",
+        "search_text_normalized",
+    )
     date_hierarchy = "doc_date"
     autocomplete_fields = ("organization", "department", "folder", "doc_type", "uploaded_by")
 

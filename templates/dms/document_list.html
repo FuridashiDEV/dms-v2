@@ -137,6 +137,32 @@
     border-color:rgba(37,99,235,0.18);
     color:#1d4ed8;
   }
+  .query-panel{
+    margin-top:14px;
+    padding:14px 16px;
+    border-radius:18px;
+    border:1px solid rgba(37,99,235,0.16);
+    background:rgba(239,246,255,0.62);
+  }
+  .query-panel-title{
+    font-size:12px;
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    color:rgba(30,64,175,0.76);
+  }
+  .query-panel-row{
+    margin-top:8px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .reason-list{
+    margin-top:12px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
   .doc-list{
     margin-top:18px;
     display:grid;
@@ -396,6 +422,28 @@
       </div>
     </div>
 
+    {% if query_entities or query_aliases %}
+      <div class="query-panel">
+        <div class="query-panel-title">Search interpretation</div>
+        {% if query_entities %}
+          <div class="query-panel-row">
+            {% for key, value in query_entities.items %}
+              {% if key != "aliases" and key != "key_phrases" %}
+                <span class="tag">{{ key }}: {{ value }}</span>
+              {% endif %}
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% if query_aliases %}
+          <div class="query-panel-row">
+            {% for key, values in query_aliases.items %}
+              <span class="tag tag-blue">{{ key }}: {{ values|join:", " }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+
     {% if documents %}
       <div class="doc-list">
         {% for doc in documents %}
@@ -466,6 +514,13 @@
                 {% endif %}
               </div>
             </div>
+            {% if doc.search_explanation %}
+              <div class="reason-list">
+                {% for reason in doc.search_explanation %}
+                  <span class="tag">{{ reason }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
           </article>
         {% endfor %}
       </div>
