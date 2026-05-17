@@ -1136,6 +1136,15 @@ class DocumentAccessForm(forms.Form):
 
 
 RELATED_DOCUMENT_RELATION_CHOICES = [
+    (DocumentRelation.RelationType.CONTRACT_TO_APPENDIX, "Contract -> appendix"),
+    (DocumentRelation.RelationType.CONTRACT_TO_INVOICE, "Contract -> invoice"),
+    (DocumentRelation.RelationType.CONTRACT_TO_ACT, "Contract -> act"),
+    (DocumentRelation.RelationType.CONTRACT_TO_ADDITIONAL_AGREEMENT, "Contract -> additional agreement"),
+    (DocumentRelation.RelationType.PARENT_CHILD, "Parent -> child"),
+    (DocumentRelation.RelationType.DUPLICATE, "Duplicate"),
+    (DocumentRelation.RelationType.REFERENCES, "References"),
+    (DocumentRelation.RelationType.SAME_COUNTERPARTY, "Same counterparty"),
+    (DocumentRelation.RelationType.SAME_PROJECT, "Same project"),
     (DocumentRelation.RelationType.APPENDIX_TO, "Приложение к документу"),
     (DocumentRelation.RelationType.PRIMARY_DOCUMENT, "Основной документ"),
     (DocumentRelation.RelationType.ADDENDUM, "Дополнительное соглашение"),

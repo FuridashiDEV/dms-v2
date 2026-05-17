@@ -41,7 +41,6 @@ from .models import AuditEvent, Counterparty, Department, Document, DocumentActi
 from dms.services.ai_parser import parse_document
 from dms.services.archive_intelligence import (
     build_card_quality,
-    build_relation_suggestions,
     build_retention_assistant,
     get_superseded_candidates,
 )
@@ -57,10 +56,12 @@ from dms.services.analytics import (
 from dms.services.billing import change_subscription_plan, get_billing_overview, get_usage_vs_limits
 from dms.services.document_creation import create_document_from_uploaded_file
 from dms.services.document_relations import (
+    build_document_relation_graph,
     can_manage_document_relations,
     create_document_relation,
     delete_document_relation,
     get_visible_document_relations,
+    suggest_document_relations,
 )
 from dms.services.evidence import build_document_evidence_package
 from dms.services.evidence_report import build_evidence_report_context
@@ -1003,7 +1004,10 @@ def document_list(request):
         if seed_ids:
             relation_rows = (
                 DocumentRelation.objects
-                .filter(Q(from_document_id__in=seed_ids) | Q(to_document_id__in=seed_ids))
+                .filter(
+                    Q(from_document_id__in=seed_ids) | Q(to_document_id__in=seed_ids),
+                    is_confirmed=True,
+                )
                 .values_list("from_document_id", "to_document_id")[:120]
             )
             related_candidates = []
@@ -1723,7 +1727,12 @@ def document_detail(request, pk):
     incoming_relations = visible_relations.incoming
     can_manage_relations = can_manage_document_relations(user=request.user, document=doc)
     allowed_queryset = get_allowed_documents(request.user)
-    relation_suggestions = build_relation_suggestions(doc, allowed_queryset)
+    relation_graph = build_document_relation_graph(user=request.user, document=doc)
+    relation_suggestions = suggest_document_relations(
+        user=request.user,
+        document=doc,
+        allowed_queryset=allowed_queryset,
+    )
     superseded_candidates = get_superseded_candidates(doc, allowed_queryset)
     retention_hint = build_retention_assistant(doc)
     card_quality = build_card_quality(doc)
@@ -1776,6 +1785,7 @@ def document_detail(request, pk):
             ),
             "can_manage_relations": can_manage_relations,
             "relation_suggestions": relation_suggestions,
+            "relation_graph": relation_graph,
             "superseded_candidates": superseded_candidates,
             "retention_hint": retention_hint,
             "card_quality": card_quality,

@@ -150,6 +150,23 @@
     <div class="card" style="padding:22px;">
       <h2 class="section-title">Связи документа</h2>
       <div class="section-sub">Контекст архива: какие документы этот файл заменяет, к чему относится и где фигурирует.</div>
+      {% if relation_graph.nodes %}
+        <div class="row-card" style="margin-top:14px;">
+          <div class="row-main">Relation graph: {{ relation_graph.nodes|length }} documents / {{ relation_graph.edges|length }} relations</div>
+          {% if relation_graph.chains %}
+            {% for chain in relation_graph.chains %}
+              <div class="row-meta">
+                {% for node in chain %}
+                  {% if not forloop.first %} -> {% endif %}
+                  <a href="{% url 'dms:document_detail' node.id %}">{{ node.title }}</a>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="row-meta">Confirmed relation graph is available for accessible documents only.</div>
+          {% endif %}
+        </div>
+      {% endif %}
       {% if relation_form %}
         <form method="post" action="{% url 'dms:document_relation_add' doc.id %}" class="inline-form" style="margin:14px 0;">
           {% csrf_token %}
@@ -170,7 +187,7 @@
         {% for relation in outgoing_relations %}
           <div class="row-card">
             <div class="row-main">{{ relation.get_relation_type_display }}: <a href="{% url 'dms:document_detail' relation.to_document.id %}">{{ relation.to_document.title }}</a></div>
-            <div class="row-meta">{{ relation.to_document.department.name }}{% if relation.to_document.doc_type %} • {{ relation.to_document.doc_type.name }}{% endif %}{% if relation.confidence %} • AI: {{ relation.confidence }}{% endif %}</div>
+            <div class="row-meta">{{ relation.to_document.department.name }}{% if relation.to_document.doc_type %} • {{ relation.to_document.doc_type.name }}{% endif %}{% if relation.confidence %} • confidence: {{ relation.confidence }}{% endif %} • {{ relation.source }}{% if not relation.is_confirmed %} • suggested{% endif %}</div>
             {% if can_manage_relations %}
               <form method="post" action="{% url 'dms:document_relation_delete' doc.id relation.id %}" class="row-actions">
                 {% csrf_token %}
@@ -182,7 +199,7 @@
         {% for relation in incoming_relations %}
           <div class="row-card">
             <div class="row-main"><a href="{% url 'dms:document_detail' relation.from_document.id %}">{{ relation.from_document.title }}</a> -> {{ relation.get_relation_type_display|lower }} текущий документ</div>
-            <div class="row-meta">{{ relation.from_document.department.name }}{% if relation.from_document.doc_type %} • {{ relation.from_document.doc_type.name }}{% endif %}{% if relation.confidence %} • AI: {{ relation.confidence }}{% endif %}</div>
+            <div class="row-meta">{{ relation.from_document.department.name }}{% if relation.from_document.doc_type %} • {{ relation.from_document.doc_type.name }}{% endif %}{% if relation.confidence %} • confidence: {{ relation.confidence }}{% endif %} • {{ relation.source }}{% if not relation.is_confirmed %} • suggested{% endif %}</div>
             {% if can_manage_relations %}
               <form method="post" action="{% url 'dms:document_relation_delete' doc.id relation.id %}" class="row-actions">
                 {% csrf_token %}
@@ -229,7 +246,10 @@
         {% for suggestion in relation_suggestions %}
           <div class="row-card">
             <div class="row-main">{{ suggestion.label }}: <a href="{% url 'dms:document_detail' suggestion.target.id %}">{{ suggestion.target.title }}</a></div>
-            <div class="row-meta">{{ suggestion.target.department.name }}{% if suggestion.target.doc_type %} • {{ suggestion.target.doc_type.name }}{% endif %}{% if suggestion.target.doc_date %} • {{ suggestion.target.doc_date|date:"d.m.Y" }}{% endif %}</div>
+            <div class="row-meta">{{ suggestion.target.department.name }}{% if suggestion.target.doc_type %} • {{ suggestion.target.doc_type.name }}{% endif %}{% if suggestion.target.doc_date %} • {{ suggestion.target.doc_date|date:"d.m.Y" }}{% endif %} • confidence: {{ suggestion.confidence }} • not auto-confirmed</div>
+            {% if suggestion.reasons %}
+              <div class="row-meta">{{ suggestion.reasons|join:", " }}</div>
+            {% endif %}
           </div>
         {% endfor %}
         <div class="row-card">

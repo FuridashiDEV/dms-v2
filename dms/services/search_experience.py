@@ -187,9 +187,9 @@ def accessible_related_documents_for_search(
 
     relations = (
         DocumentRelation.objects
-        .filter(Q(from_document=document) | Q(to_document=document))
+        .filter(Q(from_document=document) | Q(to_document=document), is_confirmed=True)
         .select_related("from_document", "to_document")
-        .order_by("-created_at")[:20]
+        .order_by("-confidence", "-created_at")[:20]
     )
     related = []
     seen = set()
@@ -202,6 +202,8 @@ def accessible_related_documents_for_search(
             {
                 "document": target,
                 "relation_type": relation.get_relation_type_display(),
+                "confidence": relation.confidence,
+                "source": relation.source,
             }
         )
         if len(related) >= limit:

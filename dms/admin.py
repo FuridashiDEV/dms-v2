@@ -631,10 +631,19 @@ class ExternalReferenceAdmin(admin.ModelAdmin):
 
 @admin.register(DocumentRelation)
 class DocumentRelationAdmin(admin.ModelAdmin):
-    list_display = ("from_document", "relation_type", "to_document", "confidence", "created_at")
-    list_filter = ("relation_type", "created_at")
-    search_fields = ("from_document__title", "to_document__title")
-    autocomplete_fields = ("from_document", "to_document")
+    list_display = (
+        "from_document",
+        "relation_type",
+        "to_document",
+        "source",
+        "confidence",
+        "is_confirmed",
+        "created_by",
+        "created_at",
+    )
+    list_filter = ("relation_type", "source", "is_confirmed", "created_at")
+    search_fields = ("from_document__title", "to_document__title", "created_by__username")
+    autocomplete_fields = ("from_document", "to_document", "created_by")
 
 
 # =========================

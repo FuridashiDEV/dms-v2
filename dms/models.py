@@ -759,6 +759,15 @@ class DocumentSearchIndexState(models.Model):
 
 class DocumentRelation(models.Model):
     class RelationType(models.TextChoices):
+        CONTRACT_TO_APPENDIX = "CONTRACT_TO_APPENDIX", _("Contract to appendix")
+        CONTRACT_TO_INVOICE = "CONTRACT_TO_INVOICE", _("Contract to invoice")
+        CONTRACT_TO_ACT = "CONTRACT_TO_ACT", _("Contract to act")
+        CONTRACT_TO_ADDITIONAL_AGREEMENT = "CONTRACT_TO_ADDITIONAL_AGREEMENT", _("Contract to additional agreement")
+        PARENT_CHILD = "PARENT_CHILD", _("Parent child")
+        DUPLICATE = "DUPLICATE", _("Duplicate")
+        REFERENCES = "REFERENCES", _("References")
+        SAME_COUNTERPARTY = "SAME_COUNTERPARTY", _("Same counterparty")
+        SAME_PROJECT = "SAME_PROJECT", _("Same project")
         REPLACED_BY = "REPLACED_BY", _("Replaced by")
         PRIMARY_DOCUMENT = "PRIMARY_DOCUMENT", _("Primary document")
         ADDENDUM = "ADDENDUM", _("Addendum")
@@ -771,6 +780,12 @@ class DocumentRelation(models.Model):
         APPENDIX_TO = "APPENDIX_TO", _("Приложение к")
         RELATED_TO = "RELATED_TO", _("Связан с")
         MENTIONS = "MENTIONS", _("Упоминает")
+
+    class Source(models.TextChoices):
+        MANUAL = "MANUAL", _("Manual")
+        SYSTEM_SUGGESTION = "SYSTEM_SUGGESTION", _("System suggestion")
+        AI_SUGGESTION = "AI_SUGGESTION", _("AI suggestion")
+        IMPORTED = "IMPORTED", _("Imported")
 
     from_document = models.ForeignKey(
         Document,
@@ -786,8 +801,24 @@ class DocumentRelation(models.Model):
     )
     relation_type = models.CharField(
         _("Тип связи"),
-        max_length=20,
+        max_length=40,
         choices=RelationType.choices,
+    )
+    source = models.CharField(
+        _("Relation source"),
+        max_length=30,
+        choices=Source.choices,
+        default=Source.MANUAL,
+        db_index=True,
+    )
+    is_confirmed = models.BooleanField(_("Confirmed"), default=True, db_index=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_document_relations",
+        verbose_name=_("Created by"),
     )
     confidence = models.DecimalField(
         _("Уверенность"),
@@ -816,6 +847,7 @@ class DocumentRelation(models.Model):
         indexes = [
             models.Index(fields=["from_document", "relation_type"]),
             models.Index(fields=["to_document", "relation_type"]),
+            models.Index(fields=["source", "is_confirmed"]),
         ]
 
     def __str__(self) -> str:
