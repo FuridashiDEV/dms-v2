@@ -59,6 +59,13 @@ from dms.services.document_relations import (
 )
 from dms.services.evidence import build_document_evidence_package
 from dms.services.evidence_report import build_evidence_report_context
+from dms.services.enterprise_security import (
+    build_audit_export_response,
+    build_security_summary,
+    get_security_events,
+    get_security_organizations,
+    user_can_view_security,
+)
 from dms.services.security import protected_file_response
 from dms.services.search_intelligence import build_search_query, score_document_for_query
 from dms.services.search_experience import (
@@ -506,6 +513,14 @@ class CustomLoginView(LoginView):
 
     def dispatch(self, request, *args, **kwargs):
         if request.method == "POST" and _is_login_rate_limited(request):
+            record_audit_event(
+                event_type="SECURITY_LOGIN_RATE_LIMITED",
+                request=request,
+                metadata={
+                    "username": (request.POST.get("username") or "").strip().lower()[:150],
+                    "control": "login_rate_limit",
+                },
+            )
             form = self.get_form()
             form.add_error(None, "Слишком много попыток входа. Повторите позже.")
             return self.form_invalid(form)
@@ -513,11 +528,25 @@ class CustomLoginView(LoginView):
 
     def form_valid(self, form):
         _reset_login_failures(self.request)
+        record_audit_event(
+            event_type="SECURITY_LOGIN_SUCCESS",
+            request=self.request,
+            user=form.get_user(),
+            metadata={"control": "login"},
+        )
         return super().form_valid(form)
 
     def form_invalid(self, form):
         if self.request.method == "POST" and not _is_login_rate_limited(self.request):
             _register_login_failure(self.request)
+            record_audit_event(
+                event_type="SECURITY_LOGIN_FAILURE",
+                request=self.request,
+                metadata={
+                    "username": (self.request.POST.get("username") or "").strip().lower()[:150],
+                    "control": "login",
+                },
+            )
         return super().form_invalid(form)
 
 
@@ -708,6 +737,66 @@ def billing_usage_limits(request):
             "is_platform_admin": request.user.is_superuser,
         },
     )
+
+
+@login_required
+def security_dashboard(request):
+    if not user_can_view_security(request.user):
+        return HttpResponseForbidden("Security dashboard is available to organization admins.")
+
+    allowed_organizations = get_security_organizations(request.user)
+    selected_organization_id = request.GET.get("organization")
+    if selected_organization_id:
+        selected_organization = get_object_or_404(allowed_organizations, id=selected_organization_id)
+    else:
+        selected_organization = allowed_organizations.first()
+
+    if selected_organization is None:
+        return HttpResponseForbidden("No organization available.")
+
+    return render(
+        request,
+        "dms/security_dashboard.html",
+        {
+            "allowed_organizations": allowed_organizations,
+            "selected_organization": selected_organization,
+            "summary": build_security_summary(user=request.user, organization=selected_organization),
+            "security_events": get_security_events(
+                user=request.user,
+                organization=selected_organization,
+                limit=100,
+            ),
+            "is_platform_admin": request.user.is_superuser,
+        },
+    )
+
+
+@login_required
+def security_audit_export(request):
+    if not user_can_view_security(request.user):
+        return HttpResponseForbidden("Audit export is available to organization admins.")
+
+    allowed_organizations = get_security_organizations(request.user)
+    selected_organization = None
+    selected_organization_id = request.GET.get("organization")
+    if selected_organization_id:
+        selected_organization = get_object_or_404(allowed_organizations, id=selected_organization_id)
+
+    response = build_audit_export_response(
+        user=request.user,
+        organization=selected_organization,
+    )
+    record_audit_event(
+        event_type="SECURITY_AUDIT_EXPORTED",
+        request=request,
+        organization=selected_organization,
+        metadata={
+            "organization_id": selected_organization.id if selected_organization else None,
+            "scope": "selected_organization" if selected_organization else "allowed_organizations",
+            "format": "csv",
+        },
+    )
+    return response
 
 
 @login_required

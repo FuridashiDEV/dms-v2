@@ -58,8 +58,14 @@ def scan_uploaded_file(uploaded_file) -> AntivirusScanResult:
     if not scanner_path:
         return AntivirusScanResult(allowed=True)
 
-    scanner = import_string(scanner_path)
-    result = scanner(uploaded_file)
+    try:
+        scanner = import_string(scanner_path)
+        result = scanner(uploaded_file)
+    except Exception as exc:
+        if getattr(settings, "DMS_ANTIVIRUS_FAIL_CLOSED", False):
+            raise ValidationError("File security scan is unavailable.") from exc
+        return AntivirusScanResult(allowed=True, reason="scanner_unavailable")
+
     if isinstance(result, AntivirusScanResult):
         scan_result = result
     elif isinstance(result, tuple):

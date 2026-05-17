@@ -1,5 +1,6 @@
 import os
 import re
+import json
 from pathlib import Path
 
 from django.utils.translation import gettext_lazy as _
@@ -44,6 +45,17 @@ def env_int(name: str, default: int) -> int:
     return int(raw)
 
 
+def env_json_dict(name: str, default: dict) -> dict:
+    raw = os.getenv(name)
+    if not raw:
+        return default
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return default
+    return value if isinstance(value, dict) else default
+
+
 DEBUG = env_bool("DJANGO_DEBUG", False)
 DEBUG_PROPAGATE_EXCEPTIONS = DEBUG
 
@@ -83,6 +95,9 @@ SECURE_HSTS_PRELOAD = env_bool("DJANGO_SECURE_HSTS_PRELOAD", not DEBUG)
 
 LOGIN_RATE_LIMIT_ATTEMPTS = env_int("DJANGO_LOGIN_RATE_LIMIT_ATTEMPTS", 5)
 LOGIN_RATE_LIMIT_WINDOW = env_int("DJANGO_LOGIN_RATE_LIMIT_WINDOW", 900)
+DMS_ORGANIZATION_IP_ALLOWLISTS = env_json_dict("DMS_ORGANIZATION_IP_ALLOWLISTS", {})
+DMS_ANTIVIRUS_SCANNER = os.getenv("DMS_ANTIVIRUS_SCANNER", "")
+DMS_ANTIVIRUS_FAIL_CLOSED = env_bool("DMS_ANTIVIRUS_FAIL_CLOSED", False)
 
 
 INSTALLED_APPS = [
@@ -103,6 +118,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "dms.middleware.OrganizationIPAllowlistMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
