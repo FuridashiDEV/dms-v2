@@ -57,14 +57,14 @@ class SearchIndexingTests(TestCase):
         Path(TEST_MEDIA_ROOT).mkdir(parents=True, exist_ok=True)
         self.context = make_org_context(slug="stage-25-index")
 
-    @patch("dms.services.document_indexing.delete_document")
+    @patch("dms.services.vector_store.delete_points", return_value=True)
     @patch("dms.services.document_indexing.upsert_document_chunks")
     @patch("dms.services.document_indexing.build_embeddings_batch")
     def test_index_document_builds_multi_level_chunks_and_payload(
         self,
         build_embeddings_batch_mock,
         upsert_document_chunks_mock,
-        delete_document_mock,
+        _delete_points_mock,
     ):
         document = make_document(
             context=self.context,
@@ -92,7 +92,7 @@ class SearchIndexingTests(TestCase):
         self.assertEqual(first_payload["document_id"], document.id)
         self.assertEqual(first_payload["organization_id"], self.context.organization.id)
         self.assertEqual(first_payload["embedding_model"], get_embedding_model_name())
-        delete_document_mock.assert_called_once_with(document.id)
+        self.assertIn("search_index_version_id", first_payload)
 
     @patch("dms.management.commands.reindex_search.index_document")
     def test_reindex_command_can_reindex_one_document(self, index_document_mock):

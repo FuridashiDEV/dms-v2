@@ -7,6 +7,15 @@ from django.utils import timezone
 
 from dms.models import Document
 from dms.services.embedding import build_embeddings_batch, get_embedding_model_name
+from dms.services.index_versions import (
+    build_document_index_fingerprint,
+    cleanup_stale_points_for_document,
+    get_active_search_index_version,
+    get_document_index_state,
+    get_latest_document_version,
+    record_document_index_failure,
+    record_document_index_success,
+)
 from dms.services.search_intelligence import (
     build_document_search_text,
     chunk_text,
@@ -18,9 +27,19 @@ from dms.services.vector_store import delete_document, make_point_id, upsert_doc
 logger = logging.getLogger(__name__)
 
 
-def build_document_index_payload(document: Document, *, chunk_key: str, chunk_kind: str, text: str) -> dict:
+def build_document_index_payload(
+    document: Document,
+    *,
+    chunk_key: str,
+    chunk_kind: str,
+    text: str,
+    document_version_id: int | None,
+    index_version_id: int,
+    qdrant_collection: str,
+) -> dict:
     return {
         "document_id": document.id,
+        "document_version_id": document_version_id,
         "chunk_key": chunk_key,
         "chunk_kind": chunk_kind,
         "text_preview": text[:320],
@@ -33,7 +52,9 @@ def build_document_index_payload(document: Document, *, chunk_key: str, chunk_ki
         "doc_date": document.doc_date.isoformat() if document.doc_date else None,
         "entities": document.search_entities or {},
         "embedding_model": get_embedding_model_name(),
+        "search_index_version_id": index_version_id,
         "search_index_version": getattr(settings, "SEARCH_INDEX_VERSION", 2),
+        "qdrant_collection": qdrant_collection,
     }
 
 
@@ -58,7 +79,7 @@ def build_document_index_chunks(document: Document) -> list[dict]:
             entity_parts.append(values)
         else:
             entity_parts.extend(str(value) for value in values if value)
-    for values in entities.get("entities_by_type", {}).values():
+    for _entity_type, values in sorted((entities.get("entities_by_type") or {}).items()):
         for item in values:
             if isinstance(item, dict):
                 entity_parts.extend(str(item.get(key, "")) for key in ("value", "normalized", "raw") if item.get(key))
@@ -118,22 +139,41 @@ def index_document(document: Document) -> bool:
             .select_related("organization", "department", "folder", "doc_type")
             .get(pk=document.pk)
         )
+        index_version = get_active_search_index_version()
+        document_version = get_latest_document_version(document)
+        previous_state = get_document_index_state(document, index_version=index_version)
+        previous_point_ids = list(previous_state.point_ids) if previous_state else []
         update_document_search_metadata(document)
         chunks = build_document_index_chunks(document)
+        content_hash = build_document_index_fingerprint(
+            document,
+            document_version=document_version,
+            chunks=chunks,
+        )
         vectors = build_embeddings_batch([chunk["text"] for chunk in chunks])
         vector_chunks = []
         for chunk, vector in zip(chunks, vectors):
             if not vector:
                 continue
+            point_id = make_point_id(
+                doc_id=document.id,
+                document_version_id=document_version.id if document_version else None,
+                chunk_key=chunk["key"],
+                index_version_id=index_version.id,
+                collection_name=index_version.qdrant_collection,
+            )
             vector_chunks.append(
                 {
-                    "point_id": make_point_id(doc_id=document.id, chunk_key=chunk["key"]),
+                    "point_id": point_id,
                     "vector": vector,
                     "payload": build_document_index_payload(
                         document,
                         chunk_key=chunk["key"],
                         chunk_kind=chunk["kind"],
                         text=chunk["text"],
+                        document_version_id=document_version.id if document_version else None,
+                        index_version_id=index_version.id,
+                        qdrant_collection=index_version.qdrant_collection,
                     ),
                 }
             )
@@ -151,9 +191,39 @@ def index_document(document: Document) -> bool:
         document.save(update_fields=updated_fields)
 
         if not vector_chunks:
+            record_document_index_failure(
+                document=document,
+                index_version=index_version,
+                document_version=document_version,
+                error="No valid vectors were produced for document chunks.",
+            )
             return False
-        delete_document(document.id)
-        return upsert_document_chunks(chunks=vector_chunks)
+        indexed = upsert_document_chunks(chunks=vector_chunks)
+        if not indexed:
+            record_document_index_failure(
+                document=document,
+                index_version=index_version,
+                document_version=document_version,
+                error="Qdrant upsert failed or collection is unavailable.",
+            )
+            return False
+
+        point_ids = [chunk["point_id"] for chunk in vector_chunks]
+        record_document_index_success(
+            document=document,
+            index_version=index_version,
+            document_version=document_version,
+            chunks_count=len(vector_chunks),
+            point_ids=point_ids,
+            content_hash=content_hash,
+        )
+        cleanup_stale_points_for_document(
+            document=document,
+            current_point_ids=point_ids,
+            previous_point_ids=previous_point_ids,
+            index_version=index_version,
+        )
+        return True
     except Exception:
         logger.exception("Failed to index document", extra={"document_id": getattr(document, "id", None)})
         return False

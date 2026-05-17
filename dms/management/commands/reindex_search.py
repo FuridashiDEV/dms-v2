@@ -3,7 +3,8 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand
 
 from dms.models import Document
-from dms.services.document_indexing import index_document
+from dms.services.document_indexing import build_document_index_chunks, index_document
+from dms.services.index_versions import get_active_search_index_version, is_document_index_stale
 
 
 class Command(BaseCommand):
@@ -16,7 +17,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--only-stale",
             action="store_true",
-            help="Only reindex documents without current search metadata.",
+            help="Only reindex documents missing a current DocumentSearchIndexState or with stale index fingerprint.",
         )
 
     def handle(self, *args, **options):
@@ -26,16 +27,22 @@ class Command(BaseCommand):
             queryset = queryset.filter(id=options["document_id"])
         if options.get("organization_id"):
             queryset = queryset.filter(organization_id=options["organization_id"])
-        if options.get("only_stale"):
-            queryset = queryset.filter(search_indexed_at__isnull=True)
         if options.get("limit"):
             queryset = queryset[: options["limit"]]
 
+        index_version = get_active_search_index_version()
         total = 0
         indexed = 0
         skipped = 0
         for document in queryset:
             total += 1
+            if options.get("only_stale") and not is_document_index_stale(
+                document,
+                index_version=index_version,
+                chunks=build_document_index_chunks(document),
+            ):
+                skipped += 1
+                continue
             if index_document(document):
                 indexed += 1
             else:

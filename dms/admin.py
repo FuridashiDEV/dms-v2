@@ -11,6 +11,7 @@ from .models import (
     DocumentActivity,
     DocumentExchange,
     DocumentRelation,
+    DocumentSearchIndexState,
     DocumentType,
     DocumentVersion,
     ExchangeEvent,
@@ -30,6 +31,7 @@ from .models import (
     PlanQuota,
     ProcessingJob,
     ProcessingProfile,
+    SearchIndexVersion,
     Subscription,
     UsageEvent,
     User,
@@ -196,6 +198,41 @@ class DocumentVersionAdmin(admin.ModelAdmin):
     list_filter = ("status", "organization", "department", "doc_type", "language", "created_at")
     search_fields = ("document__title", "title", "document_author", "uploaded_by__username", "checksum_sha256")
     autocomplete_fields = ("document", "organization", "department", "doc_type", "folder", "uploaded_by")
+
+
+@admin.register(SearchIndexVersion)
+class SearchIndexVersionAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "embedding_model",
+        "embedding_dimension",
+        "chunking_version",
+        "normalization_version",
+        "qdrant_collection",
+        "is_active",
+        "created_at",
+    )
+    list_filter = ("is_active", "embedding_model", "embedding_dimension", "qdrant_collection")
+    search_fields = ("embedding_model", "chunking_version", "normalization_version", "qdrant_collection")
+    readonly_fields = ("created_at",)
+
+
+@admin.register(DocumentSearchIndexState)
+class DocumentSearchIndexStateAdmin(admin.ModelAdmin):
+    list_display = (
+        "document",
+        "organization",
+        "index_version",
+        "status",
+        "chunks_count",
+        "qdrant_collection",
+        "indexed_at",
+        "updated_at",
+    )
+    list_filter = ("status", "qdrant_collection", "index_version", "organization")
+    search_fields = ("document__title", "content_hash", "last_error")
+    readonly_fields = ("point_ids", "last_error", "created_at", "updated_at", "indexed_at")
+    autocomplete_fields = ("organization", "document", "document_version", "index_version")
 
 
 @admin.register(ProcessingJob)

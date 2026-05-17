@@ -63,8 +63,18 @@ def ensure_collection() -> bool:
     return True
 
 
-def make_point_id(*, doc_id: int, chunk_key: str) -> str:
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{COLLECTION_NAME}:{doc_id}:{chunk_key}"))
+def make_point_id(
+    *,
+    doc_id: int,
+    chunk_key: str,
+    document_version_id: int | None = None,
+    index_version_id: int | None = None,
+    collection_name: str | None = None,
+) -> str:
+    collection = collection_name or COLLECTION_NAME
+    version_part = document_version_id if document_version_id is not None else "no-version"
+    index_part = index_version_id if index_version_id is not None else "legacy-index"
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{collection}:{doc_id}:{version_part}:{chunk_key}:{index_part}"))
 
 
 def _valid_vector(vector: list[float]) -> bool:
@@ -155,6 +165,25 @@ def delete_document(doc_id: int) -> bool:
         )
     except Exception:
         logger.warning("Qdrant delete failed", exc_info=True, extra={"document_id": doc_id})
+        return False
+
+    return True
+
+
+def delete_points(*, point_ids: list[str]) -> bool:
+    point_ids = [point_id for point_id in point_ids if point_id]
+    if not point_ids:
+        return True
+    if not ensure_collection():
+        return False
+
+    try:
+        get_client().delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=point_ids,
+        )
+    except Exception:
+        logger.warning("Qdrant point cleanup failed", exc_info=True)
         return False
 
     return True

@@ -645,6 +645,118 @@ class DocumentVersion(models.Model):
         return f"{self.document.title} v{self.number}"
 
 
+class SearchIndexVersion(models.Model):
+    embedding_model = models.CharField(_("Embedding model"), max_length=255)
+    embedding_dimension = models.PositiveIntegerField(_("Embedding dimension"))
+    chunking_version = models.CharField(_("Chunking version"), max_length=40, default="chunking-v1")
+    normalization_version = models.CharField(_("Normalization version"), max_length=40, default="normalization-v1")
+    qdrant_collection = models.CharField(_("Qdrant collection"), max_length=255)
+    is_active = models.BooleanField(_("Active"), default=True)
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Search index version")
+        verbose_name_plural = _("Search index versions")
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "embedding_model",
+                    "embedding_dimension",
+                    "chunking_version",
+                    "normalization_version",
+                    "qdrant_collection",
+                ],
+                name="unique_search_index_version_config",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["is_active", "qdrant_collection"]),
+            models.Index(fields=["embedding_model", "embedding_dimension"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"{self.embedding_model}/{self.embedding_dimension} "
+            f"{self.chunking_version}/{self.normalization_version}"
+        )
+
+
+class DocumentSearchIndexState(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", _("Pending")
+        INDEXED = "INDEXED", _("Indexed")
+        STALE = "STALE", _("Stale")
+        FAILED = "FAILED", _("Failed")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="document_search_index_states",
+        verbose_name=_("Organization"),
+    )
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="search_index_states",
+        verbose_name=_("Document"),
+    )
+    document_version = models.ForeignKey(
+        DocumentVersion,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="search_index_states",
+        verbose_name=_("Document version"),
+    )
+    index_version = models.ForeignKey(
+        SearchIndexVersion,
+        on_delete=models.PROTECT,
+        related_name="document_states",
+        verbose_name=_("Search index version"),
+    )
+    status = models.CharField(_("Status"), max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    indexed_at = models.DateTimeField(_("Indexed at"), null=True, blank=True)
+    chunks_count = models.PositiveIntegerField(_("Chunks count"), default=0)
+    qdrant_collection = models.CharField(_("Qdrant collection"), max_length=255)
+    content_hash = models.CharField(_("Content hash"), max_length=64, blank=True, default="")
+    point_ids = models.JSONField(_("Qdrant point IDs"), default=list, blank=True)
+    last_error = models.TextField(_("Last error"), blank=True, default="")
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Document search index state")
+        verbose_name_plural = _("Document search index states")
+        ordering = ["document_id", "-updated_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["document", "index_version"],
+                name="unique_document_search_index_state",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["organization", "status"]),
+            models.Index(fields=["document", "status"]),
+            models.Index(fields=["index_version", "status"]),
+            models.Index(fields=["qdrant_collection", "status"]),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.document_id and self.organization_id and self.document.organization_id != self.organization_id:
+            raise ValidationError("Search index state organization must match document organization.")
+        if (
+            self.document_version_id
+            and self.document_id
+            and self.document_version.document_id != self.document_id
+        ):
+            raise ValidationError("Search index state version must belong to the document.")
+
+    def __str__(self) -> str:
+        return f"{self.document_id} / {self.index_version_id} / {self.status}"
+
+
 class DocumentRelation(models.Model):
     class RelationType(models.TextChoices):
         REPLACED_BY = "REPLACED_BY", _("Replaced by")
