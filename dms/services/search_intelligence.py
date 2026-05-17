@@ -8,6 +8,13 @@ from typing import Iterable
 from django.conf import settings
 
 from dms.services.entity_extraction import extract_entities as extract_structured_entities
+from dms.services.text_normalization import (
+    BUILTIN_SEARCH_ALIASES,
+    expand_multilingual_query,
+    normalize_alias_map,
+    normalize_text,
+    normalize_value,
+)
 
 
 DOCUMENT_TYPE_ALIASES = {
@@ -62,15 +69,12 @@ class SearchQuery:
 
 
 def normalize_search_text(value: str) -> str:
-    text = (value or "").lower().replace("ё", "е")
-    text = re.sub(r"[«»\"'“”]", " ", text)
-    text = re.sub(r"[^0-9a-zа-яәғқңөұүһі\s.,-]+", " ", text, flags=re.IGNORECASE)
-    return re.sub(r"\s+", " ", text).strip()
+    return normalize_value(value)
 
 
 def tokenize(value: str) -> list[str]:
     tokens = []
-    for token in normalize_search_text(value).replace(",", " ").split():
+    for token in normalize_text(value).tokens:
         token = token.strip(".-")
         if len(token) < 2 or token in STOPWORDS:
             continue
@@ -79,11 +83,14 @@ def tokenize(value: str) -> list[str]:
 
 
 def alias_dictionary() -> dict[str, set[str]]:
-    aliases = {key: set(values) for key, values in DEFAULT_ALIASES.items()}
+    aliases = normalize_alias_map(BUILTIN_SEARCH_ALIASES)
+    for key, values in normalize_alias_map(DEFAULT_ALIASES).items():
+        aliases.setdefault(key, set()).update(values)
     for key, values in getattr(settings, "SEARCH_ALIASES", {}).items():
         normalized_key = normalize_search_text(key)
         if normalized_key:
-            aliases.setdefault(normalized_key, set()).update(normalize_search_text(value) for value in values)
+            custom_aliases = normalize_alias_map({key: values})
+            aliases.setdefault(normalized_key, set()).update(custom_aliases.get(normalized_key, set()))
     return aliases
 
 
@@ -99,6 +106,10 @@ def expand_aliases(tokens: Iterable[str]) -> dict[str, list[str]]:
         if variants:
             expanded[token] = sorted(item for item in variants if item)
     return expanded
+
+
+def build_query_expansion(raw_query: str) -> dict:
+    return expand_multilingual_query(raw_query, alias_map=alias_dictionary())
 
 
 def _detect_document_type(normalized: str) -> str:
@@ -170,14 +181,26 @@ def extract_entities_from_text(text: str, *, doc_type_name: str = "", author: st
     aliases = expand_aliases(tokens)
     if aliases:
         entities["aliases"] = aliases
+    normalization = normalize_text(" ".join([text or "", doc_type_name or "", author or ""]))
+    entities["normalization"] = {
+        "raw_value": normalization.raw_value,
+        "normalized_value": normalization.normalized_value,
+        "variants": normalization.variants[:20],
+        "corrections": normalization.corrections[:20],
+    }
     return {key: value for key, value in entities.items() if value not in ("", {}, [], None)}
 
 
 def build_search_query(raw_query: str) -> SearchQuery:
-    normalized = normalize_search_text(raw_query)
-    tokens = tokenize(normalized)
+    query_expansion = build_query_expansion(raw_query)
+    normalized = query_expansion["normalized_value"]
+    tokens = [token for token in query_expansion["tokens"] if token not in STOPWORDS]
     aliases = expand_aliases(tokens)
+    for key, values in query_expansion["aliases"].items():
+        aliases.setdefault(key, [])
+        aliases[key] = sorted(set(aliases[key]) | set(values))
     expanded_terms = list(tokens)
+    expanded_terms.extend(query_expansion["expanded_terms"])
     for values in aliases.values():
         expanded_terms.extend(values)
     entities = extract_entities_from_text(raw_query)
@@ -186,7 +209,7 @@ def build_search_query(raw_query: str) -> SearchQuery:
         raw=raw_query or "",
         normalized=normalized,
         expanded_text=expanded_text,
-        tokens=list(dict.fromkeys(expanded_terms)),
+        tokens=list(dict.fromkeys(tokens)),
         aliases=aliases,
         entities=entities,
     )
@@ -218,6 +241,16 @@ def build_document_search_text(document) -> str:
     entity_parts.extend(entities.get("key_phrases", []))
     for values in entities.get("aliases", {}).values():
         entity_parts.extend(values)
+    normalization = entities.get("normalization") or {}
+    entity_parts.append(normalization.get("normalized_value", ""))
+    entity_parts.extend(normalization.get("variants", []))
+    for correction in normalization.get("corrections", []):
+        if isinstance(correction, dict):
+            entity_parts.extend(
+                str(correction.get(key, ""))
+                for key in ("raw_value", "normalized_value")
+                if correction.get(key)
+            )
     return normalize_search_text(
         " ".join(
             filter(

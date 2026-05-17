@@ -6,6 +6,8 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Iterable
 
+from dms.services.text_normalization import normalize_legal_form, normalize_value
+
 
 ENTITY_TYPES = {
     "document_type",
@@ -65,16 +67,15 @@ class ExtractedEntity:
 
     def to_dict(self) -> dict:
         payload = asdict(self)
+        payload["raw_value"] = payload["raw"] or payload["value"]
+        payload["normalized_value"] = payload["normalized"]
         if not payload["metadata"]:
             payload.pop("metadata")
         return payload
 
 
 def normalize_entity_text(value: str) -> str:
-    text = (value or "").lower().replace("ё", "е")
-    text = re.sub(r"[«»\"'“”]", " ", text)
-    text = re.sub(r"[^0-9a-zа-яәғқңөұүһі\s.,#№/-]+", " ", text, flags=re.IGNORECASE)
-    return re.sub(r"\s+", " ", text).strip()
+    return normalize_value(value)
 
 
 def tokenize_entity_text(value: str) -> list[str]:
@@ -197,11 +198,18 @@ def _extract_document_type(normalized: str) -> list[ExtractedEntity]:
 
 def _extract_legal_forms(normalized: str) -> list[ExtractedEntity]:
     found = []
-    for canonical, aliases in LEGAL_FORMS.items():
-        for alias in aliases:
-            if re.search(rf"\b{re.escape(alias)}\b", normalized):
-                found.append(_entity("legal_form", canonical, confidence=0.9, raw=alias))
-                break
+    for token in normalized.split():
+        legal_form = normalize_legal_form(token)
+        if legal_form:
+            found.append(
+                _entity(
+                    "legal_form",
+                    legal_form.normalized_value,
+                    confidence=legal_form.confidence,
+                    raw=legal_form.raw_value,
+                    metadata={"variants": legal_form.variants[:12]},
+                )
+            )
     return found
 
 
@@ -286,13 +294,14 @@ def _extract_contract_references(normalized: str) -> list[ExtractedEntity]:
 def _extract_counterparties(normalized: str) -> list[ExtractedEntity]:
     found = []
     patterns = [
-        r"\b(?:контрагент|поставщик|supplier|counterparty|vendor)\s*[:\-]?\s+((?:ип|тоо|too|llp|ооо|ao|ао|ip)?\s*[a-zа-я0-9][a-zа-я0-9 .'-]{2,100})",
-        r"\b(?:с|with|от|from)\s+((?:ип|тоо|too|llp|ооо|ao|ао|ip)\s+[a-zа-я0-9][a-zа-я0-9 .'-]{2,100})",
+        r"\b(?:контрагент|поставщик|supplier|counterparty|vendor)\s*[:\-]?\s+((?:ип|тоо|too|t00|t0o|llp|ооо|ao|ао|ip)?\s*[a-zа-я0-9][a-zа-я0-9 .'-]{2,100})",
+        r"\b(?:с|with|от|from)\s+((?:ип|тоо|too|t00|t0o|llp|ооо|ao|ао|ip)\s+[a-zа-я0-9][a-zа-я0-9 .'-]{2,100})",
     ]
     for pattern in patterns:
         for match in re.finditer(pattern, normalized):
             value = _trim_business_value(match.group(1))
             if value:
+                value = _normalize_counterparty_legal_form(value)
                 found.append(_entity("counterparty", value, confidence=0.86, raw=match.group(0)))
                 org_name = _strip_legal_form(value)
                 if org_name != value:
@@ -467,7 +476,24 @@ def _trim_business_value(value: str) -> str:
 
 
 def _strip_legal_form(value: str) -> str:
-    return re.sub(r"^(ип|тоо|too|llp|ооо|ao|ао|ip)\s+", "", value).strip()
+    parts = value.split(maxsplit=1)
+    if parts and normalize_legal_form(parts[0]):
+        return parts[1].strip() if len(parts) > 1 else ""
+    return re.sub(r"^(ип|тоо|too|t00|t0o|llp|ооо|ao|ао|ip)\s+", "", value).strip()
+
+
+def _normalize_counterparty_legal_form(value: str) -> str:
+    parts = value.split(maxsplit=1)
+    if not parts:
+        return value
+    if not re.search(r"\d", parts[0]):
+        return value
+    legal_form = normalize_legal_form(parts[0])
+    if not legal_form:
+        return value
+    if len(parts) == 1:
+        return legal_form.normalized_value
+    return f"{legal_form.normalized_value} {parts[1].strip()}"
 
 
 def _primary_value(item: dict | None, *, default: str = "") -> str:

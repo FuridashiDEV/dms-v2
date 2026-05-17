@@ -62,6 +62,16 @@ def build_document_index_chunks(document: Document) -> list[dict]:
         for item in values:
             if isinstance(item, dict):
                 entity_parts.extend(str(item.get(key, "")) for key in ("value", "normalized", "raw") if item.get(key))
+    normalization = entities.get("normalization") or {}
+    entity_parts.append(normalization.get("normalized_value", ""))
+    entity_parts.extend(normalization.get("variants", []))
+    for correction in normalization.get("corrections", []):
+        if isinstance(correction, dict):
+            entity_parts.extend(
+                str(correction.get(key, ""))
+                for key in ("raw_value", "normalized_value")
+                if correction.get(key)
+            )
     entity_text = " ".join(filter(None, entity_parts))
     chunks = [
         {

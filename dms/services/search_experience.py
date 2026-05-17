@@ -65,6 +65,8 @@ def build_lexical_filter(raw_query: str, search_query: SearchQuery) -> Q:
             entity_values.append(str(search_query.entities[key]))
     if search_query.entities.get("amount", {}).get("raw"):
         entity_values.append(str(search_query.entities["amount"]["raw"]))
+    for values in search_query.aliases.values():
+        entity_values.extend(str(value) for value in values if value)
     for key in ("goods", "services", "works", "organization_name"):
         values = search_query.entities.get(key) or []
         if isinstance(values, str):
