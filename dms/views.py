@@ -84,6 +84,7 @@ from dms.services.search_experience import (
     matched_entities_for_document,
     normalize_search_mode,
 )
+from dms.services.search_explainability import build_search_explanation
 from dms.services.reranking import fuse_candidates, rank_documents_for_search
 from dms.services.usage import record_usage_event
 from dms.services.counterparty import (
@@ -893,6 +894,17 @@ def document_list(request):
     status = cleaned_filters.get("status") or ""
     date_from = cleaned_filters.get("date_from")
     date_to = cleaned_filters.get("date_to")
+    active_search_filters = {
+        "doc_type": doc_type_id,
+        "department": department_id,
+        "folder": folder_id,
+        "counterparty": counterparty,
+        "amount_min": amount_min,
+        "amount_max": amount_max,
+        "status": status,
+        "date_from": date_from,
+        "date_to": date_to,
+    }
 
     base_qs = (
         get_allowed_documents(user)
@@ -1039,10 +1051,20 @@ def document_list(request):
             documents = []
             for result in ranked_results[:80]:
                 doc = result.document
-                doc.search_explanation = result.reasons or ["matched available document text"]
                 doc.search_confidence = result.confidence
                 doc.search_final_score = result.final_score
                 doc.search_candidate_sources = result.sources
+                doc.search_explainability = build_search_explanation(
+                    document=doc,
+                    search_query=search_query,
+                    semantic_score=semantic_score_map.get(doc.id, 0.0),
+                    final_score=result.final_score,
+                    confidence=result.confidence,
+                    candidate_sources=result.sources,
+                    base_reasons=result.reasons or ["matched available document text"],
+                    filters=active_search_filters,
+                )
+                doc.search_explanation = doc.search_explainability.human_readable_reasons
                 documents.append(doc)
         else:
             documents = []
@@ -1072,7 +1094,10 @@ def document_list(request):
         doc.status_label, doc.status_badge = get_status_badge_meta(doc.status)
         doc.folder_path = _folder_path(doc.folder) if doc.folder else "Без папки"
         doc.search_snippet = build_search_snippet(doc, search_query)
-        doc.search_matched_entities = matched_entities_for_document(doc, search_query)
+        if hasattr(doc, "search_explainability"):
+            doc.search_matched_entities = doc.search_explainability.matched_entities
+        else:
+            doc.search_matched_entities = matched_entities_for_document(doc, search_query)
         doc.search_related_documents = accessible_related_documents_for_search(
             doc,
             allowed_documents_for_relations,

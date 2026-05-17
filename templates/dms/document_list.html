@@ -174,6 +174,40 @@
     line-height:1.55;
     font-weight:650;
   }
+  .search-explain{
+    margin-top:14px;
+    padding:14px 16px;
+    border-radius:16px;
+    border:1px solid rgba(37,99,235,0.18);
+    background:rgba(239,246,255,0.58);
+  }
+  .search-explain-title{
+    color:#1e40af;
+    font-size:12px;
+    font-weight:950;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+  }
+  .search-explain-reasons{
+    margin-top:8px;
+    color:rgba(15,23,42,0.78);
+    font-size:14px;
+    line-height:1.55;
+    font-weight:720;
+  }
+  .search-explain-meta{
+    margin-top:10px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .search-explain-chunk{
+    margin-top:10px;
+    color:rgba(15,23,42,0.68);
+    font-size:13px;
+    line-height:1.5;
+    font-weight:650;
+  }
   .related-strip{
     margin-top:12px;
     display:grid;
@@ -575,7 +609,41 @@
                 {% endif %}
               </div>
             </div>
-            {% if doc.search_explanation %}
+            {% if doc.search_explainability %}
+              <div class="search-explain">
+                <div class="search-explain-title">Found because</div>
+                <div class="search-explain-reasons">
+                  {% for reason in doc.search_explainability.human_readable_reasons|slice:":3" %}
+                    {{ reason }}{% if not forloop.last %}; {% endif %}
+                  {% endfor %}
+                </div>
+                <div class="search-explain-meta">
+                  <span class="tag">Final {{ doc.search_explainability.final_score|floatformat:2 }}</span>
+                  <span class="tag">Confidence {{ doc.search_explainability.confidence|floatformat:2 }}</span>
+                  <span class="tag">Semantic {{ doc.search_explainability.semantic_score|floatformat:2 }}</span>
+                  <span class="tag">Entities {{ doc.search_explainability.entity_score|floatformat:2 }}</span>
+                </div>
+                {% if doc.search_explainability.matched_aliases %}
+                  <div class="reason-list">
+                    {% for alias in doc.search_explainability.matched_aliases %}
+                      <span class="tag">{{ alias }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+                {% if doc.search_explainability.matched_filters %}
+                  <div class="reason-list">
+                    {% for filter in doc.search_explainability.matched_filters %}
+                      <span class="tag">{{ filter }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+                {% if doc.search_explainability.matched_chunks %}
+                  {% for chunk in doc.search_explainability.matched_chunks|slice:":2" %}
+                    <div class="search-explain-chunk">{{ chunk.field }}: {{ chunk.snippet }}</div>
+                  {% endfor %}
+                {% endif %}
+              </div>
+            {% elif doc.search_explanation %}
               <div class="reason-list">
                 {% for reason in doc.search_explanation %}
                   <span class="tag">{{ reason }}</span>
