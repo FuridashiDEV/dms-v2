@@ -956,6 +956,7 @@ class AuditEvent(models.Model):
         INTEGRATION_SYNC_JOB_CREATED = "INTEGRATION_SYNC_JOB_CREATED", _("Integration sync job created")
         EXTERNAL_REFERENCE_LINKED = "EXTERNAL_REFERENCE_LINKED", _("External reference linked")
         BILLING_SUBSCRIPTION_CREATED = "BILLING_SUBSCRIPTION_CREATED", _("Billing subscription created")
+        DOCUMENT_SEARCHED = "DOCUMENT_SEARCHED", _("Document search performed")
 
     organization = models.ForeignKey(
         Organization,
@@ -1025,6 +1026,111 @@ class AuditEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.event_type} @ {self.created_at:%Y-%m-%d %H:%M:%S}"
+
+
+class SensitiveEntity(models.Model):
+    class EntityType(models.TextChoices):
+        IIN = "IIN", _("IIN")
+        BIN = "BIN", _("BIN")
+        PHONE = "PHONE", _("Phone")
+        EMAIL = "EMAIL", _("Email")
+        AMOUNT = "AMOUNT", _("Amount")
+        PERSONAL_NAME = "PERSONAL_NAME", _("Personal name")
+        OTHER_PERSONAL_DATA = "OTHER_PERSONAL_DATA", _("Other personal data")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.PROTECT,
+        related_name="sensitive_entities",
+        verbose_name=_("Organization"),
+    )
+    document = models.ForeignKey(
+        Document,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="sensitive_entities",
+        verbose_name=_("Document"),
+    )
+    entity_type = models.CharField(_("Entity type"), max_length=40, choices=EntityType.choices, db_index=True)
+    raw_value_hash = models.CharField(_("Raw value hash"), max_length=64, db_index=True)
+    masked_value = models.CharField(_("Masked value"), max_length=160, blank=True, default="")
+    confidence = models.DecimalField(_("Confidence"), max_digits=4, decimal_places=2, null=True, blank=True)
+    source = models.CharField(_("Source"), max_length=80, blank=True, default="")
+    context = models.JSONField(_("Safe context"), default=dict, blank=True, validators=[validate_no_plaintext_secrets])
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Sensitive entity")
+        verbose_name_plural = _("Sensitive entities")
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "document", "entity_type", "raw_value_hash", "source"],
+                name="unique_sensitive_entity_per_document_source",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["organization", "entity_type", "-created_at"]),
+            models.Index(fields=["document", "entity_type"]),
+        ]
+
+    def clean(self):
+        super().clean()
+        validate_no_plaintext_secrets(self.context)
+
+    def __str__(self) -> str:
+        return f"{self.entity_type}: {self.masked_value}"
+
+
+class RetentionPolicy(models.Model):
+    class Scope(models.TextChoices):
+        DOCUMENT = "DOCUMENT", _("Documents")
+        VERSION = "VERSION", _("Document versions")
+        AUDIT = "AUDIT", _("Audit events")
+        PROCESSING_RESULT = "PROCESSING_RESULT", _("Processing results")
+        TEMPORARY_FILE = "TEMPORARY_FILE", _("Temporary files")
+
+    class Action(models.TextChoices):
+        REVIEW_ONLY = "REVIEW_ONLY", _("Review only")
+        MANUAL_DELETE_AFTER_APPROVAL = "MANUAL_DELETE_AFTER_APPROVAL", _("Manual delete after approval")
+        LEGAL_HOLD = "LEGAL_HOLD", _("Legal hold")
+
+    organization = models.ForeignKey(
+        Organization,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="retention_policies",
+        verbose_name=_("Organization"),
+        help_text=_("Empty organization means global default policy."),
+    )
+    scope = models.CharField(_("Scope"), max_length=40, choices=Scope.choices, db_index=True)
+    name = models.CharField(_("Name"), max_length=160)
+    retention_days = models.PositiveIntegerField(_("Retention days"), null=True, blank=True)
+    action = models.CharField(_("Action"), max_length=40, choices=Action.choices, default=Action.REVIEW_ONLY)
+    is_active = models.BooleanField(_("Active"), default=True)
+    notes = models.TextField(_("Notes"), blank=True, default="")
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Retention policy")
+        verbose_name_plural = _("Retention policies")
+        ordering = ["organization__name", "scope", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "scope", "name"],
+                name="unique_retention_policy_name_per_scope",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["organization", "scope", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        owner = self.organization.name if self.organization_id else "global"
+        return f"{self.name} / {self.scope} / {owner}"
 
 
 class UsageEvent(models.Model):

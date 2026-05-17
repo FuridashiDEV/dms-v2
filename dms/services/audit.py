@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from django.contrib.auth import get_user_model
 
 from dms.models import AuditEvent
+from dms.services.data_governance import sanitize_governance_metadata
 
 
 def get_client_ip(request) -> str | None:
@@ -30,12 +32,13 @@ def _is_authenticated_user(user) -> bool:
 def _metadata_for_document(document) -> dict[str, Any]:
     if document is None:
         return {}
+    title_hash = hashlib.sha256((document.title or "").encode("utf-8")).hexdigest() if document.title else ""
     return {
         "document_id": document.id,
-        "document_title": document.title,
         "document_status": document.status,
         "document_public_id": str(document.public_id) if document.public_id else "",
         "checksum_sha256": document.checksum_sha256,
+        "document_title_hash": title_hash,
     }
 
 
@@ -78,6 +81,7 @@ def record_audit_event(
         )
     if metadata:
         event_metadata.update(metadata)
+    event_metadata = sanitize_governance_metadata(event_metadata)
 
     return AuditEvent.objects.create(
         organization=organization,

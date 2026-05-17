@@ -34,6 +34,8 @@ from .models import (
     ProcessingJob,
     ProcessingProfile,
     SearchIndexVersion,
+    RetentionPolicy,
+    SensitiveEntity,
     Subscription,
     UsageEvent,
     User,
@@ -173,6 +175,24 @@ class AuditEventAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(SensitiveEntity)
+class SensitiveEntityAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "entity_type", "masked_value", "organization", "document", "source", "confidence")
+    list_filter = ("entity_type", "organization", "source", "created_at")
+    search_fields = ("masked_value", "raw_value_hash", "document__title")
+    readonly_fields = ("raw_value_hash", "masked_value", "created_at")
+    autocomplete_fields = ("organization", "document")
+
+
+@admin.register(RetentionPolicy)
+class RetentionPolicyAdmin(admin.ModelAdmin):
+    list_display = ("name", "scope", "organization", "retention_days", "action", "is_active", "updated_at")
+    list_filter = ("scope", "action", "is_active", "organization")
+    search_fields = ("name", "notes", "organization__name")
+    readonly_fields = ("created_at", "updated_at")
+    autocomplete_fields = ("organization",)
 
 
 @admin.register(Notification)

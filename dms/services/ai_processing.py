@@ -9,6 +9,7 @@ from django.utils import timezone
 from dms.models import AuditEvent, Document, DocumentType, ExtractedField, ProcessingJob, UsageEvent
 from dms.services.audit import record_audit_event
 from dms.services.ai_parser import parse_document
+from dms.services.data_governance import detect_sensitive_entities, summarize_sensitive_entities
 from dms.services.document_metadata import extract_candidate_dates
 from dms.services.notifications import notify_ai_review_ready
 from dms.services.usage import record_usage_event
@@ -99,6 +100,14 @@ def run_document_ai_processing(
     )
 
     try:
+        sensitive_entities = detect_sensitive_entities(
+            text or "",
+            organization=document.organization,
+            document=document,
+            source="ai_processing",
+            persist=True,
+        )
+        sensitive_entity_counts = summarize_sensitive_entities(sensitive_entities)
         candidate_dates = extract_candidate_dates(text or "")
         allowed_types = set(
             DocumentType.objects.filter(
@@ -145,6 +154,7 @@ def run_document_ai_processing(
                 "processing_job_id": job.id,
                 "source": source,
                 "field_count": job.fields.count(),
+                "sensitive_entity_counts": sensitive_entity_counts,
             },
         )
         record_usage_event(

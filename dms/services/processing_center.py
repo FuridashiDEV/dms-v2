@@ -11,6 +11,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from dms.models import Document, Organization, ProcessingJob, ProcessingProfile
+from dms.services.data_governance import build_safe_processing_metadata, sanitize_governance_metadata
 
 
 DEFAULT_PROFILE_CODE = "default-ai-processing"
@@ -60,21 +61,7 @@ def get_or_create_default_processing_profile(
 
 
 def build_processing_payload_snapshot(document: Document) -> dict[str, Any]:
-    return {
-        "document": {
-            "id": document.id,
-            "public_id": str(document.public_id) if document.public_id else "",
-            "title": document.title,
-            "status": document.status,
-            "checksum_sha256": document.checksum_sha256,
-            "extracted_text_length": len(document.extracted_text or ""),
-            "has_file": bool(document.file),
-        },
-        "organization": {
-            "id": document.organization_id,
-            "name": document.organization.name,
-        },
-    }
+    return build_safe_processing_metadata(document)
 
 
 def _resolve_profile(document: Document, profile: ProcessingProfile | None) -> ProcessingProfile:
@@ -149,7 +136,7 @@ def enqueue_processing_job(
 
     center_metadata = build_processing_payload_snapshot(document)
     if payload:
-        center_metadata["payload"] = payload
+        center_metadata["payload_summary"] = sanitize_governance_metadata(payload)
 
     job = ProcessingJob.objects.create(
         organization=document.organization,

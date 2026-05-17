@@ -1061,6 +1061,22 @@ def document_list(request):
             search_mode = "exact"
         elif requested_search_mode == SEARCH_MODE_SEMANTIC and search_degraded:
             search_mode = "semantic_fallback"
+        record_audit_event(
+            event_type=AuditEvent.EventType.DOCUMENT_SEARCHED,
+            request=request,
+            user=request.user,
+            organization=get_user_organizations(user).first(),
+            metadata={
+                "search_mode": search_mode,
+                "requested_search_mode": requested_search_mode,
+                "search_text_length": len(q or ""),
+                "result_count": len(documents),
+                "search_degraded": search_degraded,
+                "has_filters": any([doc_type_id, department_id, folder_id, counterparty, amount_min, amount_max, status, date_from, date_to]),
+                "search_entity_keys": sorted((search_query.entities or {}).keys()) if search_query else [],
+                "alias_count": len(search_query.aliases or {}) if search_query else 0,
+            },
+        )
     else:
         search_query = None
         documents = list(base_qs.order_by("-doc_date", "-created_at")[:120])
@@ -1625,6 +1641,7 @@ def document_view(request, pk):
         event_type=AuditEvent.EventType.DOCUMENT_VIEWED,
         request=request,
         document=doc,
+        metadata={"surface": "file_view"},
     )
 
     return protected_file_response(doc.file, as_attachment=False)
@@ -1712,6 +1729,13 @@ def document_detail(request, pk):
 
     if not user_can_access_document(request.user, doc):
         return HttpResponseForbidden("Нет доступа к документу")
+
+    record_audit_event(
+        event_type=AuditEvent.EventType.DOCUMENT_VIEWED,
+        request=request,
+        document=doc,
+        metadata={"surface": "document_detail"},
+    )
 
     doc.can_manage_access = (
         request.user.role == "ADMIN"
@@ -2646,6 +2670,7 @@ def document_download(request, pk):
         event_type=AuditEvent.EventType.DOCUMENT_DOWNLOADED,
         request=request,
         document=doc,
+        metadata={"surface": "file_download"},
     )
 
     return protected_file_response(doc.file, as_attachment=True)
@@ -2669,6 +2694,7 @@ def document_version_view(request, pk, version_pk):
         event_type=AuditEvent.EventType.DOCUMENT_VERSION_VIEWED,
         request=request,
         document_version=version,
+        metadata={"surface": "version_file_view"},
     )
 
     return protected_file_response(version.file, as_attachment=False)
@@ -2692,6 +2718,7 @@ def document_version_download(request, pk, version_pk):
         event_type=AuditEvent.EventType.DOCUMENT_VERSION_DOWNLOADED,
         request=request,
         document_version=version,
+        metadata={"surface": "version_file_download"},
     )
 
     return protected_file_response(version.file, as_attachment=True)
