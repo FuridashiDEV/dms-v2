@@ -11,7 +11,13 @@ class DevOpsFoundationTests(TestCase):
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["checks"]["database"], "ok")
 
-    @override_settings(HEALTH_CHECK_DATABASE=False, HEALTH_CHECK_QDRANT=False)
+    @override_settings(
+        HEALTH_CHECK_DATABASE=False,
+        HEALTH_CHECK_QDRANT=False,
+        HEALTH_CHECK_STORAGE=False,
+        HEALTH_CHECK_QUEUE=False,
+        HEALTH_CHECK_PROCESSING_WORKER=False,
+    )
     def test_health_endpoint_can_run_without_dependency_checks(self):
         response = self.client.get(reverse("health_check"))
 

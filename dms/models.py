@@ -1639,6 +1639,7 @@ class ProcessingJob(models.Model):
         RUNNING = "RUNNING", _("В обработке")
         COMPLETED = "COMPLETED", _("Завершено")
         FAILED = "FAILED", _("Ошибка")
+        DEAD_LETTER = "DEAD_LETTER", _("Dead letter")
         REVIEWED = "REVIEWED", _("Проверено")
 
     class Source(models.TextChoices):

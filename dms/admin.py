@@ -270,6 +270,29 @@ class ProcessingJobAdmin(admin.ModelAdmin):
         "locked_at",
     )
     autocomplete_fields = ("organization", "document", "created_by", "profile", "parent_job")
+    actions = ("restart_selected_processing_jobs", "dead_letter_selected_processing_jobs")
+
+    def restart_selected_processing_jobs(self, request, queryset):
+        from dms.services.disaster_recovery import restart_processing_job
+
+        restarted = 0
+        for job in queryset:
+            restart_processing_job(job, reason=f"manual restart by admin user {request.user.id}")
+            restarted += 1
+        self.message_user(request, f"Restarted {restarted} processing job(s).")
+
+    restart_selected_processing_jobs.short_description = "Restart selected processing jobs"
+
+    def dead_letter_selected_processing_jobs(self, request, queryset):
+        from dms.services.disaster_recovery import mark_processing_job_dead_letter
+
+        dead_lettered = 0
+        for job in queryset:
+            mark_processing_job_dead_letter(job, reason=f"manual dead letter by admin user {request.user.id}")
+            dead_lettered += 1
+        self.message_user(request, f"Moved {dead_lettered} processing job(s) to dead letter.")
+
+    dead_letter_selected_processing_jobs.short_description = "Move selected processing jobs to dead letter"
 
 
 @admin.register(ProcessingProfile)
