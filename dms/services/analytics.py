@@ -3,19 +3,23 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
-from django.db.models import Count, Sum
+from django.db.models import Avg, Count, Sum
 from django.utils import timezone
 
 from dms.models import (
     Counterparty,
     Document,
     DocumentExchange,
+    DocumentSearchIndexState,
     ExtractedField,
+    ObservabilityAlert,
+    ObservabilityMetric,
     Organization,
     ProcessingJob,
     UsageEvent,
     WorkflowInstance,
 )
+from dms.services.observability import build_gpu_metrics_foundation, evaluate_observability_alerts, record_queue_snapshot
 
 
 DEFAULT_RANGE_DAYS = 30
@@ -209,4 +213,98 @@ def build_platform_metrics(date_range: dict[str, Any]) -> dict[str, Any]:
         or 0,
         "usage_summary": _usage_summary(organizations, date_range),
         "organization_rows": organization_rows[:20],
+    }
+
+
+def _avg_metric(organizations, *, name: str, category: str, date_range: dict[str, Any]) -> float:
+    return (
+        ObservabilityMetric.objects.filter(
+            organization__in=organizations,
+            name=name,
+            category=category,
+            **_range_filter("recorded_at", date_range),
+        ).aggregate(avg=Avg("value"))["avg"]
+        or 0
+    )
+
+
+def build_observability_summary(organizations, date_range: dict[str, Any]) -> dict[str, Any]:
+    organizations = organizations.filter(is_active=True)
+    for organization in organizations:
+        record_queue_snapshot(organization=organization)
+    evaluate_observability_alerts(organizations=organizations)
+
+    jobs = ProcessingJob.objects.filter(organization__in=organizations)
+    queue_by_status = {
+        row["status"]: row["total"]
+        for row in jobs.values("status").annotate(total=Count("id"))
+    }
+    failed_jobs = (
+        jobs.filter(status=ProcessingJob.Status.FAILED)
+        .select_related("organization", "document")
+        .order_by("-completed_at", "-created_at")[:20]
+    )
+    slow_jobs = []
+    for job in (
+        jobs.filter(started_at__isnull=False)
+        .select_related("organization", "document")
+        .order_by("-started_at")[:100]
+    ):
+        end_at = job.completed_at or timezone.now()
+        duration_seconds = (end_at - job.started_at).total_seconds()
+        if duration_seconds >= 60:
+            slow_jobs.append({"job": job, "duration_seconds": round(duration_seconds, 1)})
+        if len(slow_jobs) >= 20:
+            break
+
+    stale_documents = DocumentSearchIndexState.objects.filter(
+        organization__in=organizations,
+        status__in=[DocumentSearchIndexState.Status.STALE, DocumentSearchIndexState.Status.FAILED],
+    ).count()
+    search_latency_avg = _avg_metric(
+        organizations,
+        name="search.latency_ms",
+        category=ObservabilityMetric.Category.SEARCH,
+        date_range=date_range,
+    )
+    embedding_latency_avg = _avg_metric(
+        organizations,
+        name="embedding.duration_ms",
+        category=ObservabilityMetric.Category.PROCESSING,
+        date_range=date_range,
+    )
+    qdrant_insert_avg = _avg_metric(
+        organizations,
+        name="qdrant.insert.duration_ms",
+        category=ObservabilityMetric.Category.QDRANT,
+        date_range=date_range,
+    )
+    processing_duration_avg = _avg_metric(
+        organizations,
+        name="job.duration_ms",
+        category=ObservabilityMetric.Category.PROCESSING,
+        date_range=date_range,
+    )
+
+    return {
+        "queue_by_status": queue_by_status,
+        "queue_pending": queue_by_status.get(ProcessingJob.Status.PENDING, 0),
+        "queue_running": queue_by_status.get(ProcessingJob.Status.RUNNING, 0),
+        "queue_failed": queue_by_status.get(ProcessingJob.Status.FAILED, 0),
+        "avg_processing_time_ms": round(processing_duration_avg, 2),
+        "avg_embedding_time_ms": round(embedding_latency_avg, 2),
+        "avg_qdrant_insert_time_ms": round(qdrant_insert_avg, 2),
+        "avg_search_latency_ms": round(search_latency_avg, 2),
+        "failed_jobs": failed_jobs,
+        "slow_jobs": slow_jobs,
+        "stale_documents": stale_documents,
+        "gpu": build_gpu_metrics_foundation(),
+        "open_alerts": ObservabilityAlert.objects.filter(
+            organization__in=organizations,
+            status=ObservabilityAlert.Status.OPEN,
+        ).order_by("-triggered_at")[:20],
+        "recent_metrics": ObservabilityMetric.objects.filter(
+            organization__in=organizations,
+            **_range_filter("recorded_at", date_range),
+        ).order_by("-recorded_at")[:30],
     }

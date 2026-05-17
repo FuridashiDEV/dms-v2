@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from django.conf import settings
 from django.utils import timezone
@@ -143,14 +144,44 @@ def index_document(document: Document) -> bool:
         document_version = get_latest_document_version(document)
         previous_state = get_document_index_state(document, index_version=index_version)
         previous_point_ids = list(previous_state.point_ids) if previous_state else []
+        metadata_started = time.perf_counter()
         update_document_search_metadata(document)
+        try:
+            from dms.services.observability import record_metric
+            from dms.models import ObservabilityMetric
+
+            record_metric(
+                name="entity_extraction.duration_ms",
+                category=ObservabilityMetric.Category.PROCESSING,
+                value=round((time.perf_counter() - metadata_started) * 1000, 3),
+                organization=document.organization,
+                unit="ms",
+                labels={"stage": "search_metadata"},
+            )
+        except Exception:
+            pass
         chunks = build_document_index_chunks(document)
         content_hash = build_document_index_fingerprint(
             document,
             document_version=document_version,
             chunks=chunks,
         )
+        embedding_started = time.perf_counter()
         vectors = build_embeddings_batch([chunk["text"] for chunk in chunks])
+        try:
+            from dms.services.observability import record_metric
+            from dms.models import ObservabilityMetric
+
+            record_metric(
+                name="embedding.duration_ms",
+                category=ObservabilityMetric.Category.PROCESSING,
+                value=round((time.perf_counter() - embedding_started) * 1000, 3),
+                organization=document.organization,
+                unit="ms",
+                labels={"chunks_count": len(chunks), "embedding_model": get_embedding_model_name()},
+            )
+        except Exception:
+            pass
         vector_chunks = []
         for chunk, vector in zip(chunks, vectors):
             if not vector:
@@ -198,7 +229,22 @@ def index_document(document: Document) -> bool:
                 error="No valid vectors were produced for document chunks.",
             )
             return False
+        qdrant_started = time.perf_counter()
         indexed = upsert_document_chunks(chunks=vector_chunks)
+        try:
+            from dms.services.observability import record_metric
+            from dms.models import ObservabilityMetric
+
+            record_metric(
+                name="qdrant.insert.duration_ms",
+                category=ObservabilityMetric.Category.QDRANT,
+                value=round((time.perf_counter() - qdrant_started) * 1000, 3),
+                organization=document.organization,
+                unit="ms",
+                labels={"chunks_count": len(vector_chunks), "indexed": indexed},
+            )
+        except Exception:
+            pass
         if not indexed:
             record_document_index_failure(
                 document=document,

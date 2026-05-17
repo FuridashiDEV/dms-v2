@@ -48,7 +48,12 @@ from dms.services.archive_intelligence import (
 from dms.services.document_indexing import delete_document_from_index, index_document
 from dms.services.audit import record_audit_event
 from dms.services.ai_processing import apply_confirmed_fields, run_document_ai_processing
-from dms.services.analytics import build_organization_metrics, build_platform_metrics, parse_date_range
+from dms.services.analytics import (
+    build_observability_summary,
+    build_organization_metrics,
+    build_platform_metrics,
+    parse_date_range,
+)
 from dms.services.billing import change_subscription_plan, get_billing_overview, get_usage_vs_limits
 from dms.services.document_creation import create_document_from_uploaded_file
 from dms.services.document_relations import (
@@ -829,6 +834,13 @@ def analytics_dashboard(request):
         if not request.user.is_superuser and not allowed_organizations.filter(id=selected_organization.id).exists():
             raise Http404
         organization_metrics = build_organization_metrics(selected_organization, date_range)
+    observability_organizations = allowed_organizations
+    if not request.user.is_superuser and selected_organization is not None:
+        observability_organizations = allowed_organizations.filter(id=selected_organization.id)
+    observability_metrics = build_observability_summary(
+        observability_organizations,
+        date_range,
+    )
 
     return render(
         request,
@@ -839,6 +851,7 @@ def analytics_dashboard(request):
             "selected_organization": selected_organization,
             "organization_metrics": organization_metrics,
             "platform_metrics": platform_metrics,
+            "observability_metrics": observability_metrics,
             "is_platform_view": request.user.is_superuser,
         },
     )

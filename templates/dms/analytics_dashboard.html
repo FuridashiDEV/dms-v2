@@ -17,6 +17,7 @@
   .analytics-row:last-child { border-bottom:0; }
   .analytics-main { font-weight:850; }
   .analytics-meta { color:var(--muted); font-size:13px; font-weight:700; }
+  .alert-pill { display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; font-size:12px; font-weight:850; background:#fff7ed; color:#9a3412; border:1px solid #fed7aa; }
   @media(max-width:960px){ .analytics-top{display:grid;} .analytics-grid{grid-template-columns:repeat(2, minmax(0, 1fr));} .analytics-filters{grid-template-columns:1fr 1fr;} }
   @media(max-width:640px){ .analytics-grid,.analytics-filters{grid-template-columns:1fr;} }
 </style>
@@ -102,6 +103,71 @@
     {% empty %}
       <div class="analytics-row"><div class="analytics-main">No usage events in this period</div></div>
     {% endfor %}
+  </div>
+{% endif %}
+
+{% if observability_metrics %}
+  <div class="card analytics-section">
+    <h2 class="section-title">AI/search observability</h2>
+    <div class="analytics-grid">
+      <div class="analytics-card"><div class="analytics-label">Pending jobs</div><div class="analytics-value">{{ observability_metrics.queue_pending }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Running jobs</div><div class="analytics-value">{{ observability_metrics.queue_running }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Failed jobs</div><div class="analytics-value">{{ observability_metrics.queue_failed }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Stale indexes</div><div class="analytics-value">{{ observability_metrics.stale_documents }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Avg processing ms</div><div class="analytics-value">{{ observability_metrics.avg_processing_time_ms }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Avg search ms</div><div class="analytics-value">{{ observability_metrics.avg_search_latency_ms }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Avg embedding ms</div><div class="analytics-value">{{ observability_metrics.avg_embedding_time_ms }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Avg Qdrant insert ms</div><div class="analytics-value">{{ observability_metrics.avg_qdrant_insert_time_ms }}</div></div>
+    </div>
+  </div>
+
+  <div class="card analytics-section">
+    <h2 class="section-title">Alerts foundation</h2>
+    {% for alert in observability_metrics.open_alerts %}
+      <div class="analytics-row">
+        <div>
+          <div class="analytics-main">{{ alert.title }}</div>
+          <div class="analytics-meta">{{ alert.organization.name|default:"Platform" }} · {{ alert.alert_type }}</div>
+        </div>
+        <div class="alert-pill">{{ alert.severity }}</div>
+      </div>
+    {% empty %}
+      <div class="analytics-row"><div class="analytics-main">No open observability alerts</div></div>
+    {% endfor %}
+  </div>
+
+  <div class="card analytics-section">
+    <h2 class="section-title">Failed and slow jobs</h2>
+    {% for job in observability_metrics.failed_jobs %}
+      <div class="analytics-row">
+        <div>
+          <div class="analytics-main">Job #{{ job.id }} · {{ job.pipeline_stage }}</div>
+          <div class="analytics-meta">{{ job.organization.name }} · failed</div>
+        </div>
+        <div class="analytics-main">{{ job.attempt_count }}</div>
+      </div>
+    {% empty %}
+      <div class="analytics-row"><div class="analytics-main">No failed jobs</div></div>
+    {% endfor %}
+    {% for item in observability_metrics.slow_jobs %}
+      <div class="analytics-row">
+        <div>
+          <div class="analytics-main">Slow job #{{ item.job.id }} · {{ item.job.pipeline_stage }}</div>
+          <div class="analytics-meta">{{ item.job.organization.name }}</div>
+        </div>
+        <div class="analytics-main">{{ item.duration_seconds }}s</div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="card analytics-section">
+    <h2 class="section-title">GPU foundation</h2>
+    <div class="analytics-grid">
+      <div class="analytics-card"><div class="analytics-label">GPU available</div><div class="analytics-value">{{ observability_metrics.gpu.gpu_available|yesno:"Yes,No" }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">GPU busy</div><div class="analytics-value">{{ observability_metrics.gpu.gpu_busy|yesno:"Yes,No" }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Worker count</div><div class="analytics-value">{{ observability_metrics.gpu.worker_count }}</div></div>
+      <div class="analytics-card"><div class="analytics-label">Avg batch ms</div><div class="analytics-value">{{ observability_metrics.gpu.avg_batch_duration_ms|floatformat:1 }}</div></div>
+    </div>
   </div>
 {% endif %}
 

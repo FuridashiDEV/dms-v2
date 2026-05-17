@@ -117,6 +117,12 @@ def run_document_ai_processing(
         job.status = ProcessingJob.Status.COMPLETED
         job.completed_at = timezone.now()
         job.save(update_fields=["raw_result", "status", "completed_at"])
+        try:
+            from dms.services.observability import record_processing_job_metric
+
+            record_processing_job_metric(job, event="completed")
+        except Exception:
+            pass
 
         for field_name, value in build_ai_field_suggestions(meta, candidate_dates).items():
             ExtractedField.objects.update_or_create(
@@ -158,6 +164,12 @@ def run_document_ai_processing(
         job.error_message = str(exc)[:2000]
         job.completed_at = timezone.now()
         job.save(update_fields=["status", "error_message", "completed_at"])
+        try:
+            from dms.services.observability import record_processing_job_metric
+
+            record_processing_job_metric(job, event="failed")
+        except Exception:
+            pass
         record_audit_event(
             event_type=AuditEvent.EventType.AI_PROCESSING_FAILED,
             request=request,

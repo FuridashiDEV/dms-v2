@@ -320,6 +320,12 @@ def complete_processing_job(
         ]
     )
     _record_processing_event("processing.job_completed", job, user=user)
+    try:
+        from dms.services.observability import record_processing_job_metric
+
+        record_processing_job_metric(job, event="completed")
+    except Exception:
+        pass
     if job.parent_job_id:
         fan_in_processing_job(job.parent_job, user=user)
     return job
@@ -351,6 +357,12 @@ def fail_processing_job(
 
     job.save(update_fields=update_fields)
     _record_processing_event(event_type, job, user=user, metadata={"attempt_count": job.attempt_count})
+    try:
+        from dms.services.observability import record_processing_job_metric
+
+        record_processing_job_metric(job, event="retry_scheduled" if job.status == ProcessingJob.Status.PENDING else "failed")
+    except Exception:
+        pass
     if job.parent_job_id and job.status == ProcessingJob.Status.FAILED:
         fan_in_processing_job(job.parent_job, user=user)
     return job

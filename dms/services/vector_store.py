@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 
 from django.conf import settings
@@ -57,9 +58,21 @@ def ensure_collection() -> bool:
             )
     except Exception:
         logger.warning("Qdrant collection is not available", exc_info=True)
+        try:
+            from dms.services.observability import record_qdrant_availability
+
+            record_qdrant_availability(available=False)
+        except Exception:
+            pass
         return False
 
     _collection_ready = True
+    try:
+        from dms.services.observability import record_qdrant_availability
+
+        record_qdrant_availability(available=True)
+    except Exception:
+        pass
     return True
 
 
@@ -227,6 +240,8 @@ def search_documents(
     filters: dict | None = None,
     department_ids: list[int] | None = None,
 ) -> list[dict]:
+    started = time.perf_counter()
+    organization_ids = _organization_ids_from_filters(filters)
     vector = embedding if embedding is not None else query_vector
     if not vector:
         return []
@@ -238,6 +253,12 @@ def search_documents(
         }
 
     if not ensure_collection():
+        _record_search_observability(
+            organization_ids=organization_ids,
+            started=started,
+            degraded=True,
+            result_count=0,
+        )
         return []
 
     try:
@@ -250,9 +271,15 @@ def search_documents(
         )
     except Exception:
         logger.warning("Qdrant search failed", exc_info=True)
+        _record_search_observability(
+            organization_ids=organization_ids,
+            started=started,
+            degraded=True,
+            result_count=0,
+        )
         return []
 
-    return [
+    results = [
         {
             "id": point.id,
             "document_id": (point.payload or {}).get("document_id") or point.id,
@@ -261,3 +288,44 @@ def search_documents(
         }
         for point in result.points
     ]
+    _record_search_observability(
+        organization_ids=organization_ids,
+        started=started,
+        degraded=False,
+        result_count=len(results),
+    )
+    return results
+
+
+def _organization_ids_from_filters(filters: dict | None) -> list[int]:
+    value = (filters or {}).get("organization_id")
+    if value is None:
+        return []
+    values = value if isinstance(value, (list, tuple, set)) else [value]
+    ids = []
+    for item in values:
+        try:
+            ids.append(int(item))
+        except (TypeError, ValueError):
+            continue
+    return ids
+
+
+def _record_search_observability(
+    *,
+    organization_ids: list[int],
+    started: float,
+    degraded: bool,
+    result_count: int,
+) -> None:
+    try:
+        from dms.services.observability import record_search_latency
+
+        record_search_latency(
+            organization_ids=organization_ids,
+            latency_ms=(time.perf_counter() - started) * 1000,
+            degraded=degraded,
+            result_count=result_count,
+        )
+    except Exception:
+        pass

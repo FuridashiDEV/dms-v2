@@ -25,6 +25,8 @@ from .models import (
     IntegrationProvider,
     IntegrationSyncJob,
     Notification,
+    ObservabilityAlert,
+    ObservabilityMetric,
     Organization,
     OrganizationMember,
     Plan,
@@ -489,6 +491,24 @@ class UsageEventAdmin(admin.ModelAdmin):
     search_fields = ("event_type", "source", "document__title", "user__username")
     autocomplete_fields = ("organization", "document", "user")
     readonly_fields = ("created_at",)
+
+
+@admin.register(ObservabilityMetric)
+class ObservabilityMetricAdmin(admin.ModelAdmin):
+    list_display = ("recorded_at", "organization", "category", "name", "value", "unit")
+    list_filter = ("category", "name", "organization", "recorded_at")
+    search_fields = ("name", "organization__name")
+    readonly_fields = ("recorded_at", "labels")
+    autocomplete_fields = ("organization",)
+
+
+@admin.register(ObservabilityAlert)
+class ObservabilityAlertAdmin(admin.ModelAdmin):
+    list_display = ("triggered_at", "organization", "alert_type", "severity", "status", "title")
+    list_filter = ("severity", "status", "alert_type", "organization", "triggered_at")
+    search_fields = ("alert_type", "title", "organization__name")
+    readonly_fields = ("triggered_at", "updated_at", "details")
+    autocomplete_fields = ("organization",)
 
 
 class PlanQuotaInline(admin.TabularInline):

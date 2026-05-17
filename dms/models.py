@@ -1058,6 +1058,92 @@ class UsageEvent(models.Model):
         return f"{self.event_type} / {self.organization}"
 
 
+class ObservabilityMetric(models.Model):
+    class Category(models.TextChoices):
+        PROCESSING = "processing", _("Processing")
+        QUEUE = "queue", _("Queue")
+        SEARCH = "search", _("Search")
+        GPU = "gpu", _("GPU")
+        QDRANT = "qdrant", _("Qdrant")
+        REINDEX = "reindex", _("Reindex")
+
+    organization = models.ForeignKey(
+        Organization,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="observability_metrics",
+        verbose_name=_("Organization"),
+    )
+    category = models.CharField(_("Category"), max_length=40, choices=Category.choices, db_index=True)
+    name = models.CharField(_("Metric name"), max_length=120, db_index=True)
+    value = models.FloatField(_("Value"), default=0)
+    unit = models.CharField(_("Unit"), max_length=40, blank=True, default="")
+    labels = models.JSONField(_("Labels"), default=dict, blank=True, validators=[validate_no_plaintext_secrets])
+    recorded_at = models.DateTimeField(_("Recorded at"), auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = _("Observability metric")
+        verbose_name_plural = _("Observability metrics")
+        ordering = ["-recorded_at", "-id"]
+        indexes = [
+            models.Index(fields=["organization", "category", "-recorded_at"]),
+            models.Index(fields=["name", "-recorded_at"]),
+        ]
+
+    def clean(self):
+        super().clean()
+        validate_no_plaintext_secrets(self.labels)
+
+    def __str__(self) -> str:
+        return f"{self.category}.{self.name}={self.value}"
+
+
+class ObservabilityAlert(models.Model):
+    class Severity(models.TextChoices):
+        INFO = "INFO", _("Info")
+        WARNING = "WARNING", _("Warning")
+        CRITICAL = "CRITICAL", _("Critical")
+
+    class Status(models.TextChoices):
+        OPEN = "OPEN", _("Open")
+        ACKNOWLEDGED = "ACKNOWLEDGED", _("Acknowledged")
+        RESOLVED = "RESOLVED", _("Resolved")
+
+    organization = models.ForeignKey(
+        Organization,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="observability_alerts",
+        verbose_name=_("Organization"),
+    )
+    alert_type = models.CharField(_("Alert type"), max_length=120, db_index=True)
+    severity = models.CharField(_("Severity"), max_length=20, choices=Severity.choices, default=Severity.WARNING)
+    status = models.CharField(_("Status"), max_length=20, choices=Status.choices, default=Status.OPEN, db_index=True)
+    title = models.CharField(_("Title"), max_length=255)
+    details = models.JSONField(_("Details"), default=dict, blank=True, validators=[validate_no_plaintext_secrets])
+    triggered_at = models.DateTimeField(_("Triggered at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+    resolved_at = models.DateTimeField(_("Resolved at"), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("Observability alert")
+        verbose_name_plural = _("Observability alerts")
+        ordering = ["-triggered_at", "-id"]
+        indexes = [
+            models.Index(fields=["organization", "status", "-triggered_at"]),
+            models.Index(fields=["alert_type", "status"]),
+        ]
+
+    def clean(self):
+        super().clean()
+        validate_no_plaintext_secrets(self.details)
+
+    def __str__(self) -> str:
+        return f"{self.alert_type} / {self.status}"
+
+
 class Plan(models.Model):
     class BillingInterval(models.TextChoices):
         MANUAL = "manual", _("Manual")
