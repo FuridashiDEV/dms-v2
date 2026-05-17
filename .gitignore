@@ -20,6 +20,7 @@ staticfiles/
 runserver.out.log
 runserver.err.log
 errors.log
+reports/load-testing/*.json
 
 # Environment and secrets
 .env
