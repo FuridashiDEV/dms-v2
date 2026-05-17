@@ -60,11 +60,17 @@ def apply_experience_filters(
 
 def build_lexical_filter(raw_query: str, search_query: SearchQuery) -> Q:
     entity_values: list[str] = []
-    for key in ("document_type", "counterparty", "subject"):
+    for key in ("document_type", "counterparty", "subject", "document_number", "document_date", "bin_iin", "contract_reference"):
         if search_query.entities.get(key):
             entity_values.append(str(search_query.entities[key]))
     if search_query.entities.get("amount", {}).get("raw"):
         entity_values.append(str(search_query.entities["amount"]["raw"]))
+    for key in ("goods", "services", "works", "organization_name"):
+        values = search_query.entities.get(key) or []
+        if isinstance(values, str):
+            entity_values.append(values)
+        else:
+            entity_values.extend(str(value) for value in values if value)
 
     lexical_filter = (
         Q(title__icontains=raw_query)
@@ -142,10 +148,22 @@ def matched_entities_for_document(document: Document, search_query: SearchQuery 
     document_entities = document.search_entities or {}
     query_entities = search_query.entities or {}
     matched = []
-    for key in ("document_type", "counterparty", "subject"):
+    for key in ("document_type", "counterparty", "subject", "document_number", "document_date", "bin_iin", "contract_reference"):
         value = query_entities.get(key)
         if value and str(value) in normalize_search_text(str(document_entities.get(key, ""))):
             matched.append(f"{key}: {value}")
+    for key in ("goods", "services", "works", "organization_name"):
+        query_values = query_entities.get(key) or []
+        if isinstance(query_values, str):
+            query_values = [query_values]
+        document_values = document_entities.get(key) or []
+        if isinstance(document_values, str):
+            document_values = [document_values]
+        document_text = normalize_search_text(" ".join(str(value) for value in document_values))
+        for value in query_values:
+            if value and str(value) in document_text:
+                matched.append(f"{key}: {value}")
+                break
 
     query_amount = query_entities.get("amount") or {}
     document_amount = document_entities.get("amount") or {}

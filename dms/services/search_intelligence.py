@@ -7,6 +7,8 @@ from typing import Iterable
 
 from django.conf import settings
 
+from dms.services.entity_extraction import extract_entities as extract_structured_entities
+
 
 DOCUMENT_TYPE_ALIASES = {
     "contract": {"договор", "контракт", "agreement", "contract"},
@@ -162,14 +164,12 @@ def _extract_subject(normalized: str) -> str:
 def extract_entities_from_text(text: str, *, doc_type_name: str = "", author: str = "") -> dict:
     normalized = normalize_search_text(" ".join([text or "", doc_type_name or "", author or ""]))
     tokens = tokenize(normalized)
-    entities = {
-        "document_type": _detect_document_type(normalized),
-        "counterparty": _extract_counterparty(normalized),
-        "subject": _extract_subject(normalized),
-        "amount": _extract_amount(normalized),
-        "key_phrases": tokens[:18],
-        "aliases": expand_aliases(tokens),
-    }
+    entities = extract_structured_entities(text, doc_type_name=doc_type_name, author=author)
+    if tokens and "key_phrases" not in entities:
+        entities["key_phrases"] = tokens[:18]
+    aliases = expand_aliases(tokens)
+    if aliases:
+        entities["aliases"] = aliases
     return {key: value for key, value in entities.items() if value not in ("", {}, [], None)}
 
 
@@ -180,7 +180,7 @@ def build_search_query(raw_query: str) -> SearchQuery:
     expanded_terms = list(tokens)
     for values in aliases.values():
         expanded_terms.extend(values)
-    entities = extract_entities_from_text(normalized)
+    entities = extract_entities_from_text(raw_query)
     expanded_text = " ".join(dict.fromkeys([normalized, *expanded_terms]))
     return SearchQuery(
         raw=raw_query or "",
@@ -195,11 +195,26 @@ def build_search_query(raw_query: str) -> SearchQuery:
 def build_document_search_text(document) -> str:
     entities = document.search_entities or {}
     entity_parts = []
-    for key in ("document_type", "counterparty", "subject"):
+    for key in ("document_type", "counterparty", "subject", "document_number", "document_date", "bin_iin", "contract_reference"):
         if entities.get(key):
             entity_parts.append(str(entities[key]))
     if entities.get("amount", {}).get("raw"):
         entity_parts.append(str(entities["amount"]["raw"]))
+    if entities.get("amount", {}).get("value"):
+        entity_parts.append(str(entities["amount"]["value"]))
+    for key in ("goods", "services", "works", "legal_form", "organization_name", "currency"):
+        values = entities.get(key) or []
+        if isinstance(values, str):
+            entity_parts.append(values)
+        else:
+            entity_parts.extend(str(value) for value in values if value)
+    for item in entities.get("table_items", []):
+        if isinstance(item, dict):
+            entity_parts.extend(str(item.get(key, "")) for key in ("value", "normalized", "raw") if item.get(key))
+    for values in entities.get("entities_by_type", {}).values():
+        for item in values:
+            if isinstance(item, dict):
+                entity_parts.extend(str(item.get(key, "")) for key in ("value", "normalized", "raw") if item.get(key))
     entity_parts.extend(entities.get("key_phrases", []))
     for values in entities.get("aliases", {}).values():
         entity_parts.extend(values)
@@ -284,6 +299,26 @@ def score_document_for_query(document, query: SearchQuery, semantic_score: float
     ):
         entity_score += 0.12
         reasons.append(f"amount matched: {query_entities['amount']['raw']}")
+
+    for key, weight in (
+        ("document_number", 0.16),
+        ("document_date", 0.12),
+        ("bin_iin", 0.18),
+        ("contract_reference", 0.14),
+    ):
+        value = query_entities.get(key)
+        if value and (str(value) in text or str(value) == str(entities.get(key, ""))):
+            entity_score += weight
+            reasons.append(f"{key} matched: {value}")
+
+    for key, weight in (("goods", 0.08), ("services", 0.08), ("works", 0.08), ("organization_name", 0.1)):
+        query_values = query_entities.get(key) or []
+        if isinstance(query_values, str):
+            query_values = [query_values]
+        hits = [str(value) for value in query_values if value and str(value) in text]
+        if hits:
+            entity_score += weight
+            reasons.append(f"{key} matched: {', '.join(hits[:2])}")
 
     if semantic_score:
         reasons.append(f"semantic score {semantic_score:.2f}")

@@ -40,18 +40,29 @@ def build_document_index_payload(document: Document, *, chunk_key: str, chunk_ki
 def build_document_index_chunks(document: Document) -> list[dict]:
     normalized_text = document.search_text_normalized or build_document_search_text(document)
     entities = document.search_entities or {}
-    entity_text = " ".join(
-        filter(
-            None,
-            [
-                entities.get("document_type", ""),
-                entities.get("counterparty", ""),
-                entities.get("subject", ""),
-                entities.get("amount", {}).get("raw", ""),
-                " ".join(entities.get("key_phrases", [])),
-            ],
-        )
-    )
+    entity_parts = [
+        entities.get("document_type", ""),
+        entities.get("counterparty", ""),
+        entities.get("subject", ""),
+        entities.get("document_number", ""),
+        entities.get("document_date", ""),
+        entities.get("bin_iin", ""),
+        entities.get("contract_reference", ""),
+        entities.get("amount", {}).get("raw", ""),
+        str(entities.get("amount", {}).get("value", "")),
+        " ".join(entities.get("key_phrases", [])),
+    ]
+    for key in ("goods", "services", "works", "legal_form", "organization_name", "currency"):
+        values = entities.get(key) or []
+        if isinstance(values, str):
+            entity_parts.append(values)
+        else:
+            entity_parts.extend(str(value) for value in values if value)
+    for values in entities.get("entities_by_type", {}).values():
+        for item in values:
+            if isinstance(item, dict):
+                entity_parts.extend(str(item.get(key, "")) for key in ("value", "normalized", "raw") if item.get(key))
+    entity_text = " ".join(filter(None, entity_parts))
     chunks = [
         {
             "key": "title",
