@@ -1,0 +1,49 @@
+[
+  {
+    "id": "contract-tools-3m",
+    "query": "contract with IP Firma for tools supply 3 mln",
+    "expected_labels": ["Pilot contract with IP Firma for tools supply"],
+    "expected_type": "contract",
+    "expected_entities": {
+      "document_type": "contract",
+      "counterparty": "ip firma",
+      "subject": "tools supply",
+      "amount": {
+        "value": 3000000
+      }
+    },
+    "negative_labels": ["Office rent invoice"],
+    "language": "en",
+    "mode": "hybrid",
+    "notes": "Synthetic business query for contract, counterparty, subject, and amount."
+  },
+  {
+    "id": "invision-alias-invoice",
+    "query": "invoice invision archive subscription",
+    "expected_labels": ["Invoice from Invision for archive search subscription"],
+    "expected_type": "invoice",
+    "expected_entities": {
+      "document_type": "invoice",
+      "counterparty": "invision",
+      "subject": "archive search subscription"
+    },
+    "negative_labels": ["Tools supply contract"],
+    "language": "en",
+    "mode": "hybrid",
+    "notes": "Synthetic alias scenario for latin brand spelling."
+  },
+  {
+    "id": "workflow-services-act",
+    "query": "act completed workflow pilot services",
+    "expected_labels": ["Act of completed services for workflow pilot"],
+    "expected_type": "act",
+    "expected_entities": {
+      "document_type": "act",
+      "subject": "workflow pilot services"
+    },
+    "negative_labels": ["Invision invoice"],
+    "language": "en",
+    "mode": "exact",
+    "notes": "Synthetic exact/text scenario for service completion document."
+  }
+]
