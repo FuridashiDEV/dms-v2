@@ -78,6 +78,7 @@
 .\.venv\Scripts\python.exe manage.py migrate --check
 .\.venv\Scripts\python.exe manage.py test dms --verbosity 1
 git diff --cached --check
+git diff --check
 git status --short --branch
 ```
 
@@ -89,6 +90,7 @@ git status --short --branch
 - `migrate --check`: OK.
 - Full `dms` suite: 137 tests OK.
 - `git diff --cached --check`: OK, only expected CRLF warnings on Windows.
+- `git diff --check`: OK.
 - `git status --short --branch`: Stage 28 files staged; unrelated pre-existing `docs/codex` deletions/untracked stage files remain unstaged.
 - Full suite emitted existing warnings for unavailable local Qdrant and unauthenticated HuggingFace access; tests passed.
 
