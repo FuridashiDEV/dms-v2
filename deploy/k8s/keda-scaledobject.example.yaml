@@ -1,0 +1,35 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: dms-embedding-worker-scale
+  namespace: dms
+spec:
+  scaleTargetRef:
+    name: dms-gpu-embedding-worker
+  minReplicaCount: 0
+  maxReplicaCount: 3
+  pollingInterval: 30
+  cooldownPeriod: 300
+  triggers:
+    - type: postgresql
+      metadata:
+        host: postgres.default.svc.cluster.local
+        port: "5432"
+        userName: dms
+        dbName: dms
+        sslmode: disable
+        query: "SELECT COUNT(*) FROM dms_processingjob WHERE status = 'PENDING' AND pipeline_stage IN ('CHUNKING', 'EMBEDDING')"
+        targetQueryValue: "5"
+      authenticationRef:
+        name: dms-keda-postgres-auth
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: dms-keda-postgres-auth
+  namespace: dms
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: dms-secrets
+      key: POSTGRES_PASSWORD

@@ -249,27 +249,40 @@ def claim_next_processing_job(
     *,
     profile: ProcessingProfile | None = None,
     organization: Organization | None = None,
+    stages: Iterable[str] | None = None,
     lock_token: str | None = None,
     now=None,
 ) -> ProcessingJob | None:
     now = now or timezone.now()
-    if profile is None:
-        profile = get_or_create_default_processing_profile(organization)
-
-    backpressure = get_backpressure_state(profile=profile, organization=organization)
-    if not backpressure.available:
-        return None
+    if profile is not None:
+        backpressure = get_backpressure_state(profile=profile, organization=organization)
+        if not backpressure.available:
+            return None
 
     with transaction.atomic():
         jobs = ProcessingJob.objects.select_for_update().filter(
-            profile=profile,
             status=ProcessingJob.Status.PENDING,
             scheduled_at__lte=now,
         ).filter(Q(next_retry_at__isnull=True) | Q(next_retry_at__lte=now))
+        if profile is not None:
+            jobs = jobs.filter(profile=profile)
         if organization is not None:
             jobs = jobs.filter(organization=organization)
+        if stages is not None:
+            jobs = jobs.filter(pipeline_stage__in=list(stages))
 
-        job = jobs.order_by("priority", "created_at", "id").first()
+        job = None
+        for candidate in jobs.order_by("priority", "created_at", "id")[:25]:
+            if candidate.profile_id is None:
+                job = candidate
+                break
+            candidate_backpressure = get_backpressure_state(
+                profile=candidate.profile,
+                organization=candidate.organization,
+            )
+            if candidate_backpressure.available:
+                job = candidate
+                break
         if job is None:
             return None
 
@@ -385,12 +398,13 @@ def drain_processing_queue(
     limit: int = 10,
     profile: ProcessingProfile | None = None,
     organization: Organization | None = None,
+    stages: Iterable[str] | None = None,
     handlers: dict[str, JobHandler] | None = None,
     user=None,
 ) -> list[DispatchResult]:
     results: list[DispatchResult] = []
     for _index in range(max(int(limit or 0), 0)):
-        job = claim_next_processing_job(profile=profile, organization=organization)
+        job = claim_next_processing_job(profile=profile, organization=organization, stages=stages)
         if job is None:
             break
         results.append(execute_processing_job(job, handlers=handlers, user=user))

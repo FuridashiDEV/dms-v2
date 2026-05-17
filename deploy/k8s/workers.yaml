@@ -1,0 +1,209 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dms-ocr-worker
+  namespace: dms
+  labels:
+    app.kubernetes.io/name: dms-v2
+    app.kubernetes.io/component: ocr-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dms-v2
+      app.kubernetes.io/component: ocr-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dms-v2
+        app.kubernetes.io/component: ocr-worker
+    spec:
+      containers:
+        - name: ocr-worker
+          image: ghcr.io/furidashidev/dms-v2:latest
+          envFrom:
+            - configMapRef:
+                name: dms-config
+            - secretRef:
+                name: dms-secrets
+          command: ["python", "manage.py", "run_processing_role", "--role", "ocr-worker", "--limit", "10"]
+          livenessProbe:
+            exec:
+              command: ["python", "manage.py", "processing_role_healthcheck", "--role", "ocr-worker"]
+            initialDelaySeconds: 60
+            periodSeconds: 60
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "3Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dms-entity-worker
+  namespace: dms
+  labels:
+    app.kubernetes.io/name: dms-v2
+    app.kubernetes.io/component: entity-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dms-v2
+      app.kubernetes.io/component: entity-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dms-v2
+        app.kubernetes.io/component: entity-worker
+    spec:
+      containers:
+        - name: entity-worker
+          image: ghcr.io/furidashidev/dms-v2:latest
+          envFrom:
+            - configMapRef:
+                name: dms-config
+            - secretRef:
+                name: dms-secrets
+          command: ["python", "manage.py", "run_processing_role", "--role", "entity-worker", "--limit", "10"]
+          livenessProbe:
+            exec:
+              command: ["python", "manage.py", "processing_role_healthcheck", "--role", "entity-worker"]
+            initialDelaySeconds: 60
+            periodSeconds: 60
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dms-rerank-worker
+  namespace: dms
+  labels:
+    app.kubernetes.io/name: dms-v2
+    app.kubernetes.io/component: rerank-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dms-v2
+      app.kubernetes.io/component: rerank-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dms-v2
+        app.kubernetes.io/component: rerank-worker
+    spec:
+      containers:
+        - name: rerank-worker
+          image: ghcr.io/furidashidev/dms-v2:latest
+          envFrom:
+            - configMapRef:
+                name: dms-config
+            - secretRef:
+                name: dms-secrets
+          command: ["python", "manage.py", "run_processing_role", "--role", "rerank-worker", "--limit", "10"]
+          livenessProbe:
+            exec:
+              command: ["python", "manage.py", "processing_role_healthcheck", "--role", "rerank-worker"]
+            initialDelaySeconds: 60
+            periodSeconds: 60
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dms-qdrant-index-worker
+  namespace: dms
+  labels:
+    app.kubernetes.io/name: dms-v2
+    app.kubernetes.io/component: qdrant-index-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dms-v2
+      app.kubernetes.io/component: qdrant-index-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dms-v2
+        app.kubernetes.io/component: qdrant-index-worker
+    spec:
+      containers:
+        - name: qdrant-index-worker
+          image: ghcr.io/furidashidev/dms-v2:latest
+          envFrom:
+            - configMapRef:
+                name: dms-config
+            - secretRef:
+                name: dms-secrets
+          command: ["python", "manage.py", "run_processing_role", "--role", "qdrant-index-worker", "--limit", "10"]
+          livenessProbe:
+            exec:
+              command: ["python", "manage.py", "processing_role_healthcheck", "--role", "qdrant-index-worker"]
+            initialDelaySeconds: 60
+            periodSeconds: 60
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dms-notification-worker
+  namespace: dms
+  labels:
+    app.kubernetes.io/name: dms-v2
+    app.kubernetes.io/component: notification-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dms-v2
+      app.kubernetes.io/component: notification-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dms-v2
+        app.kubernetes.io/component: notification-worker
+    spec:
+      containers:
+        - name: notification-worker
+          image: ghcr.io/furidashidev/dms-v2:latest
+          envFrom:
+            - configMapRef:
+                name: dms-config
+            - secretRef:
+                name: dms-secrets
+          command: ["python", "manage.py", "run_processing_role", "--role", "notification-worker"]
+          livenessProbe:
+            exec:
+              command: ["python", "manage.py", "processing_role_healthcheck", "--role", "notification-worker"]
+            initialDelaySeconds: 60
+            periodSeconds: 60
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

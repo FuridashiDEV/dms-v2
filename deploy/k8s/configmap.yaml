@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dms-config
+  namespace: dms
+data:
+  DJANGO_DEBUG: "False"
+  DJANGO_ALLOWED_HOSTS: "dms.example.local"
+  DJANGO_CSRF_TRUSTED_ORIGINS: "https://dms.example.local"
+  DJANGO_LOG_LEVEL: "INFO"
+  DJANGO_LOG_DIR: "/app/logs"
+  POSTGRES_HOST: "postgres.default.svc.cluster.local"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "dms"
+  POSTGRES_USER: "dms"
+  QDRANT_HOST: "qdrant.default.svc.cluster.local"
+  QDRANT_PORT: "6333"
+  REDIS_URL: "redis://redis.default.svc.cluster.local:6379/0"
+  HEALTH_CHECK_DATABASE: "True"
+  HEALTH_CHECK_QDRANT: "False"
+  GUNICORN_WORKERS: "3"
+  GUNICORN_TIMEOUT: "120"
+  PORT: "8000"
