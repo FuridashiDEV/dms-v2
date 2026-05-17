@@ -13,6 +13,8 @@ from dms.services.audit import record_audit_event
 
 
 DEFAULT_PLAN_CODE = "free"
+BILLING_SUBSCRIPTION_CHANGED_EVENT = "BILLING_SUBSCRIPTION_CHANGED"
+SOFT_WARNING_THRESHOLD_PERCENT = 80
 
 
 BASE_PLAN_DEFINITIONS = [
@@ -193,6 +195,18 @@ def get_usage_vs_limits(organization: Organization, *, month: date | None = None
             percent_used = 100 if used else 0
         else:
             percent_used = round((used / limit) * 100, 2)
+        if limit is None:
+            warning_level = "unlimited"
+            warning_message = "Unlimited quota."
+        elif exceeded:
+            warning_level = "exceeded"
+            warning_message = "Soft limit exceeded. Product flow is not blocked."
+        elif percent_used is not None and percent_used >= SOFT_WARNING_THRESHOLD_PERCENT:
+            warning_level = "warning"
+            warning_message = "Approaching soft limit."
+        else:
+            warning_level = "ok"
+            warning_message = "Within soft limit."
         rows.append(
             {
                 "event_type": event_type,
@@ -202,6 +216,8 @@ def get_usage_vs_limits(organization: Organization, *, month: date | None = None
                 "is_unlimited": is_unlimited,
                 "exceeded": exceeded,
                 "percent_used": percent_used,
+                "warning_level": warning_level,
+                "warning_message": warning_message,
             }
         )
 
@@ -215,4 +231,97 @@ def get_usage_vs_limits(organization: Organization, *, month: date | None = None
         "ends_at": ends_at,
         "usage": rows,
         "hard_enforcement": False,
+        "soft_warning_threshold_percent": SOFT_WARNING_THRESHOLD_PERCENT,
     }
+
+
+def get_subscription_history(organization: Organization, *, limit: int = 25):
+    return (
+        AuditEvent.objects
+        .filter(
+            organization=organization,
+            event_type__in=[
+                AuditEvent.EventType.BILLING_SUBSCRIPTION_CREATED,
+                BILLING_SUBSCRIPTION_CHANGED_EVENT,
+            ],
+        )
+        .select_related("user")
+        .order_by("-created_at", "-id")[: max(int(limit or 25), 1)]
+    )
+
+
+def get_billing_overview(organization: Organization, *, month: date | None = None) -> dict[str, Any]:
+    subscription, _ = ensure_default_subscription(organization)
+    usage_report = get_usage_vs_limits(organization, month=month)
+    exceeded_rows = [row for row in usage_report["usage"] if row["warning_level"] == "exceeded"]
+    warning_rows = [row for row in usage_report["usage"] if row["warning_level"] == "warning"]
+    return {
+        "organization": organization,
+        "subscription": subscription,
+        "plan": subscription.plan,
+        "usage_report": usage_report,
+        "exceeded_rows": exceeded_rows,
+        "warning_rows": warning_rows,
+        "warning_count": len(exceeded_rows) + len(warning_rows),
+        "history": get_subscription_history(organization),
+        "payment_gateway_enabled": False,
+        "invoices_enabled": False,
+        "hard_enforcement": False,
+    }
+
+
+@transaction.atomic
+def change_subscription_plan(
+    *,
+    organization: Organization,
+    plan: Plan,
+    status: str = Subscription.Status.ACTIVE,
+    changed_by=None,
+    reason: str = "",
+    request=None,
+) -> Subscription:
+    if not plan.is_active:
+        raise ValueError("Cannot assign inactive plan.")
+    if status not in dict(Subscription.Status.choices):
+        raise ValueError("Invalid subscription status.")
+
+    subscription, created = ensure_default_subscription(organization, user=changed_by, request=request)
+    old_plan_code = subscription.plan.code
+    old_status = subscription.status
+    _, _, period_start, period_end = current_month_range()
+    subscription.plan = plan
+    subscription.status = status
+    subscription.current_period_start = subscription.current_period_start or period_start
+    subscription.current_period_end = subscription.current_period_end or period_end
+    subscription.is_default = False
+    subscription.created_by = subscription.created_by or (changed_by if getattr(changed_by, "is_authenticated", False) else None)
+    subscription.save(
+        update_fields=[
+            "plan",
+            "status",
+            "current_period_start",
+            "current_period_end",
+            "is_default",
+            "created_by",
+            "updated_at",
+        ]
+    )
+    record_audit_event(
+        event_type=BILLING_SUBSCRIPTION_CHANGED_EVENT,
+        request=request,
+        user=changed_by,
+        organization=organization,
+        metadata={
+            "subscription_id": subscription.id,
+            "created_subscription": created,
+            "old_plan_code": old_plan_code,
+            "new_plan_code": plan.code,
+            "old_status": old_status,
+            "new_status": status,
+            "reason": (reason or "")[:500],
+            "payment_gateway_enabled": False,
+            "invoice_created": False,
+            "hard_enforcement": False,
+        },
+    )
+    return subscription

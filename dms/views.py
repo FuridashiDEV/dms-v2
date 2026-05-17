@@ -37,7 +37,7 @@ from .forms import (
     WorkflowActionForm,
     WorkflowStartForm,
 )
-from .models import AuditEvent, Counterparty, Department, Document, DocumentActivity, DocumentExchange, DocumentRelation, DocumentType, DocumentVersion, ExchangeEvent, ExtractedField, Folder, ImportBatch, Notification, Organization, ProcessingJob, UsageEvent, WebhookDelivery, WorkflowInstance
+from .models import AuditEvent, Counterparty, Department, Document, DocumentActivity, DocumentExchange, DocumentRelation, DocumentType, DocumentVersion, ExchangeEvent, ExtractedField, Folder, ImportBatch, Notification, Organization, Plan, ProcessingJob, Subscription, UsageEvent, WebhookDelivery, WorkflowInstance
 from dms.services.ai_parser import parse_document
 from dms.services.archive_intelligence import (
     build_card_quality,
@@ -49,6 +49,7 @@ from dms.services.document_indexing import delete_document_from_index, index_doc
 from dms.services.audit import record_audit_event
 from dms.services.ai_processing import apply_confirmed_fields, run_document_ai_processing
 from dms.services.analytics import build_organization_metrics, build_platform_metrics, parse_date_range
+from dms.services.billing import change_subscription_plan, get_billing_overview, get_usage_vs_limits
 from dms.services.document_creation import create_document_from_uploaded_file
 from dms.services.document_relations import (
     can_manage_document_relations,
@@ -617,6 +618,94 @@ def usage_dashboard(request):
             "usage_events": usage_events,
             "usage_summary": usage_summary,
             "webhook_deliveries": webhook_deliveries,
+        },
+    )
+
+
+@login_required
+def billing_dashboard(request):
+    if not request.user.is_superuser and request.user.role != "ADMIN":
+        return HttpResponseForbidden("Billing is available to organization admins.")
+
+    if request.user.is_superuser:
+        allowed_organizations = Organization.objects.filter(is_active=True).order_by("name", "id")
+    else:
+        allowed_organizations = get_user_organizations(request.user).order_by("name", "id")
+
+    selected_organization_id = request.POST.get("organization") or request.GET.get("organization")
+    if selected_organization_id:
+        selected_organization = get_object_or_404(allowed_organizations, id=selected_organization_id)
+    else:
+        selected_organization = allowed_organizations.first()
+
+    if selected_organization is None:
+        return HttpResponseForbidden("No organization available.")
+
+    if request.method == "POST":
+        if not request.user.is_superuser:
+            return HttpResponseForbidden("Only superuser can change subscription plan.")
+        plan = get_object_or_404(Plan.objects.filter(is_active=True), code=request.POST.get("plan_code", ""))
+        status = request.POST.get("status") or Subscription.Status.ACTIVE
+        try:
+            change_subscription_plan(
+                organization=selected_organization,
+                plan=plan,
+                status=status,
+                changed_by=request.user,
+                reason=request.POST.get("reason", ""),
+                request=request,
+            )
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, "Subscription plan changed.")
+        return redirect(f"{reverse('dms:billing_dashboard')}?organization={selected_organization.id}")
+
+    overview = get_billing_overview(selected_organization)
+    plans = Plan.objects.filter(is_active=True).order_by("name")
+    status_choices = Subscription.Status.choices
+    return render(
+        request,
+        "dms/billing_dashboard.html",
+        {
+            "allowed_organizations": allowed_organizations,
+            "selected_organization": selected_organization,
+            "overview": overview,
+            "plans": plans,
+            "status_choices": status_choices,
+            "is_platform_admin": request.user.is_superuser,
+        },
+    )
+
+
+@login_required
+def billing_usage_limits(request):
+    if not request.user.is_superuser and request.user.role != "ADMIN":
+        return HttpResponseForbidden("Billing usage is available to organization admins.")
+
+    if request.user.is_superuser:
+        allowed_organizations = Organization.objects.filter(is_active=True).order_by("name", "id")
+    else:
+        allowed_organizations = get_user_organizations(request.user).order_by("name", "id")
+
+    selected_organization_id = request.GET.get("organization")
+    if selected_organization_id:
+        selected_organization = get_object_or_404(allowed_organizations, id=selected_organization_id)
+    else:
+        selected_organization = allowed_organizations.first()
+
+    if selected_organization is None:
+        return HttpResponseForbidden("No organization available.")
+
+    report = get_usage_vs_limits(selected_organization)
+    return render(
+        request,
+        "dms/billing_usage_limits.html",
+        {
+            "allowed_organizations": allowed_organizations,
+            "selected_organization": selected_organization,
+            "report": report,
+            "is_platform_admin": request.user.is_superuser,
         },
     )
 

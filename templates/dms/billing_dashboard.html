@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Billing{% endblock %}
+
+{% block content %}
+<style>
+  .billing-top { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin:10px 0 18px; }
+  .billing-title { margin:0; font-size:32px; font-weight:900; }
+  .billing-sub { margin-top:8px; color:var(--muted); font-weight:650; line-height:1.6; }
+  .billing-grid { display:grid; grid-template-columns:1.1fr .9fr; gap:18px; align-items:start; }
+  .billing-cards { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin-bottom:18px; }
+  .billing-card { border:1px solid rgba(148,163,184,.22); border-radius:12px; padding:15px; background:#fff; }
+  .billing-label { color:rgba(15,23,42,.58); font-size:12px; font-weight:800; text-transform:uppercase; }
+  .billing-value { margin-top:8px; font-size:24px; font-weight:900; }
+  .billing-row { padding:13px 0; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; gap:14px; }
+  .billing-row:last-child { border-bottom:0; }
+  .billing-main { font-weight:850; }
+  .billing-meta { color:var(--muted); font-size:13px; font-weight:700; margin-top:4px; }
+  .billing-warning { color:#b45309; }
+  .billing-exceeded { color:#b91c1c; }
+  .billing-ok { color:#166534; }
+  .billing-form { display:grid; gap:12px; }
+  @media(max-width:900px){ .billing-top,.billing-grid{display:grid; grid-template-columns:1fr;} .billing-cards{grid-template-columns:1fr;} }
+</style>
+
+<div class="billing-top">
+  <div>
+    <h1 class="billing-title">Billing</h1>
+    <div class="billing-sub">Commercial model overview for {{ selected_organization.name }}. Billing is report-only; no payments, invoices, or hard blocking are enabled.</div>
+  </div>
+  <div class="top-actions">
+    <a class="btn btn-ghost" href="{% url 'dms:billing_usage_limits' %}?organization={{ selected_organization.id }}">Usage limits</a>
+    <a class="btn btn-ghost" href="{% url 'dms:dashboard' %}">Dashboard</a>
+  </div>
+</div>
+
+{% if allowed_organizations.count > 1 %}
+  <form method="get" class="card" style="padding:16px; margin-bottom:18px;">
+    <label for="organization">Organization</label>
+    <div style="display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:12px;">
+      <select id="organization" name="organization">
+        {% for organization in allowed_organizations %}
+          <option value="{{ organization.id }}" {% if organization.id == selected_organization.id %}selected{% endif %}>{{ organization.name }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-primary" type="submit">Open</button>
+    </div>
+  </form>
+{% endif %}
+
+<div class="billing-cards">
+  <div class="billing-card">
+    <div class="billing-label">Current plan</div>
+    <div class="billing-value">{{ overview.plan.name }}</div>
+  </div>
+  <div class="billing-card">
+    <div class="billing-label">Status</div>
+    <div class="billing-value">{{ overview.subscription.get_status_display }}</div>
+  </div>
+  <div class="billing-card">
+    <div class="billing-label">Warnings</div>
+    <div class="billing-value">{{ overview.warning_count }}</div>
+  </div>
+</div>
+
+<div class="billing-grid">
+  <div class="card" style="padding:20px;">
+    <h2 class="section-title">Usage vs limits</h2>
+    {% for row in overview.usage_report.usage|slice:":8" %}
+      <div class="billing-row">
+        <div>
+          <div class="billing-main">{{ row.event_type }}</div>
+          <div class="billing-meta">{{ row.warning_message }}</div>
+        </div>
+        <div class="billing-main {% if row.warning_level == 'exceeded' %}billing-exceeded{% elif row.warning_level == 'warning' %}billing-warning{% else %}billing-ok{% endif %}">
+          {{ row.used }} / {% if row.is_unlimited %}Unlimited{% else %}{{ row.limit }}{% endif %}
+        </div>
+      </div>
+    {% empty %}
+      <div class="billing-row"><div class="billing-main">No usage events yet</div></div>
+    {% endfor %}
+  </div>
+
+  <div class="card" style="padding:20px;">
+    <h2 class="section-title">Commercial controls</h2>
+    {% if is_platform_admin %}
+      <form method="post" class="billing-form">
+        {% csrf_token %}
+        <input type="hidden" name="organization" value="{{ selected_organization.id }}">
+        <div>
+          <label for="plan_code">Plan</label>
+          <select id="plan_code" name="plan_code">
+            {% for plan in plans %}
+              <option value="{{ plan.code }}" {% if plan.id == overview.plan.id %}selected{% endif %}>{{ plan.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="status">Status</label>
+          <select id="status" name="status">
+            {% for value,label in status_choices %}
+              <option value="{{ value }}" {% if value == overview.subscription.status %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="reason">Internal note</label>
+          <textarea id="reason" name="reason" rows="3" placeholder="Reason for manual change"></textarea>
+        </div>
+        <button class="btn btn-primary" type="submit">Change plan</button>
+      </form>
+    {% else %}
+      <div class="billing-row">
+        <div>
+          <div class="billing-main">Manual changes are platform-admin only</div>
+          <div class="billing-meta">Organization admins can view plan, usage, and soft warnings.</div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="padding:20px; margin-top:18px;">
+  <h2 class="section-title">Subscription history</h2>
+  {% for event in overview.history %}
+    <div class="billing-row">
+      <div>
+        <div class="billing-main">{{ event.event_type }}</div>
+        <div class="billing-meta">{{ event.created_at|date:"d.m.Y H:i" }}{% if event.user %} / {{ event.user.username }}{% endif %}</div>
+      </div>
+      <div class="billing-main">
+        {{ event.metadata.old_plan_code|default:"" }}{% if event.metadata.new_plan_code %} -> {{ event.metadata.new_plan_code }}{% else %}{{ event.metadata.plan_code }}{% endif %}
+      </div>
+    </div>
+  {% empty %}
+    <div class="billing-row"><div class="billing-main">No subscription history yet</div></div>
+  {% endfor %}
+</div>
+{% endblock %}
