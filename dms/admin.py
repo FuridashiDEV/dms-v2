@@ -465,6 +465,17 @@ class WebhookDeliveryAdmin(admin.ModelAdmin):
     search_fields = ("endpoint__name", "endpoint__url", "event_type", "last_error")
     autocomplete_fields = ("organization", "endpoint", "usage_event")
     readonly_fields = ("created_at", "updated_at")
+    actions = ("retry_selected_webhook_deliveries",)
+
+    @admin.action(description="Retry selected webhook deliveries")
+    def retry_selected_webhook_deliveries(self, request, queryset):
+        from dms.services.webhooks import retry_webhook_delivery
+
+        retried = 0
+        for delivery in queryset:
+            retry_webhook_delivery(delivery)
+            retried += 1
+        self.message_user(request, f"Retried {retried} webhook delivery item(s).")
 
 
 @admin.register(IntegrationProvider)
