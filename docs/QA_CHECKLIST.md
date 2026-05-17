@@ -51,6 +51,10 @@ Use this checklist before merging stage branches or preparing a pilot demo.
 - Analytics date filters work.
 - `/health/` returns JSON without secrets.
 - Docker compose config validates with `.env.example`.
+- `validate_production_security` runs before pilot release.
+- `check_pilot_readiness` runs before pilot release and findings are reviewed.
+- Pilot backup and restore have been tested on non-production volumes.
+- Admin and user onboarding are completed with the pilot owner.
 
 ## Manual-Only Checks
 

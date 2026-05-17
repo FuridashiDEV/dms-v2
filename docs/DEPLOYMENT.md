@@ -57,6 +57,8 @@ Uploaded files are stored in the `media_data` volume and are not committed to gi
 ```powershell
 .\\.venv\\Scripts\\python.exe manage.py check
 .\\.venv\\Scripts\\python.exe manage.py makemigrations --check --dry-run
+.\\.venv\\Scripts\\python.exe manage.py validate_production_security
+.\\.venv\\Scripts\\python.exe manage.py check_pilot_readiness
 .\\.venv\\Scripts\\python.exe manage.py test dms --verbosity 1
 ```
 
@@ -127,3 +129,4 @@ docker compose exec web python manage.py check
 - Keep `DJANGO_DEBUG=False` outside local development.
 - Terminate TLS at a reverse proxy and set secure cookie flags for production-like deployments.
 - Keep local media storage until an explicit S3/MinIO decision is made.
+- Use [Production Pilot Runbook](PILOT_RUNBOOK.md) before a customer pilot. It adds pilot-specific onboarding, backup/restore, QA, and rollback steps.

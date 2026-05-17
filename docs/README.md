@@ -23,6 +23,7 @@ This documentation describes the current product state after the staged DMS buil
 
 - [Security Baseline](SECURITY_BASELINE.md) - current hardening baseline and security limitations.
 - [Deployment Runbook](DEPLOYMENT.md) - environment, Docker, health check, backup, restore.
+- [Production Pilot Runbook](PILOT_RUNBOOK.md) - pilot checklist, environment safety, onboarding, backup/restore, rollback.
 - [Testing Guide](TESTING.md) - test runner, test map, commands.
 - [QA Checklist](QA_CHECKLIST.md) - manual and automated verification checklist.
 - [Demo Runbook](DEMO_RUNBOOK.md) - demo-oriented workflow notes.
@@ -30,14 +31,14 @@ This documentation describes the current product state after the staged DMS buil
 
 ## Current Route Map
 
-- Internal app: `/`, `/documents/`, `/documents/upload/`, `/documents/import/`, `/imports/<id>/`, `/folders/`, `/users/`, `/analytics/`, `/usage/`.
+- Internal app: `/`, `/documents/`, `/documents/upload/`, `/documents/import/`, `/imports/<id>/`, `/folders/`, `/users/`, `/analytics/`, `/usage/`, `/billing/`, `/security/`.
 - Document actions: `/documents/<id>/`, `/documents/<id>/edit/`, `/documents/<id>/view/`, `/documents/<id>/download/`, `/documents/<id>/versions/<version_id>/view/`, `/documents/<id>/versions/<version_id>/download/`.
 - AI and search: `/documents/<id>/ai-review/`, `/ai/parse/`, `/search/`.
 - Workflow: `/documents/<id>/workflow/start/`, `/documents/<id>/workflow/<instance_id>/<action>/`.
 - Exchange: `/exchanges/`, `/exchanges/incoming/`, `/documents/<id>/exchanges/send/`, `/exchanges/<exchange_id>/messages/`.
 - External portal: `/portal/exchanges/<token>/`, `/portal/exchanges/<token>/download/`, `/portal/exchanges/<token>/<action>/`.
 - Evidence: `/documents/<id>/evidence/export/`.
-- Platform: `/login/`, `/logout/`, `/admin/`, `/health/`.
+- Platform: `/login/`, `/logout/`, `/admin/`, `/health/`, `/security/audit-export/`.
 
 ## Explicit Non-Claims
 
