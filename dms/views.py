@@ -67,7 +67,7 @@ from dms.services.enterprise_security import (
     user_can_view_security,
 )
 from dms.services.security import protected_file_response
-from dms.services.search_intelligence import build_search_query, score_document_for_query
+from dms.services.search_intelligence import build_search_query
 from dms.services.search_experience import (
     SEARCH_MODE_EXACT,
     SEARCH_MODE_HYBRID,
@@ -79,6 +79,7 @@ from dms.services.search_experience import (
     matched_entities_for_document,
     normalize_search_mode,
 )
+from dms.services.reranking import fuse_candidates, rank_documents_for_search
 from dms.services.usage import record_usage_event
 from dms.services.counterparty import (
     ExchangeError,
@@ -923,10 +924,30 @@ def document_list(request):
 
     if q:
         search_query = build_search_query(q)
-        query_tokens = search_query.tokens
         lexical_filter = build_lexical_filter(q, search_query)
         lexical_qs = base_qs.filter(lexical_filter).order_by("-doc_date", "-created_at")
         fallback_lexical_ids = list(lexical_qs.values_list("id", flat=True)[:120])
+        exact_ids = list(
+            base_qs.filter(
+                Q(title__iexact=q)
+                | Q(source_file_name__iexact=q)
+            ).values_list("id", flat=True)[:40]
+        )
+        entity_filter = Q()
+        for key in ("document_type", "counterparty", "subject", "document_number", "document_date", "bin_iin", "contract_reference"):
+            value = search_query.entities.get(key)
+            if value:
+                entity_filter |= Q(**{f"search_entities__{key}__icontains": value})
+        amount_value = (search_query.entities.get("amount") or {}).get("value")
+        if amount_value:
+            entity_filter |= Q(search_entities__amount__value=amount_value)
+        entity_ids = list(base_qs.filter(entity_filter).values_list("id", flat=True)[:80]) if entity_filter else []
+        alias_filter = Q()
+        for values in search_query.aliases.values():
+            for value in values[:12]:
+                if value and len(str(value)) > 1:
+                    alias_filter |= Q(search_text_normalized__icontains=str(value))
+        alias_ids = list(base_qs.filter(alias_filter).values_list("id", flat=True)[:80]) if alias_filter else []
 
         if requested_search_mode in {SEARCH_MODE_HYBRID, SEARCH_MODE_EXACT}:
             lexical_ids = fallback_lexical_ids
@@ -964,39 +985,52 @@ def document_list(request):
         if requested_search_mode == SEARCH_MODE_SEMANTIC and not semantic_ids:
             lexical_ids = fallback_lexical_ids
 
-        combined_ids: list[int] = []
-        for doc_id in lexical_ids + semantic_ids:
-            if doc_id not in combined_ids:
-                combined_ids.append(doc_id)
+        seed_ids = list(dict.fromkeys([*exact_ids, *entity_ids, *lexical_ids, *alias_ids, *semantic_ids]))
+        related_ids: list[int] = []
+        if seed_ids:
+            relation_rows = (
+                DocumentRelation.objects
+                .filter(Q(from_document_id__in=seed_ids) | Q(to_document_id__in=seed_ids))
+                .values_list("from_document_id", "to_document_id")[:120]
+            )
+            related_candidates = []
+            seed_set = set(seed_ids)
+            for from_id, to_id in relation_rows:
+                if from_id in seed_set and to_id not in seed_set:
+                    related_candidates.append(to_id)
+                elif to_id in seed_set and from_id not in seed_set:
+                    related_candidates.append(from_id)
+            if related_candidates:
+                related_ids = list(
+                    base_qs.filter(id__in=list(dict.fromkeys(related_candidates)))
+                    .values_list("id", flat=True)[:40]
+                )
+
+        fused_candidates = fuse_candidates(
+            exact_ids=exact_ids,
+            entity_ids=entity_ids,
+            text_ids=lexical_ids,
+            alias_ids=alias_ids,
+            vector_scores=semantic_score_map,
+            related_ids=related_ids,
+        )
+        combined_ids = list(fused_candidates.keys())
 
         if combined_ids:
             candidate_docs = list(base_qs.filter(id__in=combined_ids))
-            ranked_docs: list[tuple[float, object]] = []
-            for doc in candidate_docs:
-                semantic_score = semantic_score_map.get(doc.id, 0.0)
-                combined_score, reasons = score_document_for_query(
-                    doc,
-                    search_query,
-                    semantic_score=semantic_score,
-                )
-                if semantic_score < 0.2 and combined_score < 0.18:
-                    continue
-
-                if len(query_tokens) >= 2 and combined_score < 0.24:
-                    continue
-
-                doc.search_explanation = reasons or ["matched available document text"]
-                ranked_docs.append((combined_score, doc))
-
-            ranked_docs.sort(
-                key=lambda item: (
-                    item[0],
-                    item[1].doc_date or date.min,
-                    item[1].created_at,
-                ),
-                reverse=True,
+            ranked_results = rank_documents_for_search(
+                documents=candidate_docs,
+                search_query=search_query,
+                fused_candidates=fused_candidates,
             )
-            documents = [doc for _, doc in ranked_docs[:80]]
+            documents = []
+            for result in ranked_results[:80]:
+                doc = result.document
+                doc.search_explanation = result.reasons or ["matched available document text"]
+                doc.search_confidence = result.confidence
+                doc.search_final_score = result.final_score
+                doc.search_candidate_sources = result.sources
+                documents.append(doc)
         else:
             documents = []
 
