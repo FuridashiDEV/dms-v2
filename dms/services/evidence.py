@@ -22,7 +22,20 @@ from dms.models import (
 from dms.utils import get_allowed_documents
 
 
-SENSITIVE_KEY_PARTS = ("token", "secret", "api_key", "apikey", "password", "private_key", "portal_url")
+SENSITIVE_KEY_PARTS = (
+    "token",
+    "secret",
+    "api_key",
+    "apikey",
+    "password",
+    "private_key",
+    "portal_url",
+    "file_path",
+    "filepath",
+    "server_path",
+    "absolute_path",
+    "storage_path",
+)
 
 
 def _dt(value) -> str | None:

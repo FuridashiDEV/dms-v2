@@ -233,3 +233,55 @@ class LegalEvidencePackageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         raw_payload = response.content.decode("utf-8")
         self.assertNotIn("foreign org row", raw_payload)
+
+    def test_authorized_user_can_open_human_readable_evidence_report(self):
+        self._create_related_evidence_data()
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("dms:document_evidence_report", args=[self.document.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Evidence report")
+        self.assertContains(response, "Document")
+        self.assertContains(response, "Versions")
+        self.assertContains(response, "AI Fields")
+        self.assertContains(response, "Workflow")
+        self.assertContains(response, "Exchanges and Messages")
+        self.assertContains(response, "Audit Events")
+        self.assertContains(response, "Timeline")
+        self.assertContains(response, "Report Checksum")
+        self.assertContains(response, "abc123")
+
+    def test_outsider_cannot_open_human_readable_evidence_report(self):
+        self.client.force_login(self.outsider)
+
+        response = self.client.get(reverse("dms:document_evidence_report", args=[self.document.id]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_human_readable_evidence_report_redacts_sensitive_values(self):
+        self._create_related_evidence_data()
+        AuditEvent.objects.create(
+            organization=self.department.organization,
+            user=self.user,
+            document=self.document,
+            event_type=AuditEvent.EventType.DOCUMENT_VIEWED,
+            metadata={
+                "server_path": "C:/private/storage/evidence.txt",
+                "webhook_secret": "whsec_hidden",
+                "visible_note": "human report note",
+            },
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("dms:document_evidence_report", args=[self.document.id]))
+
+        self.assertEqual(response.status_code, 200)
+        raw_report = response.content.decode("utf-8")
+        self.assertIn("human report note", raw_report)
+        self.assertNotIn("super-secret-token", raw_report)
+        self.assertNotIn("should-not-export-token-hash", raw_report)
+        self.assertNotIn("token_hint", raw_report)
+        self.assertNotIn("token_hash", raw_report)
+        self.assertNotIn("whsec_hidden", raw_report)
+        self.assertNotIn("C:/private/storage", raw_report)

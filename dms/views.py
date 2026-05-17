@@ -57,6 +57,7 @@ from dms.services.document_relations import (
     get_visible_document_relations,
 )
 from dms.services.evidence import build_document_evidence_package
+from dms.services.evidence_report import build_evidence_report_context
 from dms.services.security import protected_file_response
 from dms.services.search_intelligence import build_search_query, score_document_for_query
 from dms.services.search_experience import (
@@ -1686,6 +1687,48 @@ def document_evidence_export(request, pk):
     )
     response = JsonResponse(package, json_dumps_params={"indent": 2})
     response["Content-Disposition"] = f'attachment; filename="document-{doc.id}-evidence.json"'
+    return response
+
+
+@login_required
+def document_evidence_report(request, pk):
+    doc = get_object_or_404(
+        get_allowed_documents(request.user).select_related("organization", "department", "uploaded_by"),
+        pk=pk,
+    )
+    if not user_can_access_document(request.user, doc):
+        return HttpResponseForbidden("Нет доступа к документу")
+
+    package = build_document_evidence_package(document=doc, exported_by=request.user)
+    report_context = build_evidence_report_context(package)
+    record_audit_event(
+        event_type=AuditEvent.EventType.DOCUMENT_DOWNLOADED,
+        request=request,
+        user=request.user,
+        document=doc,
+        organization=doc.organization,
+        metadata={
+            "evidence_exported": True,
+            "evidence_event_name": "evidence.report_viewed",
+            "evidence_schema": package["schema"]["name"],
+            "evidence_schema_version": package["schema"]["version"],
+            "evidence_format": "html",
+            "report_checksum_sha256": report_context["report_checksum_sha256"],
+        },
+    )
+    record_usage_event(
+        event_type=UsageEvent.EventType.EVIDENCE_EXPORTED,
+        user=request.user,
+        document=doc,
+        source="evidence_report",
+        metadata={
+            "evidence_schema": package["schema"]["name"],
+            "evidence_schema_version": package["schema"]["version"],
+            "evidence_format": "html",
+        },
+    )
+    response = render(request, "dms/evidence_report.html", report_context)
+    response["Content-Disposition"] = f'inline; filename="document-{doc.id}-evidence-report.html"'
     return response
 
 

@@ -21,6 +21,7 @@ urlpatterns = [
         views.document_relation_delete,
         name="document_relation_delete",
     ),
+    path("documents/<int:pk>/evidence/report/", views.document_evidence_report, name="document_evidence_report"),
     path("documents/<int:pk>/evidence/export/", views.document_evidence_export, name="document_evidence_export"),
     path("documents/upload/", views.document_upload, name="document_upload"),
     path("documents/import/", views.document_import, name="document_import"),

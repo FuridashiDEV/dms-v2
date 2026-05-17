@@ -41,6 +41,7 @@
     <a class="btn btn-primary" href="{% url 'dms:document_edit' doc.id %}">Изменить</a>
     <a class="btn btn-ghost" href="{% url 'dms:document_view' doc.id %}" target="_blank">Открыть файл</a>
     <a class="btn btn-ghost" href="{% url 'dms:document_download' doc.id %}">Скачать</a>
+    <a class="btn btn-ghost" href="{% url 'dms:document_evidence_report' doc.id %}">Evidence report</a>
     <a class="btn btn-ghost" href="{% url 'dms:document_evidence_export' doc.id %}">Evidence JSON</a>
     {% if latest_processing_job and can_validate_ai %}
       <a class="btn btn-ghost" href="{% url 'dms:document_ai_review' doc.id %}">Проверить AI-поля</a>
