@@ -29,6 +29,7 @@ from .models import (
     Plan,
     PlanQuota,
     ProcessingJob,
+    ProcessingProfile,
     Subscription,
     UsageEvent,
     User,
@@ -203,15 +204,50 @@ class ProcessingJobAdmin(admin.ModelAdmin):
         "created_at",
         "document",
         "organization",
+        "profile",
+        "pipeline_stage",
         "status",
         "source",
+        "attempt_count",
+        "priority",
         "created_by",
         "completed_at",
     )
-    list_filter = ("status", "source", "organization", "created_at")
-    search_fields = ("document__title", "created_by__username", "error_message")
-    readonly_fields = ("raw_result", "error_message", "created_at", "started_at", "completed_at")
-    autocomplete_fields = ("organization", "document", "created_by")
+    list_filter = ("status", "pipeline_stage", "source", "profile", "organization", "created_at")
+    search_fields = (
+        "document__title",
+        "created_by__username",
+        "error_message",
+        "idempotency_key",
+    )
+    exclude = ("lock_token",)
+    readonly_fields = (
+        "raw_result",
+        "center_metadata",
+        "error_message",
+        "created_at",
+        "started_at",
+        "completed_at",
+        "locked_at",
+    )
+    autocomplete_fields = ("organization", "document", "created_by", "profile", "parent_job")
+
+
+@admin.register(ProcessingProfile)
+class ProcessingProfileAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "code",
+        "organization",
+        "is_active",
+        "max_concurrent_jobs",
+        "max_attempts",
+        "updated_at",
+    )
+    list_filter = ("is_active", "organization")
+    search_fields = ("name", "code", "description", "organization__name")
+    readonly_fields = ("created_at", "updated_at")
+    autocomplete_fields = ("organization",)
 
 
 @admin.register(ExtractedField)

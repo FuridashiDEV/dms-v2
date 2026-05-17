@@ -1383,6 +1383,58 @@ class ExternalReference(models.Model):
         return f"{self.external_id} -> {self.document}"
 
 
+class ProcessingProfile(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="processing_profiles",
+        verbose_name=_("Organization"),
+        help_text=_("Empty organization means a global reusable profile."),
+    )
+    name = models.CharField(_("Name"), max_length=120)
+    code = models.SlugField(_("Code"), max_length=80)
+    description = models.TextField(_("Description"), blank=True, default="")
+    is_active = models.BooleanField(_("Active"), default=True)
+    max_concurrent_jobs = models.PositiveIntegerField(_("Max concurrent jobs"), default=2)
+    max_attempts = models.PositiveIntegerField(_("Max attempts"), default=3)
+    retry_backoff_seconds = models.PositiveIntegerField(_("Retry backoff seconds"), default=300)
+    allowed_stages = models.JSONField(_("Allowed stages"), default=list, blank=True)
+    config = models.JSONField(_("Config"), default=dict, blank=True, validators=[validate_no_plaintext_secrets])
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Processing profile")
+        verbose_name_plural = _("Processing profiles")
+        ordering = ["organization__name", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "code"],
+                name="unique_processing_profile_code_per_org",
+            ),
+            models.UniqueConstraint(
+                fields=["code"],
+                condition=models.Q(organization__isnull=True),
+                name="unique_global_processing_profile_code",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "is_active"]),
+            models.Index(fields=["code", "is_active"]),
+        ]
+
+    def clean(self):
+        super().clean()
+        validate_no_plaintext_secrets(self.config)
+
+    def __str__(self) -> str:
+        if self.organization_id:
+            return f"{self.name} / {self.organization}"
+        return f"{self.name} / global"
+
+
 class ProcessingJob(models.Model):
     class Status(models.TextChoices):
         PENDING = "PENDING", _("Ожидает обработки")
@@ -1394,6 +1446,18 @@ class ProcessingJob(models.Model):
     class Source(models.TextChoices):
         UPLOAD = "UPLOAD", _("Загрузка документа")
         MANUAL = "MANUAL", _("Ручной запуск")
+
+    class Stage(models.TextChoices):
+        AI_PARSE = "AI_PARSE", _("AI parse")
+        OCR = "OCR", _("OCR")
+        TEXT_EXTRACTION = "TEXT_EXTRACTION", _("Text extraction")
+        ENTITY_EXTRACTION = "ENTITY_EXTRACTION", _("Entity extraction")
+        CHUNKING = "CHUNKING", _("Chunking")
+        EMBEDDING = "EMBEDDING", _("Embedding")
+        RERANKING = "RERANKING", _("Reranking")
+        REINDEX = "REINDEX", _("Reindex")
+        FAN_OUT = "FAN_OUT", _("Fan out")
+        FAN_IN = "FAN_IN", _("Fan in")
 
     organization = models.ForeignKey(
         Organization,
@@ -1415,6 +1479,22 @@ class ProcessingJob(models.Model):
         related_name="created_processing_jobs",
         verbose_name=_("Инициатор"),
     )
+    profile = models.ForeignKey(
+        ProcessingProfile,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="jobs",
+        verbose_name=_("Processing profile"),
+    )
+    parent_job = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="child_jobs",
+        verbose_name=_("Parent processing job"),
+    )
     status = models.CharField(
         _("Статус"),
         max_length=20,
@@ -1428,9 +1508,30 @@ class ProcessingJob(models.Model):
         choices=Source.choices,
         default=Source.MANUAL,
     )
+    pipeline_stage = models.CharField(
+        _("Pipeline stage"),
+        max_length=40,
+        choices=Stage.choices,
+        default=Stage.AI_PARSE,
+        db_index=True,
+    )
+    priority = models.PositiveSmallIntegerField(_("Priority"), default=5, db_index=True)
     parser_name = models.CharField(_("Parser"), max_length=100, default="ai_parser.parse_document")
     extracted_text_length = models.PositiveIntegerField(_("Длина извлеченного текста"), default=0)
     raw_result = models.JSONField(_("Raw AI result"), default=dict, blank=True)
+    attempt_count = models.PositiveIntegerField(_("Attempt count"), default=0)
+    max_attempts = models.PositiveIntegerField(_("Max attempts"), default=3)
+    scheduled_at = models.DateTimeField(_("Scheduled at"), default=timezone.now, db_index=True)
+    next_retry_at = models.DateTimeField(_("Next retry at"), null=True, blank=True, db_index=True)
+    locked_at = models.DateTimeField(_("Locked at"), null=True, blank=True)
+    lock_token = models.CharField(_("Lock token"), max_length=64, blank=True, default="", db_index=True)
+    idempotency_key = models.CharField(_("Idempotency key"), max_length=120, blank=True, default="", db_index=True)
+    center_metadata = models.JSONField(
+        _("Processing center metadata"),
+        default=dict,
+        blank=True,
+        validators=[validate_no_plaintext_secrets],
+    )
     error_message = models.TextField(_("Ошибка"), blank=True, default="")
     created_at = models.DateTimeField(_("Дата создания"), auto_now_add=True)
     started_at = models.DateTimeField(_("Дата старта"), null=True, blank=True)
@@ -1444,7 +1545,22 @@ class ProcessingJob(models.Model):
             models.Index(fields=["organization", "-created_at"]),
             models.Index(fields=["document", "-created_at"]),
             models.Index(fields=["status", "-created_at"]),
+            models.Index(fields=["status", "scheduled_at", "priority"]),
+            models.Index(fields=["pipeline_stage", "status"]),
+            models.Index(fields=["parent_job", "status"]),
         ]
+
+    @property
+    def can_retry(self) -> bool:
+        return self.attempt_count < self.max_attempts
+
+    def clean(self):
+        super().clean()
+        if self.profile_id and self.organization_id and self.profile.organization_id not in (None, self.organization_id):
+            raise ValidationError("Processing profile organization must match job organization or be global.")
+        if self.parent_job_id and self.organization_id and self.parent_job.organization_id != self.organization_id:
+            raise ValidationError("Parent processing job organization must match child job organization.")
+        validate_no_plaintext_secrets(self.center_metadata)
 
     def __str__(self) -> str:
         return f"{self.document} / {self.status}"
