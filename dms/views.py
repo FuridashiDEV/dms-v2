@@ -54,6 +54,7 @@ from dms.services.analytics import (
     parse_date_range,
 )
 from dms.services.billing import change_subscription_plan, get_billing_overview, get_usage_vs_limits
+from dms.services.cost_optimization import build_cost_dashboard_report
 from dms.services.document_creation import create_document_from_uploaded_file
 from dms.services.document_relations import (
     build_document_relation_graph,
@@ -741,6 +742,37 @@ def billing_usage_limits(request):
             "allowed_organizations": allowed_organizations,
             "selected_organization": selected_organization,
             "report": report,
+            "is_platform_admin": request.user.is_superuser,
+        },
+    )
+
+
+@login_required
+def cost_optimization_dashboard(request):
+    if not request.user.is_superuser and request.user.role != "ADMIN":
+        return HttpResponseForbidden("Cost optimization is available to organization admins.")
+
+    if request.user.is_superuser:
+        allowed_organizations = Organization.objects.filter(is_active=True).order_by("name", "id")
+    else:
+        allowed_organizations = get_user_organizations(request.user).order_by("name", "id")
+
+    selected_organization_id = request.GET.get("organization")
+    if selected_organization_id:
+        selected_organization = get_object_or_404(allowed_organizations, id=selected_organization_id)
+    else:
+        selected_organization = allowed_organizations.first()
+
+    if selected_organization is None:
+        return HttpResponseForbidden("No organization available.")
+
+    return render(
+        request,
+        "dms/cost_optimization_dashboard.html",
+        {
+            "allowed_organizations": allowed_organizations,
+            "selected_organization": selected_organization,
+            "report": build_cost_dashboard_report(selected_organization),
             "is_platform_admin": request.user.is_superuser,
         },
     )

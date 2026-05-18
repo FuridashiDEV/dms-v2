@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Cost optimization{% endblock %}
+
+{% block content %}
+<style>
+  .cost-top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin:10px 0 18px}
+  .cost-title{margin:0;font-size:32px;font-weight:900}
+  .cost-sub{margin-top:8px;color:var(--muted);font-weight:650;line-height:1.6}
+  .cost-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
+  .cost-card{padding:18px;border:1px solid var(--border);border-radius:16px;background:#fff}
+  .cost-label{font-size:12px;text-transform:uppercase;color:var(--muted);font-weight:900}
+  .cost-value{margin-top:8px;font-size:26px;font-weight:950}
+  .cost-table{width:100%;border-collapse:collapse}
+  .cost-table th,.cost-table td{padding:12px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+  .cost-table th{font-size:12px;text-transform:uppercase;color:var(--muted);font-weight:900}
+  .cost-badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px;font-weight:900}
+  .cost-muted{color:var(--muted);font-size:13px;font-weight:650}
+  @media(max-width:900px){.cost-top{display:grid}.cost-grid{grid-template-columns:1fr 1fr}.cost-table{font-size:13px}}
+  @media(max-width:560px){.cost-grid{grid-template-columns:1fr}}
+</style>
+
+<div class="cost-top">
+  <div>
+    <h1 class="cost-title">Cost optimization</h1>
+    <div class="cost-sub">Report-only control layer for AI, OCR, embeddings and GPU-heavy processing for {{ selected_organization.name }}. Policies warn and route work; they do not hard-block customers.</div>
+  </div>
+  <div class="top-actions">
+    <a class="btn btn-ghost" href="{% url 'dms:billing_usage_limits' %}?organization={{ selected_organization.id }}">Usage limits</a>
+    <a class="btn btn-ghost" href="{% url 'dms:dashboard' %}">Dashboard</a>
+  </div>
+</div>
+
+{% if allowed_organizations.count > 1 %}
+  <form method="get" class="card" style="padding:16px;margin-bottom:18px;">
+    <label for="organization">Organization</label>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;">
+      <select id="organization" name="organization">
+        {% for organization in allowed_organizations %}
+          <option value="{{ organization.id }}" {% if organization.id == selected_organization.id %}selected{% endif %}>{{ organization.name }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-primary" type="submit">Open</button>
+    </div>
+  </form>
+{% endif %}
+
+<div class="cost-grid">
+  <div class="cost-card"><div class="cost-label">Estimated cost</div><div class="cost-value">{{ report.total_cost_units|floatformat:2 }}</div><div class="cost-muted">cost units this month</div></div>
+  <div class="cost-card"><div class="cost-label">AI documents</div><div class="cost-value">{{ report.total_documents }}</div><div class="cost-muted">estimated documents</div></div>
+  <div class="cost-card"><div class="cost-label">OCR volume</div><div class="cost-value">{{ report.ocr_pages }}</div><div class="cost-muted">pages routed to OCR</div></div>
+  <div class="cost-card"><div class="cost-label">Embeddings</div><div class="cost-value">{{ report.total_chunks }}</div><div class="cost-muted">chunks estimated</div></div>
+</div>
+
+<div class="card" style="padding:20px;margin-bottom:18px;">
+  <h2 style="margin-top:0;">Policy mix</h2>
+  <table class="cost-table">
+    <thead><tr><th>Policy</th><th>Jobs</th><th>Cost units</th><th>Pages</th><th>Chunks</th></tr></thead>
+    <tbody>
+      {% for row in report.by_policy %}
+        <tr>
+          <td><span class="cost-badge">{{ row.recommended_policy|default:"none" }}</span></td>
+          <td>{{ row.count }}</td>
+          <td>{{ row.cost_units|floatformat:2 }}</td>
+          <td>{{ row.pages|default:0 }}</td>
+          <td>{{ row.chunks|default:0 }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="cost-muted">No cost estimates yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="padding:20px;margin-bottom:18px;">
+  <h2 style="margin-top:0;">Quota foundation</h2>
+  <table class="cost-table">
+    <thead><tr><th>Quota</th><th>Used</th><th>Projected</th><th>Limit</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for row in report.quota_snapshot.rows %}
+        <tr>
+          <td>{{ row.quota_type }}</td>
+          <td>{{ row.used }}</td>
+          <td>{{ row.projected_total }}</td>
+          <td>{% if row.limit == None %}Unlimited{% else %}{{ row.limit }}{% endif %}</td>
+          <td><span class="cost-badge">{{ row.warning_level }}</span></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="cost-muted">No quota rows yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="padding:20px;margin-bottom:18px;">
+  <h2 style="margin-top:0;">Backlog by cost</h2>
+  <table class="cost-table">
+    <thead><tr><th>Document</th><th>Stage</th><th>Policy</th><th>Cost units</th></tr></thead>
+    <tbody>
+      {% for row in report.backlog_by_cost %}
+        <tr>
+          <td>{% if row.document %}{{ row.document.title }}{% else %}No document{% endif %}</td>
+          <td>{{ row.pipeline_stage }}</td>
+          <td>{{ row.policy|default:"not estimated" }}</td>
+          <td>{{ row.estimated_cost_units|floatformat:2 }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="cost-muted">No pending processing backlog.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="padding:20px;">
+  <h2 style="margin-top:0;">Policies</h2>
+  <table class="cost-table">
+    <thead><tr><th>Policy</th><th>Max cost</th><th>Delay</th><th>OCR</th><th>GPU</th></tr></thead>
+    <tbody>
+      {% for policy in report.policies %}
+        <tr>
+          <td>{{ policy.name }}<div class="cost-muted">{{ policy.policy_type }}</div></td>
+          <td>{{ policy.max_cost_units|floatformat:2 }}</td>
+          <td>{{ policy.schedule_delay_minutes }} min</td>
+          <td>{{ policy.ocr_allowed|yesno:"allowed,off" }}</td>
+          <td>{{ policy.gpu_allowed|yesno:"allowed,off" }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

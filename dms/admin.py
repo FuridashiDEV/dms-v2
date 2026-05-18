@@ -31,6 +31,9 @@ from .models import (
     OrganizationMember,
     Plan,
     PlanQuota,
+    ProcessingCostEstimate,
+    ProcessingCostPolicy,
+    ProcessingCostQuota,
     ProcessingJob,
     ProcessingProfile,
     SearchIndexVersion,
@@ -328,6 +331,33 @@ class ProcessingProfileAdmin(admin.ModelAdmin):
     )
     list_filter = ("is_active", "organization")
     search_fields = ("name", "code", "description", "organization__name")
+    readonly_fields = ("created_at", "updated_at")
+    autocomplete_fields = ("organization",)
+
+
+@admin.register(ProcessingCostPolicy)
+class ProcessingCostPolicyAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "organization", "policy_type", "max_cost_units", "schedule_delay_minutes", "priority", "is_active")
+    list_filter = ("policy_type", "is_active", "organization", "ocr_allowed", "gpu_allowed")
+    search_fields = ("name", "code", "organization__name")
+    readonly_fields = ("created_at", "updated_at")
+    autocomplete_fields = ("organization",)
+
+
+@admin.register(ProcessingCostEstimate)
+class ProcessingCostEstimateAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "organization", "document", "processing_job", "recommended_policy", "estimated_cost_units", "ocr_needed", "page_count", "chunks_count")
+    list_filter = ("recommended_policy", "ocr_needed", "organization", "created_at")
+    search_fields = ("document__title", "embedding_model", "route_reason")
+    readonly_fields = ("created_at", "quota_snapshot")
+    autocomplete_fields = ("organization", "document", "processing_job", "policy")
+
+
+@admin.register(ProcessingCostQuota)
+class ProcessingCostQuotaAdmin(admin.ModelAdmin):
+    list_display = ("organization", "quota_type", "monthly_limit", "warning_percent", "is_unlimited", "is_active")
+    list_filter = ("quota_type", "is_unlimited", "is_active", "organization")
+    search_fields = ("organization__name", "quota_type")
     readonly_fields = ("created_at", "updated_at")
     autocomplete_fields = ("organization",)
 

@@ -153,6 +153,28 @@ def enqueue_processing_job(
         idempotency_key=idempotency_key[:120],
         center_metadata=center_metadata,
     )
+    try:
+        from dms.services.cost_optimization import create_processing_cost_estimate
+
+        estimate = create_processing_cost_estimate(
+            document=document,
+            processing_job=job,
+            requested_ocr=stage == ProcessingJob.Stage.OCR,
+            priority=priority <= 2,
+        )
+        job.center_metadata = {
+            **(job.center_metadata or {}),
+            "cost_estimate": {
+                "id": estimate.id,
+                "estimated_cost_units": str(estimate.estimated_cost_units),
+                "recommended_policy": estimate.recommended_policy,
+                "route_reason": estimate.route_reason,
+                "hard_enforcement": False,
+            },
+        }
+        job.save(update_fields=["center_metadata"])
+    except Exception:
+        pass
     _record_processing_event("processing.job_queued", job, user=user)
     return job
 

@@ -1152,6 +1152,11 @@ class UsageEvent(models.Model):
         INTEGRATION_CONNECTION_CREATED = "integration.connection_created", _("Integration connection created")
         INTEGRATION_SYNC_JOB_CREATED = "integration.sync_job_created", _("Integration sync job created")
         EXTERNAL_REFERENCE_LINKED = "integration.external_reference_linked", _("External reference linked")
+        AI_DOCUMENT_PROCESSED = "ai.document_processed", _("AI document processed")
+        OCR_PAGE_PROCESSED = "ocr.page_processed", _("OCR page processed")
+        EMBEDDING_CHUNK_PROCESSED = "embedding.chunk_processed", _("Embedding chunk processed")
+        RERANK_REQUEST = "search.rerank_request", _("Search rerank request")
+        AI_COST_UNIT = "ai.cost_unit", _("AI cost unit")
 
     organization = models.ForeignKey(
         Organization,
@@ -1769,6 +1774,161 @@ class ProcessingProfile(models.Model):
         if self.organization_id:
             return f"{self.name} / {self.organization}"
         return f"{self.name} / global"
+
+
+class ProcessingCostPolicy(models.Model):
+    class PolicyType(models.TextChoices):
+        IMMEDIATE = "immediate", _("Immediate")
+        BATCH_30_MIN = "batch_30_min", _("Batch 30 min")
+        HOURLY = "hourly", _("Hourly")
+        NIGHTLY = "nightly", _("Nightly")
+        MANUAL = "manual", _("Manual")
+        ARCHIVE_ONLY = "archive_only", _("Archive only")
+        PRIORITY = "priority", _("Priority")
+
+    organization = models.ForeignKey(
+        Organization,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="processing_cost_policies",
+        verbose_name=_("Organization"),
+        help_text=_("Empty organization means global reusable policy."),
+    )
+    name = models.CharField(_("Name"), max_length=120)
+    code = models.SlugField(_("Code"), max_length=80)
+    policy_type = models.CharField(_("Policy type"), max_length=30, choices=PolicyType.choices, db_index=True)
+    max_cost_units = models.DecimalField(_("Max cost units"), max_digits=12, decimal_places=2, default=0)
+    schedule_delay_minutes = models.PositiveIntegerField(_("Schedule delay minutes"), default=0)
+    ocr_allowed = models.BooleanField(_("OCR allowed"), default=True)
+    gpu_allowed = models.BooleanField(_("GPU allowed"), default=True)
+    priority = models.PositiveSmallIntegerField(_("Queue priority"), default=5)
+    is_default = models.BooleanField(_("Default"), default=False)
+    is_active = models.BooleanField(_("Active"), default=True, db_index=True)
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Processing cost policy")
+        verbose_name_plural = _("Processing cost policies")
+        ordering = ["organization__name", "max_cost_units", "policy_type"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "code"],
+                name="unique_processing_cost_policy_code_per_org",
+            ),
+            models.UniqueConstraint(
+                fields=["code"],
+                condition=models.Q(organization__isnull=True),
+                name="unique_global_processing_cost_policy_code",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "policy_type", "is_active"]),
+            models.Index(fields=["is_default", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        owner = self.organization.name if self.organization_id else "global"
+        return f"{self.name} / {owner}"
+
+
+class ProcessingCostEstimate(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="processing_cost_estimates",
+        verbose_name=_("Organization"),
+    )
+    document = models.ForeignKey(
+        Document,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="processing_cost_estimates",
+        verbose_name=_("Document"),
+    )
+    processing_job = models.ForeignKey(
+        "ProcessingJob",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cost_estimates",
+        verbose_name=_("Processing job"),
+    )
+    policy = models.ForeignKey(
+        ProcessingCostPolicy,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cost_estimates",
+        verbose_name=_("Policy"),
+    )
+    document_count = models.PositiveIntegerField(_("Document count"), default=1)
+    page_count = models.PositiveIntegerField(_("Page count"), default=1)
+    ocr_needed = models.BooleanField(_("OCR needed"), default=False)
+    chunks_count = models.PositiveIntegerField(_("Chunks count"), default=0)
+    embedding_model = models.CharField(_("Embedding model"), max_length=120, blank=True, default="")
+    processing_time_ms = models.PositiveIntegerField(_("Processing time ms"), default=0)
+    estimated_cost_units = models.DecimalField(_("Estimated cost units"), max_digits=12, decimal_places=2, default=0)
+    recommended_policy = models.CharField(_("Recommended policy"), max_length=30, blank=True, default="")
+    route_reason = models.CharField(_("Route reason"), max_length=255, blank=True, default="")
+    quota_snapshot = models.JSONField(_("Quota snapshot"), default=dict, blank=True, validators=[validate_no_plaintext_secrets])
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Processing cost estimate")
+        verbose_name_plural = _("Processing cost estimates")
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["organization", "-created_at"]),
+            models.Index(fields=["document", "-created_at"]),
+            models.Index(fields=["recommended_policy", "-created_at"]),
+        ]
+
+    def clean(self):
+        super().clean()
+        validate_no_plaintext_secrets(self.quota_snapshot)
+
+    def __str__(self) -> str:
+        return f"{self.organization} / {self.estimated_cost_units} units"
+
+
+class ProcessingCostQuota(models.Model):
+    class QuotaType(models.TextChoices):
+        AI_DOCUMENTS = "ai_documents", _("AI documents/month")
+        OCR_PAGES = "ocr_pages", _("OCR pages/month")
+        EMBEDDINGS = "embeddings", _("Embeddings/month")
+        RERANK_REQUESTS = "rerank_requests", _("Rerank requests/month")
+        COST_UNITS = "cost_units", _("AI cost units/month")
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="processing_cost_quotas",
+        verbose_name=_("Organization"),
+    )
+    quota_type = models.CharField(_("Quota type"), max_length=40, choices=QuotaType.choices, db_index=True)
+    monthly_limit = models.PositiveIntegerField(_("Monthly limit"), default=0)
+    warning_percent = models.PositiveSmallIntegerField(_("Warning percent"), default=80)
+    is_unlimited = models.BooleanField(_("Unlimited"), default=False)
+    is_active = models.BooleanField(_("Active"), default=True)
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated at"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Processing cost quota")
+        verbose_name_plural = _("Processing cost quotas")
+        ordering = ["organization__name", "quota_type"]
+        constraints = [
+            models.UniqueConstraint(fields=["organization", "quota_type"], name="unique_processing_cost_quota_per_org"),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "quota_type", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.organization} / {self.quota_type}"
 
 
 class ProcessingJob(models.Model):
