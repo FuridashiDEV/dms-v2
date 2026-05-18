@@ -1,88 +1,78 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
-{% block title %}Security{% endblock %}
+{% block title %}Безопасность{% endblock %}
 
 {% block content %}
 <style>
-  .security-top { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin:10px 0 18px; }
-  .security-title { margin:0; font-size:32px; font-weight:900; letter-spacing:-0.02em; }
-  .security-sub { margin-top:8px; color:var(--muted); font-weight:650; line-height:1.6; }
-  .security-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-  .security-grid { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:12px; margin-bottom:18px; }
-  .security-metric { border:1px solid rgba(148,163,184,.24); border-radius:14px; background:#fff; padding:16px; }
-  .security-label { font-size:12px; font-weight:900; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
-  .security-value { margin-top:8px; font-size:28px; font-weight:900; color:rgba(15,23,42,.92); }
   .security-row { padding:14px 0; border-bottom:1px solid rgba(148,163,184,.2); display:grid; grid-template-columns:170px 220px 1fr; gap:12px; }
-  .security-main { font-weight:900; color:rgba(15,23,42,.92); }
-  .security-meta { margin-top:6px; color:rgba(15,23,42,.58); font-size:13px; font-weight:700; line-height:1.5; }
   .security-code { overflow:auto; max-height:120px; padding:10px; border-radius:10px; background:#f8fafc; border:1px solid rgba(148,163,184,.22); font-size:12px; line-height:1.5; }
-  @media(max-width:980px){ .security-grid{grid-template-columns:1fr 1fr;} .security-row{grid-template-columns:1fr;} .security-top{display:grid;} }
+  @media(max-width:980px){ .security-row{grid-template-columns:1fr;} }
 </style>
 
-<div class="security-top">
+<div class="page-top">
   <div>
-    <h1 class="security-title">Security</h1>
-    <div class="security-sub">Organization-scoped security events, audit export, and operational controls. This is not a compliance certification.</div>
+    <h1 class="page-title">Безопасность</h1>
+    <div class="page-sub">События безопасности, экспорт аудита и операционный контроль в рамках организации. Этот экран не является заявлением о сертификации.</div>
   </div>
-  <div class="security-actions">
+  <div class="top-actions">
     <form method="get" style="display:flex; gap:10px; align-items:center;">
-      <select name="organization" onchange="this.form.submit()" aria-label="Organization">
+      <select name="organization" onchange="this.form.submit()" aria-label="Организация">
         {% for organization in allowed_organizations %}
           <option value="{{ organization.id }}" {% if selected_organization and organization.id == selected_organization.id %}selected{% endif %}>{{ organization.name }}</option>
         {% endfor %}
       </select>
     </form>
-    <a class="btn btn-ghost" href="{% url 'dms:security_audit_export' %}?organization={{ selected_organization.id }}">Export audit CSV</a>
+    <a class="btn btn-ghost" href="{% url 'dms:security_audit_export' %}?organization={{ selected_organization.id }}">Экспорт аудита CSV</a>
   </div>
 </div>
 
-<div class="security-grid">
-  <div class="security-metric">
-    <div class="security-label">Security events 24h</div>
-    <div class="security-value">{{ summary.security_events_24h }}</div>
+<div class="ops-grid cols-5">
+  <div class="ops-card">
+    <div class="ops-label">События за 24ч</div>
+    <div class="ops-value">{{ summary.security_events_24h }}</div>
   </div>
-  <div class="security-metric">
-    <div class="security-label">Security events 7d</div>
-    <div class="security-value">{{ summary.security_events_7d }}</div>
+  <div class="ops-card">
+    <div class="ops-label">События за 7 дней</div>
+    <div class="ops-value">{{ summary.security_events_7d }}</div>
   </div>
-  <div class="security-metric">
-    <div class="security-label">Downloads 7d</div>
-    <div class="security-value">{{ summary.downloads_7d }}</div>
+  <div class="ops-card">
+    <div class="ops-label">Скачивания за 7 дней</div>
+    <div class="ops-value">{{ summary.downloads_7d }}</div>
   </div>
-  <div class="security-metric">
-    <div class="security-label">Access changes 7d</div>
-    <div class="security-value">{{ summary.access_changes_7d }}</div>
+  <div class="ops-card">
+    <div class="ops-label">Изменения доступа</div>
+    <div class="ops-value">{{ summary.access_changes_7d }}</div>
   </div>
-  <div class="security-metric">
-    <div class="security-label">Login failures 7d</div>
-    <div class="security-value">{{ summary.login_failures_7d }}</div>
+  <div class="ops-card">
+    <div class="ops-label">Ошибки входа</div>
+    <div class="ops-value">{{ summary.login_failures_7d }}</div>
   </div>
 </div>
 
 <div class="card" style="padding:20px;">
-  <h2 style="margin:0 0 14px; font-size:20px;">Recent security events</h2>
+  <h2 class="section-title">Последние события безопасности</h2>
   {% for item in security_events %}
     {% with event=item.event %}
       <div class="security-row">
         <div>
-          <div class="security-main">{{ event.event_type }}</div>
-          <div class="security-meta">{{ event.created_at|date:"d.m.Y H:i" }}</div>
+          <div class="data-main">{{ event.event_type }}</div>
+          <div class="data-meta">{{ event.created_at|date:"d.m.Y H:i" }}</div>
         </div>
         <div>
-          <div class="security-main">{{ event.user.get_full_name|default:event.user.username|default:"System" }}</div>
-          <div class="security-meta">{{ event.ip_address|default:"No IP" }}</div>
+          <div class="data-main">{{ event.user.get_full_name|default:event.user.username|default:"Система" }}</div>
+          <div class="data-meta">{{ event.ip_address|default:"IP не указан" }}</div>
         </div>
         <div>
-          <div class="security-main">{% if event.document %}{{ event.document.title }}{% else %}{{ event.organization.name|default:"Platform" }}{% endif %}</div>
-          <div class="security-meta">{{ event.user_agent|truncatechars:140 }}</div>
-          <pre class="security-code">{{ item.metadata }}</pre>
+          <div class="data-main">{% if event.document %}{{ event.document.title }}{% else %}{{ event.organization.name|default:"Платформа" }}{% endif %}</div>
+          <div class="data-meta">{{ event.user_agent|truncatechars:140 }}</div>
+          <pre class="security-code">{{ item.metadata|truncatechars:220 }}</pre>
         </div>
       </div>
     {% endwith %}
   {% empty %}
     <div class="security-row">
-      <div class="security-main">No security events yet</div>
-      <div class="security-meta">Audit events will appear here after protected actions.</div>
+      <div class="data-main">Событий безопасности пока нет</div>
+      <div class="data-meta">События аудита появятся после защищённых действий.</div>
     </div>
   {% endfor %}
 </div>

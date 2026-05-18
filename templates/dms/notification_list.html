@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Notifications{% endblock %}
+{% block title %}Уведомления{% endblock %}
 
 {% block content %}
 <style>
@@ -21,11 +21,11 @@
 
 <div class="notifications-top">
   <div>
-    <h1 class="notifications-title">Notifications</h1>
-    <div class="notifications-sub">Internal updates for workflow assignments, AI review, and B2B exchange activity.</div>
+    <h1 class="notifications-title">Уведомления</h1>
+    <div class="notifications-sub">Внутренние события по согласованию, AI-проверке и B2B-обмену.</div>
   </div>
   <div class="top-actions">
-    <a class="btn btn-ghost" href="{% url 'dms:document_list' %}">Documents</a>
+    <a class="btn btn-ghost" href="{% url 'dms:document_list' %}">Документы</a>
   </div>
 </div>
 
@@ -49,15 +49,15 @@
         </div>
         <div class="notification-actions">
           {% if item.exchange_url %}
-            <a class="btn btn-ghost" href="{{ item.exchange_url }}">Open exchange</a>
+            <a class="btn btn-ghost" href="{{ item.exchange_url }}">Открыть обмен</a>
           {% endif %}
           {% if item.document_url %}
-            <a class="btn btn-ghost" href="{{ item.document_url }}">Open document</a>
+            <a class="btn btn-ghost" href="{{ item.document_url }}">Открыть документ</a>
           {% endif %}
           {% if not notification.is_read %}
             <form method="post" action="{% url 'dms:notification_mark_read' notification.id %}">
               {% csrf_token %}
-              <button class="btn btn-primary" type="submit">Mark read</button>
+              <button class="btn btn-primary" type="submit">Отметить прочитанным</button>
             </form>
           {% endif %}
         </div>
@@ -65,8 +65,8 @@
     {% endwith %}
   {% empty %}
     <div class="notification-row">
-      <div class="notification-title">No notifications</div>
-      <div class="notification-meta">Workflow, AI review, and B2B exchange notifications will appear here.</div>
+      <div class="notification-title">Уведомлений пока нет</div>
+      <div class="notification-meta">Здесь появятся уведомления по согласованию, AI-проверке и B2B-обмену.</div>
     </div>
   {% endfor %}
 </div>

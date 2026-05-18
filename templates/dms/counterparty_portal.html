@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{% if is_link_unavailable %}Counterparty Portal - Link unavailable{% else %}Counterparty Portal - {{ doc.title }}{% endif %}{% endblock %}
+{% block title %}{% if is_link_unavailable %}Портал контрагента - ссылка недоступна{% else %}Портал контрагента - {{ doc.title }}{% endif %}{% endblock %}
 
 {% block content %}
 <style>
@@ -49,11 +49,11 @@
 
       <div class="portal-grid">
         <div class="portal-item">
-          <div class="portal-label">Counterparty</div>
+          <div class="portal-label">Контрагент</div>
           <div class="portal-value">{{ exchange.counterparty.name }}</div>
         </div>
         <div class="portal-item">
-          <div class="portal-label">Sent by</div>
+          <div class="portal-label">Отправил</div>
           <div class="portal-value">{{ exchange.sent_by.get_full_name|default:exchange.sent_by.username|default:"DMS" }}</div>
         </div>
         <div class="portal-item">
@@ -61,7 +61,7 @@
           <div class="portal-value">{{ doc.doc_date|date:"d.m.Y"|default:"Not specified" }}</div>
         </div>
         <div class="portal-item">
-          <div class="portal-label">Expires</div>
+          <div class="portal-label">Действует до</div>
           <div class="portal-value">{{ exchange.expires_at|date:"d.m.Y H:i"|default:"No expiration" }}</div>
         </div>
         <div class="portal-item">
@@ -76,7 +76,7 @@
 
       {% if exchange.message %}
         <div class="portal-item" style="margin-top:14px;">
-          <div class="portal-label">Message</div>
+          <div class="portal-label">Сообщение</div>
           <div class="portal-value" style="line-height:1.6;">{{ exchange.message }}</div>
         </div>
       {% endif %}
@@ -107,7 +107,7 @@
   </div>
 
   <div class="card" style="padding:24px;">
-    <h2 class="section-title">Messages</h2>
+    <h2 class="section-title">Сообщения</h2>
     <div class="stack">
       {% for exchange_message in exchange_messages %}
         <div class="row-card">
@@ -121,24 +121,24 @@
         </div>
       {% empty %}
         <div class="row-card">
-          <div class="row-main">No messages yet</div>
+          <div class="row-main">Сообщений пока нет</div>
         </div>
       {% endfor %}
     </div>
   </div>
 
   <div class="card" style="padding:24px;">
-    <h2 class="section-title">Exchange events</h2>
+    <h2 class="section-title">События обмена</h2>
     <div class="stack">
       {% for event in events %}
         <div class="row-card">
           <div class="row-main">{{ event.get_event_type_display }}</div>
-          <div class="row-meta">{{ event.created_at|date:"d.m.Y H:i" }}{% if event.actor_name %} вЂў {{ event.actor_name }}{% endif %}</div>
+          <div class="row-meta">{{ event.created_at|date:"d.m.Y H:i" }}{% if event.actor_name %} ? {{ event.actor_name }}{% endif %}</div>
           {% if event.comment %}<div class="row-meta">{{ event.comment }}</div>{% endif %}
         </div>
       {% empty %}
         <div class="row-card">
-          <div class="row-main">No events yet</div>
+          <div class="row-main">Событий пока нет</div>
         </div>
       {% endfor %}
     </div>

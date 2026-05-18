@@ -65,13 +65,13 @@ class AiSearchUxStage48Tests(TestCase):
         readiness = build_search_readiness(self.document)
         labels = {item["label"]: item["state"] for item in readiness}
 
-        self.assertEqual(labels["Uploaded"], "ready")
-        self.assertEqual(labels["Basic search"], "ready")
-        self.assertEqual(labels["Text extracted"], "ready")
-        self.assertEqual(labels["Semantic ready"], "ready")
-        self.assertEqual(confidence_badge(0.8)["label"], "High confidence")
-        self.assertEqual(confidence_badge(0.5)["label"], "Medium confidence")
-        self.assertEqual(confidence_badge(0.2)["label"], "Low confidence")
+        self.assertEqual(labels["Загружен"], "ready")
+        self.assertEqual(labels["Базовый поиск"], "ready")
+        self.assertEqual(labels["Текст извлечён"], "ready")
+        self.assertEqual(labels["Смысловой поиск готов"], "ready")
+        self.assertEqual(confidence_badge(0.8)["label"], "Высокая уверенность")
+        self.assertEqual(confidence_badge(0.5)["label"], "Средняя уверенность")
+        self.assertEqual(confidence_badge(0.2)["label"], "Низкая уверенность")
 
     def test_mode_explanations_mark_active_mode(self):
         explanations = search_mode_explanations("semantic")
@@ -112,10 +112,10 @@ class AiSearchUxStage48Tests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Search suggestions")
-        self.assertContains(response, "Basic search")
-        self.assertContains(response, "Text extracted")
-        self.assertContains(response, "confidence")
+        self.assertContains(response, "Подсказки поиска")
+        self.assertContains(response, "Базовый поиск")
+        self.assertContains(response, "Текст извлечён")
+        self.assertContains(response, "уверенность")
         self.assertNotContains(response, "Qdrant payload")
         result = next(doc for doc in response.context["documents"] if doc.id == self.document.id)
         similar_titles = [doc.title for doc in result.search_similar_documents]
@@ -139,6 +139,6 @@ class AiSearchUxStage48Tests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["documents"], [])
-        self.assertContains(response, "Applied filters")
-        self.assertContains(response, "Search suggestions")
+        self.assertContains(response, "Применённые фильтры")
+        self.assertContains(response, "Подсказки поиска")
         self.assertTrue(response.context["active_filter_labels"])

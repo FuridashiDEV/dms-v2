@@ -406,7 +406,7 @@
     <div class="hero-actions">
       <a class="btn btn-primary" href="{% url 'dms:document_upload' %}">Загрузить документ</a>
       <a class="btn btn-ghost" href="{% url 'dms:document_import' %}">Импорт файлов</a>
-      <a class="btn btn-ghost" href="{% url 'dms:exchange_list' %}">B2B exchanges</a>
+      <a class="btn btn-ghost" href="{% url 'dms:exchange_list' %}">Обмен с контрагентами</a>
       <a class="btn btn-ghost" href="{% url 'dms:folder_list' %}">Открыть архив по папкам</a>
     </div>
   </div>
@@ -444,7 +444,7 @@
     </div>
 
     <div class="field">
-      <label for="id_search_mode">Search mode</label>
+      <label for="id_search_mode">Режим поиска</label>
       <select id="id_search_mode" name="search_mode">
         {% for value, label in search_mode_choices %}
           <option value="{{ value }}" {% if requested_search_mode == value %}selected{% endif %}>{{ label }}</option>
@@ -452,7 +452,7 @@
       </select>
     </div>
 
-    <div class="mode-guide" aria-label="Search mode explanations">
+    <div class="mode-guide" aria-label="Описание режимов поиска">
       {% for item in search_mode_explanations %}
         <div class="mode-item {% if item.is_active %}active{% endif %}">
           <div class="mode-title">{{ item.label }}</div>
@@ -496,17 +496,17 @@
     </div>
 
     <div class="field">
-      <label for="id_counterparty">Counterparty</label>
+      <label for="id_counterparty">Контрагент</label>
       <input id="id_counterparty" type="text" name="counterparty" value="{{ counterparty }}" placeholder="ИП Фирма, TOO InVision" />
     </div>
 
     <div class="field">
-      <label for="id_amount_min">Amount from</label>
+      <label for="id_amount_min">Сумма от</label>
       <input id="id_amount_min" type="number" step="0.01" min="0" name="amount_min" value="{{ amount_min|default:'' }}" />
     </div>
 
     <div class="field">
-      <label for="id_amount_max">Amount to</label>
+      <label for="id_amount_max">Сумма до</label>
       <input id="id_amount_max" type="number" step="0.01" min="0" name="amount_max" value="{{ amount_max|default:'' }}" />
     </div>
 
@@ -548,13 +548,13 @@
           {% if selected_department %}<span class="tag">Отдел: {{ selected_department.name }}</span>{% endif %}
           {% if selected_folder %}<span class="tag">Папка: {{ selected_folder.name }}</span>{% endif %}
           {% if selected_doc_type %}<span class="tag">Тип: {{ selected_doc_type.name }}</span>{% endif %}
-          {% if counterparty %}<span class="tag">Counterparty: {{ counterparty }}</span>{% endif %}
-          {% if amount_min %}<span class="tag">Amount from: {{ amount_min }}</span>{% endif %}
-          {% if amount_max %}<span class="tag">Amount to: {{ amount_max }}</span>{% endif %}
+          {% if counterparty %}<span class="tag">Контрагент: {{ counterparty }}</span>{% endif %}
+          {% if amount_min %}<span class="tag">Сумма от: {{ amount_min }}</span>{% endif %}
+          {% if amount_max %}<span class="tag">Сумма до: {{ amount_max }}</span>{% endif %}
           {% if status %}<span class="tag">Статус: {{ status }}</span>{% endif %}
         </div>
         {% if search_degraded %}
-          <div class="section-sub">Semantic index is unavailable or returned no usable vector. Results are shown with safe text/entity fallback and the same access rules.</div>
+          <div class="section-sub">Смысловой индекс сейчас недоступен. Показаны результаты безопасного текстового поиска, сущностей и фильтров с теми же правилами доступа.</div>
         {% endif %}
       </div>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -565,7 +565,7 @@
 
     {% if query_entities or query_aliases %}
       <div class="query-panel">
-        <div class="query-panel-title">Search interpretation</div>
+        <div class="query-panel-title">Как система поняла запрос</div>
         {% if query_entities %}
           <div class="query-panel-row">
             {% for key, value in query_entities.items %}
@@ -587,7 +587,7 @@
 
     {% if search_suggestions %}
       <div class="query-panel">
-        <div class="query-panel-title">Search suggestions</div>
+        <div class="query-panel-title">Подсказки поиска</div>
         <div class="suggestion-grid">
           {% for suggestion in search_suggestions %}
             <a class="suggestion-card" href="{% url 'dms:document_list' %}?{{ suggestion.querystring }}">
@@ -627,7 +627,7 @@
               </div>
             </div>
 
-            <div class="readiness-row" aria-label="Search readiness">
+            <div class="readiness-row" aria-label="Готовность поиска">
               {% for item in doc.search_readiness %}
                 <div class="readiness-item readiness-{{ item.state }}">
                   <div class="readiness-label">{{ item.label }}</div>
@@ -658,7 +658,7 @@
                 <div class="meta-value">
                   MIME: {{ doc.mime_type|default:"Не определен" }}<br>
                   Риск формата: {{ doc.get_format_risk_level_display|default:"Не определен" }}<br>
-                  Source: {{ doc.source_system|default:"manual_upload" }}
+                  Источник: {{ doc.source_system|default:"manual_upload" }}
                 </div>
               </div>
               <div class="meta-box">
@@ -679,7 +679,7 @@
               <div class="doc-pills">
                 <span class="tag">Загружен: {{ doc.created_at|date:"d.m.Y" }}</span>
                 {% if doc.source_file_name %}<span class="tag">Файл: {{ doc.source_file_name }}</span>{% endif %}
-                {% if doc.legal_hold %}<span class="tag tag-blue">Legal hold</span>{% endif %}
+                {% if doc.legal_hold %}<span class="tag tag-blue">Юридическое удержание</span>{% endif %}
               </div>
 
               <div class="doc-actions">
@@ -708,7 +708,7 @@
             {% endif %}
             {% if doc.search_related_documents %}
               <div class="related-strip">
-                <div class="meta-label">Related documents</div>
+                <div class="meta-label">Связанные документы</div>
                 {% for item in doc.search_related_documents %}
                   <a class="related-link" href="{% url 'dms:document_detail' item.document.pk %}">
                     <span>{{ item.document.title }}</span>
@@ -719,11 +719,11 @@
             {% endif %}
             {% if doc.search_similar_documents %}
               <div class="related-strip">
-                <div class="meta-label">Similar documents</div>
+                <div class="meta-label">Похожие документы</div>
                 {% for similar in doc.search_similar_documents %}
                   <a class="related-link" href="{% url 'dms:document_detail' similar.pk %}">
                     <span>{{ similar.title }}</span>
-                    <span>{% if similar.doc_type %}{{ similar.doc_type.name }}{% else %}similar context{% endif %}</span>
+                    <span>{% if similar.doc_type %}{{ similar.doc_type.name }}{% else %}похожий контекст{% endif %}</span>
                   </a>
                 {% endfor %}
               </div>
@@ -736,12 +736,12 @@
         <div class="empty-title">Подходящих документов пока нет</div>
         <div class="empty-text">
           {% if active_filter_labels %}
-            Applied filters: {{ active_filter_labels|join:", " }}.<br><br>
+            Применённые фильтры: {{ active_filter_labels|join:", " }}.<br><br>
           {% endif %}
           {% if search_degraded %}
-            Semantic index is not ready right now. Exact text, entity and filter search still apply.<br><br>
+            Смысловой индекс сейчас не готов. Точный текстовый поиск, сущности и фильтры продолжают работать.<br><br>
           {% else %}
-            If a newly uploaded document is missing, its semantic index may still be pending.<br><br>
+            Если недавно загруженного документа нет в выдаче, его смысловая индексация может ещё выполняться.<br><br>
           {% endif %}
           {% if has_active_filters %}
             Попробуйте убрать часть фильтров или использовать более широкий смысловой запрос.

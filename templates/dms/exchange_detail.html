@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Exchange #{{ exchange.id }}{% endblock %}
+{% block title %}Обмен #{{ exchange.id }}{% endblock %}
 
 {% block content %}
 <style>
@@ -23,22 +23,22 @@
 
 <div class="exchange-top">
   <div>
-    <h1 class="exchange-title">Exchange #{{ exchange.id }}</h1>
+    <h1 class="exchange-title">Обмен #{{ exchange.id }}</h1>
     <div class="exchange-sub">
       {{ exchange.get_direction_display }} exchange for
       <a href="{% url 'dms:document_detail' doc.id %}">{{ doc.title }}</a>.
     </div>
   </div>
   <div class="top-actions">
-    <a class="btn btn-ghost" href="{% url 'dms:exchange_list' %}">All exchanges</a>
-    <a class="btn btn-ghost" href="{% url 'dms:document_detail' doc.id %}">Document</a>
+    <a class="btn btn-ghost" href="{% url 'dms:exchange_list' %}">Все обмены</a>
+    <a class="btn btn-ghost" href="{% url 'dms:document_detail' doc.id %}">Документ</a>
   </div>
 </div>
 
 <div class="exchange-shell">
   {% if new_exchange_url %}
     <div class="card" style="padding:20px;">
-      <div class="exchange-label">New secure portal link</div>
+      <div class="exchange-label">Новая безопасная ссылка</div>
       <div class="exchange-value">{{ new_exchange_url }}</div>
     </div>
   {% endif %}
@@ -46,8 +46,8 @@
   <div class="card" style="padding:22px;">
     <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
       <div>
-        <h2 class="section-title">Exchange card</h2>
-        <div class="exchange-sub">Counterparty, secure-link state, dates, and ownership.</div>
+        <h2 class="section-title">Карточка обмена</h2>
+        <div class="exchange-sub">Контрагент, состояние безопасной ссылки, даты и ответственные.</div>
       </div>
       <span class="exchange-status {% if exchange.is_link_active %}active{% elif exchange.is_terminal %}closed{% endif %}">
         {{ exchange.get_status_display }}
@@ -55,26 +55,26 @@
     </div>
 
     <div class="exchange-grid">
-      <div class="exchange-item"><div class="exchange-label">Document</div><div class="exchange-value">{{ doc.title }}</div></div>
-      <div class="exchange-item"><div class="exchange-label">Direction</div><div class="exchange-value">{{ exchange.get_direction_display }}</div></div>
-      <div class="exchange-item"><div class="exchange-label">Counterparty</div><div class="exchange-value">{{ exchange.counterparty.name }}</div></div>
-      <div class="exchange-item"><div class="exchange-label">Contact</div><div class="exchange-value">{{ exchange.counterparty_contact.name|default:exchange.counterparty.contact_name|default:"Not specified" }}</div></div>
-      <div class="exchange-item"><div class="exchange-label">Business type</div><div class="exchange-value">{{ exchange.get_business_document_type_display|default:"Not specified" }}</div></div>
-      <div class="exchange-item"><div class="exchange-label">Link active</div><div class="exchange-value">{% if exchange.is_link_active %}Yes{% else %}No{% endif %}</div></div>
-      <div class="exchange-item"><div class="exchange-label">Sent</div><div class="exchange-value">{{ exchange.created_at|date:"d.m.Y H:i" }}</div></div>
-      <div class="exchange-item"><div class="exchange-label">Opened</div><div class="exchange-value">{{ exchange.opened_at|date:"d.m.Y H:i"|default:"Not opened" }}</div></div>
-      <div class="exchange-item"><div class="exchange-label">Downloaded</div><div class="exchange-value">{{ exchange.last_downloaded_at|date:"d.m.Y H:i"|default:"Not downloaded" }}</div></div>
-      <div class="exchange-item"><div class="exchange-label">Responded</div><div class="exchange-value">{{ exchange.responded_at|date:"d.m.Y H:i"|default:"No response" }}</div></div>
-      <div class="exchange-item"><div class="exchange-label">Expires</div><div class="exchange-value">{{ exchange.expires_at|date:"d.m.Y H:i"|default:"No expiration" }}</div></div>
-      <div class="exchange-item"><div class="exchange-label">Token hint</div><div class="exchange-value">{{ exchange.token_hint|default:"Hidden" }}</div></div>
+      <div class="exchange-item"><div class="exchange-label">Документ</div><div class="exchange-value">{{ doc.title }}</div></div>
+      <div class="exchange-item"><div class="exchange-label">Направление</div><div class="exchange-value">{{ exchange.get_direction_display }}</div></div>
+      <div class="exchange-item"><div class="exchange-label">Контрагент</div><div class="exchange-value">{{ exchange.counterparty.name }}</div></div>
+      <div class="exchange-item"><div class="exchange-label">Контакт</div><div class="exchange-value">{{ exchange.counterparty_contact.name|default:exchange.counterparty.contact_name|default:"Не указан" }}</div></div>
+      <div class="exchange-item"><div class="exchange-label">Тип документа</div><div class="exchange-value">{{ exchange.get_business_document_type_display|default:"Не указан" }}</div></div>
+      <div class="exchange-item"><div class="exchange-label">Ссылка активна</div><div class="exchange-value">{% if exchange.is_link_active %}Да{% else %}Нет{% endif %}</div></div>
+      <div class="exchange-item"><div class="exchange-label">Отправлено</div><div class="exchange-value">{{ exchange.created_at|date:"d.m.Y H:i" }}</div></div>
+      <div class="exchange-item"><div class="exchange-label">Открыто</div><div class="exchange-value">{{ exchange.opened_at|date:"d.m.Y H:i"|default:"Не открыто" }}</div></div>
+      <div class="exchange-item"><div class="exchange-label">Скачано</div><div class="exchange-value">{{ exchange.last_downloaded_at|date:"d.m.Y H:i"|default:"Не скачано" }}</div></div>
+      <div class="exchange-item"><div class="exchange-label">Ответ</div><div class="exchange-value">{{ exchange.responded_at|date:"d.m.Y H:i"|default:"Нет ответа" }}</div></div>
+      <div class="exchange-item"><div class="exchange-label">Действует до</div><div class="exchange-value">{{ exchange.expires_at|date:"d.m.Y H:i"|default:"Без срока" }}</div></div>
+      <div class="exchange-item"><div class="exchange-label">Идентификатор ссылки</div><div class="exchange-value">{{ exchange.token_hint|default:"Скрыт" }}</div></div>
       <div class="exchange-item">
-        <div class="exchange-label">Sent by</div>
+        <div class="exchange-label">Отправил</div>
         <div class="exchange-value">
           {% if exchange.sent_by %}{{ exchange.sent_by.get_full_name|default:exchange.sent_by.username }}{% else %}Not sent{% endif %}
         </div>
       </div>
       <div class="exchange-item">
-        <div class="exchange-label">Received by</div>
+        <div class="exchange-label">Принял</div>
         <div class="exchange-value">
           {% if exchange.received_by %}{{ exchange.received_by.get_full_name|default:exchange.received_by.username }}{% else %}Not received{% endif %}
         </div>
@@ -83,7 +83,7 @@
 
     {% if exchange.message %}
       <div class="exchange-item" style="margin-top:14px;">
-        <div class="exchange-label">Initial message</div>
+        <div class="exchange-label">Первичное сообщение</div>
         <div class="exchange-value" style="line-height:1.6;">{{ exchange.message }}</div>
       </div>
     {% endif %}
@@ -93,18 +93,18 @@
         {% if exchange.status != "REVOKED" and exchange.status != "ACCEPTED" and exchange.status != "REJECTED" %}
           <form method="post" action="{% url 'dms:exchange_revoke' exchange.id %}">
             {% csrf_token %}
-            <button class="btn btn-ghost" type="submit">Revoke link</button>
+            <button class="btn btn-ghost" type="submit">Отозвать ссылку</button>
           </form>
         {% endif %}
       </div>
       {% if exchange.status != "ACCEPTED" %}
         <form class="exchange-form" method="post" action="{% url 'dms:exchange_resend' exchange.id %}">
           {% csrf_token %}
-          <div class="exchange-label">Reissue / resend secure link</div>
+          <div class="exchange-label">Перевыпустить или отправить ссылку повторно</div>
           {{ resend_form.expires_days }}
           {{ resend_form.message }}
           <div class="exchange-actions">
-            <button class="btn btn-primary" type="submit">Resend link</button>
+            <button class="btn btn-primary" type="submit">Отправить ссылку</button>
           </div>
         </form>
       {% endif %}
@@ -112,14 +112,14 @@
   </div>
 
   <div class="card" style="padding:22px;">
-    <h2 class="section-title">Messages</h2>
+    <h2 class="section-title">Сообщения</h2>
     {% if can_manage_exchange and not exchange.is_terminal %}
       <form method="post" action="{% url 'dms:exchange_message_create' exchange.id %}" class="exchange-form">
         {% csrf_token %}
         <input type="hidden" name="next" value="exchange_detail">
         {{ message_form.body }}
         <div class="exchange-actions">
-          <button class="btn btn-ghost" type="submit">Send internal message</button>
+          <button class="btn btn-ghost" type="submit">Отправить внутреннее сообщение</button>
         </div>
       </form>
     {% endif %}
@@ -135,13 +135,13 @@
           <div class="row-meta">{{ exchange_message.body }}</div>
         </div>
       {% empty %}
-        <div class="row-card"><div class="row-main">No messages yet</div></div>
+        <div class="row-card"><div class="row-main">Сообщений пока нет</div></div>
       {% endfor %}
     </div>
   </div>
 
   <div class="card" style="padding:22px;">
-    <h2 class="section-title">Event history</h2>
+    <h2 class="section-title">История событий</h2>
     <div class="stack">
       {% for event in events %}
         <div class="row-card">
@@ -154,7 +154,7 @@
           {% if event.comment %}<div class="row-meta">{{ event.comment }}</div>{% endif %}
         </div>
       {% empty %}
-        <div class="row-card"><div class="row-main">No events yet</div></div>
+        <div class="row-card"><div class="row-main">Событий пока нет</div></div>
       {% endfor %}
     </div>
   </div>

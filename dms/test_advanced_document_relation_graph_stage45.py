@@ -170,6 +170,6 @@ class AdvancedDocumentRelationGraphStage45Tests(TestCase):
         response = self.client.get(reverse("dms:document_detail", args=[self.contract.id]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Relation graph")
-        self.assertContains(response, "not auto-confirmed")
+        self.assertContains(response, "Граф связей")
+        self.assertContains(response, "не подтверждено автоматически")
         self.assertEqual(DocumentRelation.objects.count(), 1)

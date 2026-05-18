@@ -41,8 +41,8 @@
     <a class="btn btn-primary" href="{% url 'dms:document_edit' doc.id %}">Изменить</a>
     <a class="btn btn-ghost" href="{% url 'dms:document_view' doc.id %}" target="_blank">Открыть файл</a>
     <a class="btn btn-ghost" href="{% url 'dms:document_download' doc.id %}">Скачать</a>
-    <a class="btn btn-ghost" href="{% url 'dms:document_evidence_report' doc.id %}">Evidence report</a>
-    <a class="btn btn-ghost" href="{% url 'dms:document_evidence_export' doc.id %}">Evidence JSON</a>
+    <a class="btn btn-ghost" href="{% url 'dms:document_evidence_report' doc.id %}">Доказательный отчёт</a>
+    <a class="btn btn-ghost" href="{% url 'dms:document_evidence_export' doc.id %}">JSON-пакет</a>
     {% if latest_processing_job and can_validate_ai %}
       <a class="btn btn-ghost" href="{% url 'dms:document_ai_review' doc.id %}">Проверить AI-поля</a>
     {% endif %}
@@ -68,7 +68,7 @@
         <div class="meta-item"><div class="meta-label">Версий</div><div class="meta-value">{{ versions|length }}</div></div>
         <div class="meta-item"><div class="meta-label">Категория хранения</div><div class="meta-value">{{ doc.retention_category|default:"Не указана" }}</div></div>
         <div class="meta-item"><div class="meta-label">Срок хранения до</div><div class="meta-value">{{ doc.retention_until|date:"d.m.Y"|default:"Не указан" }}</div></div>
-        <div class="meta-item"><div class="meta-label">Legal hold</div><div class="meta-value">{% if doc.legal_hold %}Активен{% else %}Нет{% endif %}</div></div>
+        <div class="meta-item"><div class="meta-label">Юридическое удержание</div><div class="meta-value">{% if doc.legal_hold %}Активен{% else %}Нет{% endif %}</div></div>
         <div class="meta-item"><div class="meta-label">Источник документа</div><div class="meta-value">{{ doc.source_system|default:"Не указан" }}</div></div>
         <div class="meta-item"><div class="meta-label">Исходное имя файла</div><div class="meta-value">{{ doc.source_file_name|default:doc.file.name }}</div></div>
         <div class="meta-item"><div class="meta-label">MIME-тип</div><div class="meta-value">{{ doc.mime_type|default:"Не определен" }}</div></div>
@@ -86,7 +86,7 @@
       <div class="section-sub">Краткое содержание документа для быстрого просмотра.</div>
       {% if latest_processing_job %}
         <div class="row-card" style="margin-top:16px;">
-          <div class="row-main">AI processing: {{ latest_processing_job.get_status_display }}</div>
+          <div class="row-main">AI-обработка: {{ latest_processing_job.get_status_display }}</div>
           <div class="row-meta">
             {{ latest_processing_job.created_at|date:"d.m.Y H:i" }}
             • предложений: {{ latest_processing_job.fields.count }}
@@ -152,7 +152,7 @@
       <div class="section-sub">Контекст архива: какие документы этот файл заменяет, к чему относится и где фигурирует.</div>
       {% if relation_graph.nodes %}
         <div class="row-card" style="margin-top:14px;">
-          <div class="row-main">Relation graph: {{ relation_graph.nodes|length }} documents / {{ relation_graph.edges|length }} relations</div>
+          <div class="row-main">Граф связей: {{ relation_graph.nodes|length }} документов / {{ relation_graph.edges|length }} связей</div>
           {% if relation_graph.chains %}
             {% for chain in relation_graph.chains %}
               <div class="row-meta">
@@ -163,7 +163,7 @@
               </div>
             {% endfor %}
           {% else %}
-            <div class="row-meta">Confirmed relation graph is available for accessible documents only.</div>
+            <div class="row-meta">Подтверждённый граф строится только по доступным документам.</div>
           {% endif %}
         </div>
       {% endif %}
@@ -187,7 +187,7 @@
         {% for relation in outgoing_relations %}
           <div class="row-card">
             <div class="row-main">{{ relation.get_relation_type_display }}: <a href="{% url 'dms:document_detail' relation.to_document.id %}">{{ relation.to_document.title }}</a></div>
-            <div class="row-meta">{{ relation.to_document.department.name }}{% if relation.to_document.doc_type %} • {{ relation.to_document.doc_type.name }}{% endif %}{% if relation.confidence %} • confidence: {{ relation.confidence }}{% endif %} • {{ relation.source }}{% if not relation.is_confirmed %} • suggested{% endif %}</div>
+            <div class="row-meta">{{ relation.to_document.department.name }}{% if relation.to_document.doc_type %} • {{ relation.to_document.doc_type.name }}{% endif %}{% if relation.confidence %} • уверенность: {{ relation.confidence }}{% endif %} • {{ relation.source }}{% if not relation.is_confirmed %} • предложено{% endif %}</div>
             {% if can_manage_relations %}
               <form method="post" action="{% url 'dms:document_relation_delete' doc.id relation.id %}" class="row-actions">
                 {% csrf_token %}
@@ -199,7 +199,7 @@
         {% for relation in incoming_relations %}
           <div class="row-card">
             <div class="row-main"><a href="{% url 'dms:document_detail' relation.from_document.id %}">{{ relation.from_document.title }}</a> -> {{ relation.get_relation_type_display|lower }} текущий документ</div>
-            <div class="row-meta">{{ relation.from_document.department.name }}{% if relation.from_document.doc_type %} • {{ relation.from_document.doc_type.name }}{% endif %}{% if relation.confidence %} • confidence: {{ relation.confidence }}{% endif %} • {{ relation.source }}{% if not relation.is_confirmed %} • suggested{% endif %}</div>
+            <div class="row-meta">{{ relation.from_document.department.name }}{% if relation.from_document.doc_type %} • {{ relation.from_document.doc_type.name }}{% endif %}{% if relation.confidence %} • уверенность: {{ relation.confidence }}{% endif %} • {{ relation.source }}{% if not relation.is_confirmed %} • предложено{% endif %}</div>
             {% if can_manage_relations %}
               <form method="post" action="{% url 'dms:document_relation_delete' doc.id relation.id %}" class="row-actions">
                 {% csrf_token %}
@@ -222,7 +222,7 @@
       <div class="section-sub">Подсказки по сроку хранения, качеству карточки и вероятным устаревшим редакциям.</div>
       <div class="stack">
         <div class="row-card">
-          <div class="row-main">Retention assistant</div>
+          <div class="row-main">Помощник по срокам хранения</div>
           <div class="row-meta">
             Категория: {{ retention_hint.category }}
             {% if retention_hint.years %} • срок: {{ retention_hint.years }} лет{% endif %}
@@ -246,14 +246,14 @@
         {% for suggestion in relation_suggestions %}
           <div class="row-card">
             <div class="row-main">{{ suggestion.label }}: <a href="{% url 'dms:document_detail' suggestion.target.id %}">{{ suggestion.target.title }}</a></div>
-            <div class="row-meta">{{ suggestion.target.department.name }}{% if suggestion.target.doc_type %} • {{ suggestion.target.doc_type.name }}{% endif %}{% if suggestion.target.doc_date %} • {{ suggestion.target.doc_date|date:"d.m.Y" }}{% endif %} • confidence: {{ suggestion.confidence }} • not auto-confirmed</div>
+            <div class="row-meta">{{ suggestion.target.department.name }}{% if suggestion.target.doc_type %} • {{ suggestion.target.doc_type.name }}{% endif %}{% if suggestion.target.doc_date %} • {{ suggestion.target.doc_date|date:"d.m.Y" }}{% endif %} • уверенность: {{ suggestion.confidence }} • не подтверждено автоматически</div>
             {% if suggestion.reasons %}
               <div class="row-meta">{{ suggestion.reasons|join:", " }}</div>
             {% endif %}
           </div>
         {% endfor %}
         <div class="row-card">
-          <div class="row-main">Superseded detection</div>
+          <div class="row-main">Проверка устаревших редакций</div>
           {% if superseded_candidates %}
             <div class="row-meta">Найдены документы, которые эта версия, вероятно, заменяет: {{ superseded_candidates|length }}.</div>
           {% else %}
@@ -325,16 +325,16 @@
     </div>
 
     <div class="card" style="padding:22px;">
-      <h2 class="section-title">Workflow</h2>
-      <div class="section-sub">Basic document approval flow linked to this document.</div>
+      <h2 class="section-title">Согласование</h2>
+      <div class="section-sub">Базовый маршрут согласования, связанный с этим документом.</div>
 
       {% if active_workflow %}
         <div class="row-card" style="margin-top:16px;">
           <div class="row-main">{{ active_workflow.template.name }}: {{ active_workflow.get_status_display }}</div>
           <div class="row-meta">
-            Started {{ active_workflow.started_at|date:"d.m.Y H:i" }}
+            Запущен {{ active_workflow.started_at|date:"d.m.Y H:i" }}
             {% if active_workflow.current_step_template %}
-              • Current step: {{ active_workflow.current_step_template.name }}
+              • Текущий этап: {{ active_workflow.current_step_template.name }}
               {% if active_workflow.current_step_template.approver_user %}
                 • {{ active_workflow.current_step_template.approver_user.get_full_name|default:active_workflow.current_step_template.approver_user.username }}
               {% elif active_workflow.current_step_template.approver_department %}
@@ -349,28 +349,28 @@
             {% csrf_token %}
             {{ workflow_action_form.comment }}
             <div class="row-actions">
-              <button class="btn btn-ghost" type="submit">Comment</button>
-              <button class="btn btn-primary" type="submit" formaction="{% url 'dms:document_workflow_action' doc.id active_workflow.id 'approve' %}">Approve</button>
-              <button class="btn btn-ghost" type="submit" formaction="{% url 'dms:document_workflow_action' doc.id active_workflow.id 'request-changes' %}">Request changes</button>
-              <button class="btn btn-ghost" type="submit" formaction="{% url 'dms:document_workflow_action' doc.id active_workflow.id 'reject' %}">Reject</button>
+              <button class="btn btn-ghost" type="submit">Комментарий</button>
+              <button class="btn btn-primary" type="submit" formaction="{% url 'dms:document_workflow_action' doc.id active_workflow.id 'approve' %}">Согласовать</button>
+              <button class="btn btn-ghost" type="submit" formaction="{% url 'dms:document_workflow_action' doc.id active_workflow.id 'request-changes' %}">Запросить правки</button>
+              <button class="btn btn-ghost" type="submit" formaction="{% url 'dms:document_workflow_action' doc.id active_workflow.id 'reject' %}">Отклонить</button>
             </div>
           </form>
         {% endif %}
       {% elif workflow_start_form %}
         <form method="post" action="{% url 'dms:document_workflow_start' doc.id %}" style="margin-top:16px;">
           {% csrf_token %}
-          <div class="meta-label">Template</div>
+          <div class="meta-label">Шаблон</div>
           <div style="margin-top:8px;">{{ workflow_start_form.template }}</div>
-          <div class="meta-label" style="margin-top:12px;">Comment</div>
+          <div class="meta-label" style="margin-top:12px;">Комментарий</div>
           <div style="margin-top:8px;">{{ workflow_start_form.comment }}</div>
           <div class="row-actions">
-            <button class="btn btn-primary" type="submit">Start workflow</button>
+            <button class="btn btn-primary" type="submit">Запустить согласование</button>
           </div>
         </form>
       {% else %}
         <div class="row-card" style="margin-top:16px;">
-          <div class="row-main">No active workflow</div>
-          <div class="row-meta">Create an active workflow template with steps in Django admin to start approval.</div>
+          <div class="row-main">Активного согласования нет</div>
+          <div class="row-meta">Создайте активный шаблон согласования с этапами в Django admin, чтобы запустить маршрут.</div>
         </div>
       {% endif %}
 
@@ -394,12 +394,12 @@
     </div>
 
     <div class="card" style="padding:22px;">
-      <h2 class="section-title">Counterparty Portal</h2>
-      <div class="section-sub">Secure external document exchange links for counterparties.</div>
+      <h2 class="section-title">Портал контрагента</h2>
+      <div class="section-sub">Безопасные внешние ссылки для обмена документами с контрагентами.</div>
 
       {% if new_exchange_url %}
         <div class="row-card" style="margin-top:16px;">
-          <div class="row-main">New secure portal link</div>
+          <div class="row-main">Новая безопасная ссылка</div>
           <div class="row-meta" style="word-break:break-all;">{{ new_exchange_url }}</div>
         </div>
       {% endif %}
@@ -407,27 +407,27 @@
       {% if counterparty_exchange_form %}
         <form method="post" action="{% url 'dms:document_exchange_send' doc.id %}" style="margin-top:16px;">
           {% csrf_token %}
-          <div class="meta-label">Existing counterparty</div>
+          <div class="meta-label">Существующий контрагент</div>
           <div style="margin-top:8px;">{{ counterparty_exchange_form.counterparty }}</div>
-          <div class="meta-label" style="margin-top:12px;">Existing contact</div>
+          <div class="meta-label" style="margin-top:12px;">Существующий контакт</div>
           <div style="margin-top:8px;">{{ counterparty_exchange_form.counterparty_contact }}</div>
-          <div class="meta-label" style="margin-top:12px;">New counterparty</div>
+          <div class="meta-label" style="margin-top:12px;">Новый контрагент</div>
           <div style="margin-top:8px; display:grid; gap:8px;">
             {{ counterparty_exchange_form.new_counterparty_name }}
             {{ counterparty_exchange_form.new_counterparty_email }}
             {{ counterparty_exchange_form.new_contact_name }}
             {{ counterparty_exchange_form.new_contact_email }}
           </div>
-          <div class="meta-label" style="margin-top:12px;">Message</div>
+          <div class="meta-label" style="margin-top:12px;">Сообщение</div>
           <div style="margin-top:8px;">{{ counterparty_exchange_form.message }}</div>
-          <div class="meta-label" style="margin-top:12px;">Business document type</div>
+          <div class="meta-label" style="margin-top:12px;">Тип бизнес-документа</div>
           <div style="margin-top:8px;">{{ counterparty_exchange_form.business_document_type }}</div>
-          <div class="meta-label" style="margin-top:12px;">Expiration</div>
+          <div class="meta-label" style="margin-top:12px;">Срок действия</div>
           <div style="margin-top:8px;">{{ counterparty_exchange_form.expires_days }}</div>
           <div class="row-actions">
-            <button class="btn btn-primary" type="submit">Create secure link</button>
-            <a class="btn btn-ghost" href="{% url 'dms:exchange_list' %}">Exchange list</a>
-            <a class="btn btn-ghost" href="{% url 'dms:incoming_exchange_create' %}">Receive incoming</a>
+            <button class="btn btn-primary" type="submit">Создать безопасную ссылку</button>
+            <a class="btn btn-ghost" href="{% url 'dms:exchange_list' %}">Список обменов</a>
+            <a class="btn btn-ghost" href="{% url 'dms:incoming_exchange_create' %}">Принять входящий</a>
           </div>
         </form>
       {% endif %}
@@ -439,16 +439,16 @@
               <a href="{% url 'dms:exchange_detail' exchange.id %}">{{ exchange.counterparty.name }}: {{ exchange.get_direction_display }} / {{ exchange.get_status_display }}</a>
             </div>
             {% if exchange.counterparty_contact %}
-              <div class="row-meta">Contact: {{ exchange.counterparty_contact.name }}</div>
+              <div class="row-meta">Контакт: {{ exchange.counterparty_contact.name }}</div>
             {% endif %}
             <div class="row-meta">
               {{ exchange.created_at|date:"d.m.Y H:i" }}
-              {% if exchange.sent_by %} вЂў {{ exchange.sent_by.get_full_name|default:exchange.sent_by.username }}{% endif %}
-              {% if exchange.expires_at %} вЂў expires {{ exchange.expires_at|date:"d.m.Y H:i" }}{% endif %}
-              вЂў link {% if exchange.is_link_active %}active{% else %}inactive{% endif %}
+              {% if exchange.sent_by %} ? {{ exchange.sent_by.get_full_name|default:exchange.sent_by.username }}{% endif %}
+              {% if exchange.expires_at %} ? ????????? ?? {{ exchange.expires_at|date:"d.m.Y H:i" }}{% endif %}
+              ? ?????? {% if exchange.is_link_active %}???????{% else %}?????????{% endif %}
             </div>
             <div class="row-actions">
-              <a class="btn btn-ghost" href="{% url 'dms:exchange_detail' exchange.id %}">Open exchange</a>
+              <a class="btn btn-ghost" href="{% url 'dms:exchange_detail' exchange.id %}">Открыть обмен</a>
             </div>
             <div class="stack" style="margin-top:12px;">
               {% for exchange_message in exchange.messages.all %}
@@ -462,23 +462,23 @@
                   <div class="row-meta">{{ exchange_message.body }}</div>
                 </div>
               {% empty %}
-                <div class="row-meta">No messages yet.</div>
+                <div class="row-meta">Сообщений пока нет.</div>
               {% endfor %}
             </div>
             {% if not exchange.is_terminal %}
               <form method="post" action="{% url 'dms:exchange_message_create' exchange.id %}" style="margin-top:12px;">
                 {% csrf_token %}
-                <textarea name="body" rows="2" maxlength="2000" placeholder="Internal message"></textarea>
+                <textarea name="body" rows="2" maxlength="2000" placeholder="Внутреннее сообщение"></textarea>
                 <div class="row-actions">
-                  <button class="btn btn-ghost" type="submit">Send message</button>
+                  <button class="btn btn-ghost" type="submit">Отправить сообщение</button>
                 </div>
               </form>
             {% endif %}
           </div>
         {% empty %}
           <div class="row-card">
-            <div class="row-main">No counterparty exchanges yet</div>
-            <div class="row-meta">Create a secure portal link to share this document externally.</div>
+            <div class="row-main">Обменов с контрагентами пока нет</div>
+            <div class="row-meta">Создайте безопасную ссылку портала, чтобы передать документ внешней стороне.</div>
           </div>
         {% endfor %}
       </div>

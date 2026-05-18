@@ -141,7 +141,7 @@ class ProductAnalyticsDashboardTests(TestCase):
         response = self.client.get(reverse("dms:analytics_dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Platform metrics")
+        self.assertContains(response, "Платформенные метрики")
         self.assertContains(response, "Analytics Org")
         self.assertContains(response, "Hidden Analytics Org")
 

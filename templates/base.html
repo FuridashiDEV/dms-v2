@@ -89,6 +89,7 @@
       align-items:center;
       gap: 12px;
       white-space: nowrap;
+      flex-wrap: wrap;
     }
 
     .btn{
@@ -135,6 +136,39 @@
       padding: 26px 0 60px;
     }
 
+    .nav-group{
+      position:relative;
+    }
+    .nav-group summary{
+      list-style:none;
+    }
+    .nav-group summary::-webkit-details-marker{ display:none; }
+    .nav-menu{
+      position:absolute;
+      right:0;
+      top:48px;
+      width:260px;
+      padding:8px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:#fff;
+      box-shadow:var(--shadow);
+      z-index:80;
+      display:grid;
+      gap:6px;
+    }
+    .nav-menu a{
+      display:flex;
+      align-items:center;
+      min-height:38px;
+      padding:8px 10px;
+      border-radius:12px;
+      color:var(--text);
+      font-size:14px;
+      font-weight:700;
+    }
+    .nav-menu a:hover{ background:#f2f5fb; }
+
     /* Cards */
     .card{
       background: var(--card);
@@ -143,6 +177,126 @@
       box-shadow: var(--shadow);
       padding: 18px;
     }
+
+    .page-top{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:16px;
+      margin:10px 0 18px;
+    }
+    .page-title{
+      margin:0;
+      font-size:34px;
+      line-height:1.1;
+      font-weight:900;
+      letter-spacing:-0.02em;
+    }
+    .page-sub{
+      margin-top:8px;
+      color:var(--muted);
+      font-weight:650;
+      line-height:1.6;
+      max-width:860px;
+    }
+    .top-actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:center;
+      justify-content:flex-end;
+    }
+    .section-title{
+      margin:0;
+      font-size:20px;
+      font-weight:900;
+      letter-spacing:-0.01em;
+    }
+    .section-sub{
+      margin-top:6px;
+      color:var(--muted);
+      font-weight:650;
+      line-height:1.55;
+    }
+    .ops-grid{
+      display:grid;
+      grid-template-columns:repeat(4, minmax(0, 1fr));
+      gap:14px;
+      margin-bottom:18px;
+    }
+    .ops-grid.cols-3{ grid-template-columns:repeat(3, minmax(0, 1fr)); }
+    .ops-grid.cols-5{ grid-template-columns:repeat(5, minmax(0, 1fr)); }
+    .ops-card{
+      padding:16px;
+      border:1px solid rgba(148,163,184,.24);
+      border-radius:14px;
+      background:#fff;
+    }
+    .ops-label{
+      color:var(--muted);
+      font-size:12px;
+      font-weight:900;
+      text-transform:uppercase;
+      letter-spacing:.04em;
+    }
+    .ops-value{
+      margin-top:8px;
+      font-size:28px;
+      font-weight:900;
+      color:rgba(15,23,42,.94);
+    }
+    .ops-note{
+      margin-top:6px;
+      color:var(--muted);
+      font-size:13px;
+      font-weight:700;
+      line-height:1.45;
+    }
+    .ops-section{ margin-top:18px; }
+    .data-row{
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      padding:13px 0;
+      border-bottom:1px solid var(--border);
+    }
+    .data-row:last-child{ border-bottom:0; }
+    .data-main{ font-weight:850; color:rgba(15,23,42,.92); }
+    .data-meta{
+      margin-top:4px;
+      color:var(--muted);
+      font-size:13px;
+      font-weight:700;
+      line-height:1.5;
+    }
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      min-height:28px;
+      padding:0 11px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:#fff;
+      color:var(--text);
+      font-size:12px;
+      font-weight:850;
+      line-height:1;
+    }
+    .badge-info{ border-color:rgba(37,99,235,.18); background:rgba(37,99,235,.08); color:#1d4ed8; }
+    .badge-success{ border-color:rgba(22,163,74,.18); background:rgba(22,163,74,.1); color:#166534; }
+    .badge-warning{ border-color:rgba(217,119,6,.2); background:rgba(217,119,6,.1); color:#92400e; }
+    .badge-danger{ border-color:rgba(220,38,38,.18); background:rgba(220,38,38,.1); color:#991b1b; }
+    .badge-muted{ border-color:rgba(148,163,184,.24); background:#f8fafc; color:#475569; }
+    .empty-panel{
+      padding:22px;
+      border:1px dashed rgba(148,163,184,.42);
+      border-radius:18px;
+      background:rgba(248,250,252,.72);
+      color:var(--muted);
+      font-weight:650;
+      line-height:1.6;
+    }
+    .table-wrap{ width:100%; overflow:auto; }
 
     /* Form styles */
     input, select, textarea{
@@ -203,6 +357,11 @@
       .brand-title{ font-size: 14px; }
       .header-inner{ height: auto; padding: 12px 0; flex-direction: column; align-items:flex-start; }
       .header-actions{ width:100%; justify-content:flex-start; flex-wrap: wrap; }
+      .page-top{ flex-direction:column; }
+      .top-actions{ justify-content:flex-start; }
+      .ops-grid,.ops-grid.cols-3,.ops-grid.cols-5{ grid-template-columns:1fr; }
+      .data-row{ display:grid; }
+      .nav-menu{ left:0; right:auto; }
     }
   </style>
 </head>
@@ -266,38 +425,26 @@
   </a>
         {% endif %}
 
-    <a class="btn btn-ghost" href="{% url 'dms:analytics_dashboard' %}" style="height:40px;">
-      <span style="display:inline-flex; align-items:center; gap:10px;">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path d="M4 19V5" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
-          <path d="M4 19h16" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
-          <path d="M8 15l3-3 3 2 4-6" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <span>Analytics</span>
-      </span>
-    </a>
-
     {% if user.role == "ADMIN" or user.is_superuser %}
-      <a class="btn btn-ghost" href="{% url 'dms:billing_dashboard' %}" style="height:40px;">
-        <span style="display:inline-flex; align-items:center; gap:10px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M4 7h16M4 12h16M7 17h10" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <span>Billing</span>
-        </span>
-      </a>
-    {% endif %}
-
-    {% if user.role == "ADMIN" or user.is_superuser %}
-      <a class="btn btn-ghost" href="{% url 'dms:security_dashboard' %}" style="height:40px;">
-        <span style="display:inline-flex; align-items:center; gap:10px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M12 3l7 3v5c0 4.5-2.9 8.4-7 10-4.1-1.6-7-5.5-7-10V6l7-3Z" stroke="#2563eb" stroke-width="2" stroke-linejoin="round"/>
-            <path d="M9 12l2 2 4-5" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <span>Security</span>
-        </span>
-      </a>
+      <details class="nav-group">
+        <summary class="btn btn-ghost" style="height:40px;">
+          <span style="display:inline-flex; align-items:center; gap:10px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M4 19V5" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+              <path d="M4 19h16" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+              <path d="M8 15l3-3 3 2 4-6" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Администрирование</span>
+          </span>
+        </summary>
+        <div class="nav-menu">
+          <a href="{% url 'dms:analytics_dashboard' %}">Аналитика и наблюдаемость</a>
+          <a href="{% url 'dms:billing_dashboard' %}">Тарифы и лимиты</a>
+          <a href="{% url 'dms:cost_optimization_dashboard' %}">Стоимость обработки</a>
+          <a href="{% url 'dms:security_dashboard' %}">Безопасность</a>
+          <a href="{% url 'dms:usage_dashboard' %}">Использование и вебхуки</a>
+        </div>
+      </details>
     {% endif %}
 
     <a class="btn btn-ghost" href="{% url 'dms:notification_list' %}" style="height:40px;">
@@ -306,7 +453,7 @@
           <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" stroke="#2563eb" stroke-width="2" stroke-linejoin="round"/>
           <path d="M10 21h4" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
         </svg>
-        <span>Notifications{% if unread_notification_count %} ({{ unread_notification_count }}){% endif %}</span>
+        <span>Уведомления{% if unread_notification_count %} ({{ unread_notification_count }}){% endif %}</span>
       </span>
     </a>
 

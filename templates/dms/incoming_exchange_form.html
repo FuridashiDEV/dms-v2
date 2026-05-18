@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Receive Incoming B2B Document{% endblock %}
+{% block title %}Входящий B2B-документ{% endblock %}
 
 {% block content %}
 <style>
@@ -17,8 +17,8 @@
 
 <div class="incoming-shell">
   <div>
-    <h1 class="incoming-title">Receive Incoming B2B Document</h1>
-    <div class="incoming-sub">The uploaded file will become a regular DMS document with its first document version and a linked incoming exchange record.</div>
+    <h1 class="incoming-title">Входящий B2B-документ</h1>
+    <div class="incoming-sub">Загруженный файл станет обычным документом DMS с первой версией и связанной записью входящего обмена.</div>
   </div>
 
   <form class="card incoming-form" method="post" enctype="multipart/form-data">
@@ -29,11 +29,11 @@
 
     <div class="incoming-grid">
       <div class="incoming-field">
-        <label>Existing counterparty</label>
+        <label>Существующий контрагент</label>
         {{ form.counterparty }}
       </div>
       <div class="incoming-field">
-        <label>Business document type</label>
+        <label>Тип бизнес-документа</label>
         {{ form.business_document_type }}
       </div>
     </div>
@@ -45,21 +45,21 @@
 
     <div class="incoming-grid">
       <div class="incoming-field">
-        <label>New counterparty name</label>
+        <label>Название нового контрагента</label>
         {{ form.new_counterparty_name }}
       </div>
       <div class="incoming-field">
-        <label>New counterparty email</label>
+        <label>Email нового контрагента</label>
         {{ form.new_counterparty_email }}
       </div>
     </div>
 
     <div class="incoming-field">
-      <label>Contact name</label>
+      <label>Имя контакта</label>
       {{ form.new_contact_name }}
     </div>
     <div class="incoming-field">
-      <label>Contact email</label>
+      <label>Email контакта</label>
       {{ form.new_contact_email }}
     </div>
 
@@ -95,8 +95,8 @@
     </div>
 
     <div class="top-actions">
-      <button class="btn btn-primary" type="submit">Receive document</button>
-      <a class="btn btn-ghost" href="{% url 'dms:exchange_list' %}">Exchange list</a>
+      <button class="btn btn-primary" type="submit">Принять документ</button>
+      <a class="btn btn-ghost" href="{% url 'dms:exchange_list' %}">Список обменов</a>
     </div>
   </form>
 </div>

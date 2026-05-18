@@ -520,9 +520,9 @@ class DocumentDetailViewTests(TestCase):
         response = self.client.get(reverse("dms:document_detail", args=[self.document.id]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Retention assistant")
+        self.assertContains(response, "Помощник по срокам хранения")
         self.assertContains(response, "Качество карточки")
-        self.assertContains(response, "Superseded detection")
+        self.assertContains(response, "Проверка устаревших редакций")
 
 
 class LegacyDocumentStatusWorkflowTests:

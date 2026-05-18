@@ -24,8 +24,8 @@
     <div class="exchange-sub">Incoming and outgoing document exchanges linked to regular DMS documents.</div>
   </div>
   <div class="top-actions">
-    <a class="btn btn-primary" href="{% url 'dms:incoming_exchange_create' %}">Receive incoming</a>
-    <a class="btn btn-ghost" href="{% url 'dms:document_list' %}">Documents</a>
+    <a class="btn btn-primary" href="{% url 'dms:incoming_exchange_create' %}">Принять входящий</a>
+    <a class="btn btn-ghost" href="{% url 'dms:document_list' %}">Документы</a>
   </div>
 </div>
 
@@ -33,7 +33,7 @@
   <form class="card exchange-filter" method="get">
     <h2 class="section-title">Filters</h2>
     <div class="field">
-      <label>Direction</label>
+      <label>Направление</label>
       <select name="direction">
         <option value="">All</option>
         <option value="INCOMING" {% if direction == "INCOMING" %}selected{% endif %}>Incoming</option>
@@ -50,7 +50,7 @@
       </select>
     </div>
     <div class="field">
-      <label>Counterparty</label>
+      <label>Контрагент</label>
       <select name="counterparty">
         <option value="">All</option>
         {% for item in counterparties %}
@@ -78,13 +78,13 @@
           • {{ exchange.created_at|date:"d.m.Y H:i" }}
         </div>
         <div class="exchange-meta">
-          {% if exchange.sent_by %}Sent by {{ exchange.sent_by.get_full_name|default:exchange.sent_by.username }}{% endif %}
-          {% if exchange.received_by %}Received by {{ exchange.received_by.get_full_name|default:exchange.received_by.username }}{% endif %}
+          {% if exchange.sent_by %}Отправил {{ exchange.sent_by.get_full_name|default:exchange.sent_by.username }}{% endif %}
+          {% if exchange.received_by %}Принял {{ exchange.received_by.get_full_name|default:exchange.received_by.username }}{% endif %}
           / link: {% if exchange.is_link_active %}active{% else %}inactive{% endif %}
         </div>
         <div class="row-actions">
-          <a class="btn btn-ghost" href="{% url 'dms:exchange_detail' exchange.id %}">Open exchange</a>
-          <a class="btn btn-ghost" href="{% url 'dms:document_detail' exchange.document.id %}">Document</a>
+          <a class="btn btn-ghost" href="{% url 'dms:exchange_detail' exchange.id %}">Открыть обмен</a>
+          <a class="btn btn-ghost" href="{% url 'dms:document_detail' exchange.document.id %}">Документ</a>
         </div>
       </div>
     {% empty %}

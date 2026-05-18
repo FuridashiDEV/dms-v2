@@ -54,7 +54,7 @@ class B2BExchangeMaturityTests(TestCase):
         response = self.client.get(reverse("dms:exchange_detail", args=[created.exchange.id]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Exchange card")
+        self.assertContains(response, "Карточка обмена")
         self.assertContains(response, "Maturity exchange document")
         self.assertContains(response, "Maturity LLP")
         self.assertContains(response, "Maturity Contact")

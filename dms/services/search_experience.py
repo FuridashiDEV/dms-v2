@@ -54,20 +54,20 @@ def search_mode_explanations(active_mode: str) -> list[SearchModeExplanation]:
     return [
         SearchModeExplanation(
             mode=SEARCH_MODE_HYBRID,
-            label="Hybrid",
-            description="Combines exact fields, extracted entities, aliases, text and semantic candidates.",
+            label="Гибридный",
+            description="Объединяет реквизиты, сущности, алиасы, текст и смысловые совпадения.",
             is_active=active_mode == SEARCH_MODE_HYBRID,
         ),
         SearchModeExplanation(
             mode=SEARCH_MODE_EXACT,
-            label="Exact",
-            description="Best for document numbers, file names, titles and strict archive fields.",
+            label="Точный",
+            description="Подходит для номеров документов, названий, файлов и строгих архивных полей.",
             is_active=active_mode == SEARCH_MODE_EXACT,
         ),
         SearchModeExplanation(
             mode=SEARCH_MODE_SEMANTIC,
-            label="Semantic",
-            description="Uses meaning-based candidates when the vector index is available, with safe text fallback.",
+            label="Смысловой",
+            description="Ищет по смыслу, если индекс доступен, и безопасно возвращается к текстовому поиску.",
             is_active=active_mode == SEARCH_MODE_SEMANTIC,
         ),
     ]
@@ -76,27 +76,27 @@ def search_mode_explanations(active_mode: str) -> list[SearchModeExplanation]:
 def confidence_badge(confidence: float | None) -> dict:
     if confidence is None:
         return {
-            "label": "Not scored",
+            "label": "Без оценки",
             "level": "unknown",
-            "note": "Shown by archive ordering or filters.",
+            "note": "Показано по фильтрам или порядку архива.",
         }
     confidence = float(confidence or 0)
     if confidence >= 0.72:
         return {
-            "label": "High confidence",
+            "label": "Высокая уверенность",
             "level": "high",
-            "note": "Several search signals agree.",
+            "note": "Несколько поисковых сигналов совпали.",
         }
     if confidence >= 0.42:
         return {
-            "label": "Medium confidence",
+            "label": "Средняя уверенность",
             "level": "medium",
-            "note": "Some relevant signals matched.",
+            "note": "Найдена часть релевантных совпадений.",
         }
     return {
-        "label": "Low confidence",
+        "label": "Низкая уверенность",
         "level": "low",
-        "note": "Review the card before relying on it.",
+        "note": "Проверьте карточку перед использованием результата.",
     }
 
 
@@ -115,21 +115,21 @@ def build_search_readiness(document: Document) -> list[dict]:
     readiness = [
         {
             "key": "uploaded",
-            "label": "Uploaded",
+            "label": "Загружен",
             "state": "ready" if has_file else "missing",
-            "note": "Document record exists." if has_file else "File is missing.",
+            "note": "Карточка документа создана." if has_file else "Файл не найден.",
         },
         {
             "key": "basic",
-            "label": "Basic search",
+            "label": "Базовый поиск",
             "state": "ready" if has_basic_text else "pending",
-            "note": "Title and metadata are searchable." if has_basic_text else "Waiting for basic metadata.",
+            "note": "Название и реквизиты доступны." if has_basic_text else "Ожидаются базовые реквизиты.",
         },
         {
             "key": "text",
-            "label": "Text extracted",
+            "label": "Текст извлечён",
             "state": "ready" if has_extracted_text else "pending",
-            "note": "Full-text snippets can be shown." if has_extracted_text else "Text extraction may still be pending.",
+            "note": "Можно показывать найденные фрагменты." if has_extracted_text else "Извлечение текста ещё может выполняться.",
         },
     ]
 
@@ -137,27 +137,27 @@ def build_search_readiness(document: Document) -> list[dict]:
         readiness.append(
             {
                 "key": "processing_failed",
-                "label": "Processing failed",
+                "label": "Ошибка обработки",
                 "state": "failed",
-                "note": "Semantic index needs attention.",
+                "note": "Индекс требует проверки.",
             }
         )
     elif has_indexed_state or document.search_indexed_at:
         readiness.append(
             {
                 "key": "semantic_ready",
-                "label": "Semantic ready",
+                "label": "Смысловой поиск готов",
                 "state": "ready",
-                "note": "Vector search can use this document.",
+                "note": "Документ участвует в смысловом поиске.",
             }
         )
     else:
         readiness.append(
             {
                 "key": "semantic_pending",
-                "label": "Semantic pending",
+                "label": "Индексация ожидается",
                 "state": "pending" if has_pending_state or has_extracted_text or has_basic_text else "missing",
-                "note": "Document can still appear through filters and text search.",
+                "note": "Документ всё равно доступен через фильтры и текст.",
             }
         )
     return readiness
@@ -182,27 +182,27 @@ def build_search_suggestions(
         entities = search_query.entities or {}
         counterparty = entities.get("counterparty")
         if counterparty:
-            add("Search this counterparty", "Narrow results to the detected counterparty.", q=counterparty, counterparty=counterparty, search_mode=SEARCH_MODE_HYBRID)
+            add("Искать по контрагенту", "Сузить выдачу по найденному контрагенту.", q=counterparty, counterparty=counterparty, search_mode=SEARCH_MODE_HYBRID)
         amount = entities.get("amount") or {}
         amount_value = amount.get("value")
         if amount_value:
             lower = max(int(amount_value * 0.9), 0)
             upper = int(amount_value * 1.1)
-            add("Search around this amount", "Use a practical amount range instead of an exact phrase.", amount_min=lower, amount_max=upper, search_mode=SEARCH_MODE_HYBRID)
+            add("Искать по сумме", "Использовать диапазон суммы вместо точной фразы.", amount_min=lower, amount_max=upper, search_mode=SEARCH_MODE_HYBRID)
         document_type = entities.get("document_type")
         if document_type:
-            add("Search this document type", "Keep the detected document type as the main term.", q=document_type, search_mode=SEARCH_MODE_HYBRID)
+            add("Искать по типу документа", "Оставить найденный тип документа основным условием.", q=document_type, search_mode=SEARCH_MODE_HYBRID)
         for key, values in (search_query.aliases or {}).items():
             if values:
-                add("Try alias variants", "Use normalized aliases for spelling or language variants.", q=" ".join(values[:4]), search_mode=SEARCH_MODE_HYBRID)
+                add("Попробовать алиасы", "Использовать варианты написания и языка.", q=" ".join(values[:4]), search_mode=SEARCH_MODE_HYBRID)
                 break
 
     if len(suggestions) < max_items:
-        add("Search by counterparty", "Example: contract with IP Firma.", q="contract IP Firma", search_mode=SEARCH_MODE_HYBRID)
+        add("Поиск по контрагенту", "Например: договор ИП Фирма.", q="contract IP Firma", search_mode=SEARCH_MODE_HYBRID)
     if len(suggestions) < max_items:
-        add("Search by amount", "Example: invoice for 3 mln KZT.", q="invoice 3 mln KZT", search_mode=SEARCH_MODE_HYBRID)
+        add("Поиск по сумме", "Например: счёт на 3 млн тенге.", q="invoice 3 mln KZT", search_mode=SEARCH_MODE_HYBRID)
     if len(suggestions) < max_items:
-        add("Search by document type", "Example: act or appendix for a contract.", q="appendix act contract", search_mode=SEARCH_MODE_HYBRID)
+        add("Поиск по типу", "Например: акт или приложение к договору.", q="appendix act contract", search_mode=SEARCH_MODE_HYBRID)
 
     return suggestions[:max_items]
 

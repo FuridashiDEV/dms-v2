@@ -1,12 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Evidence report - {{ document.title }}{% endblock %}
+{% block title %}Доказательный отчёт - {{ document.title }}{% endblock %}
 
 {% block content %}
 <style>
   .report-page { max-width:1180px; margin:0 auto; }
-  .report-top { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; margin:10px 0 20px; }
-  .report-title { margin:0; font-size:34px; line-height:1.08; font-weight:900; letter-spacing:-0.02em; }
-  .report-sub { margin-top:10px; color:var(--muted); font-weight:650; line-height:1.55; max-width:820px; }
   .report-actions { display:flex; flex-wrap:wrap; gap:10px; }
   .report-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; }
   .report-card { padding:20px; border-radius:18px; border:1px solid rgba(148,163,184,0.18); background:#fff; }
@@ -25,56 +22,56 @@
   .timeline-label { margin-top:4px; font-weight:850; color:rgba(15,23,42,0.88); }
   .checksum { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:13px; word-break:break-all; }
   .notice { margin-top:14px; padding:14px 16px; border-radius:16px; background:rgba(239,246,255,0.72); border:1px solid rgba(37,99,235,0.16); color:rgba(30,64,175,0.9); font-weight:750; line-height:1.5; }
-  @media(max-width:860px){ .report-top{flex-direction:column;} .report-grid{grid-template-columns:1fr;} .kv{grid-template-columns:1fr;} }
+  @media(max-width:860px){ .report-grid{grid-template-columns:1fr;} .kv{grid-template-columns:1fr;} }
 </style>
 
 <div class="report-page">
-  <div class="report-top">
+  <div class="page-top">
     <div>
-      <h1 class="report-title">Evidence report</h1>
-      <div class="report-sub">
-        Human-readable report generated from the existing DMS evidence package. It is intended for review and audit context only and does not claim legal force.
+      <h1 class="page-title">Доказательный отчёт</h1>
+      <div class="page-sub">
+        Человекочитаемый отчёт на основе доказательного пакета DMS. Он предназначен для проверки и аудита и не является заявлением о юридической силе.
       </div>
       <div class="notice">
-        This report excludes secure tokens, token hashes, API keys, webhook secrets, server file paths and raw file contents.
+        Отчёт не включает secure tokens, token hashes, API keys, webhook secrets, служебные пути сервера и содержимое файлов.
       </div>
     </div>
     <div class="report-actions">
-      <a class="btn btn-ghost" href="{% url 'dms:document_detail' document.id %}">Back to document</a>
-      <a class="btn btn-ghost" href="{% url 'dms:document_evidence_export' document.id %}">Download JSON</a>
+      <a class="btn btn-ghost" href="{% url 'dms:document_detail' document.id %}">К документу</a>
+      <a class="btn btn-ghost" href="{% url 'dms:document_evidence_export' document.id %}">Скачать JSON</a>
     </div>
   </div>
 
   <div class="report-grid">
     <section class="report-card">
-      <h2 class="section-title">Document</h2>
+      <h2 class="section-title">Документ</h2>
       <div class="kv">
-        <div class="k">Title</div><div class="v">{{ document.title }}</div>
-        <div class="k">Public ID</div><div class="v">{{ document.public_id }}</div>
-        <div class="k">Status</div><div class="v">{{ document.status }}</div>
-        <div class="k">Type</div><div class="v">{{ document.document_type.name|default:"-" }}</div>
-        <div class="k">Date</div><div class="v">{{ document.document_date|default:"-" }}</div>
-        <div class="k">Department</div><div class="v">{{ document.department.name|default:"-" }}</div>
-        <div class="k">Checksum</div><div class="v checksum">{{ document.checksum_sha256|default:"Not calculated" }}</div>
+        <div class="k">Название</div><div class="v">{{ document.title }}</div>
+        <div class="k">Публичный ID</div><div class="v">{{ document.public_id }}</div>
+        <div class="k">Статус</div><div class="v">{{ document.status }}</div>
+        <div class="k">Тип</div><div class="v">{{ document.document_type.name|default:"-" }}</div>
+        <div class="k">Дата</div><div class="v">{{ document.document_date|default:"-" }}</div>
+        <div class="k">Отдел</div><div class="v">{{ document.department.name|default:"-" }}</div>
+        <div class="k">Контрольная сумма</div><div class="v checksum">{{ document.checksum_sha256|default:"Не рассчитана" }}</div>
       </div>
     </section>
 
     <section class="report-card">
-      <h2 class="section-title">Organization</h2>
+      <h2 class="section-title">Организация</h2>
       <div class="kv">
-        <div class="k">Name</div><div class="v">{{ organization.name }}</div>
+        <div class="k">Название</div><div class="v">{{ organization.name }}</div>
         <div class="k">Slug</div><div class="v">{{ organization.slug }}</div>
-        <div class="k">Generated at</div><div class="v">{{ export.generated_at }}</div>
-        <div class="k">Generated by</div><div class="v">{{ export.generated_by.display_name|default:export.generated_by.username|default:"-" }}</div>
+        <div class="k">Сформирован</div><div class="v">{{ export.generated_at }}</div>
+        <div class="k">Сформировал</div><div class="v">{{ export.generated_by.display_name|default:export.generated_by.username|default:"-" }}</div>
       </div>
     </section>
   </div>
 
   <section class="report-section">
-    <h2 class="section-title">Versions</h2>
-    <div class="section-note">Document versions and preservation metadata available in the evidence package.</div>
+    <h2 class="section-title">Версии</h2>
+    <div class="section-note">Версии документа и preservation-метаданные из доказательного пакета.</div>
     <table class="table">
-      <thead><tr><th>#</th><th>Title</th><th>Status</th><th>Created</th><th>Checksum</th></tr></thead>
+      <thead><tr><th>#</th><th>Название</th><th>Статус</th><th>Создана</th><th>Контрольная сумма</th></tr></thead>
       <tbody>
         {% for version in versions %}
           <tr>
@@ -85,16 +82,16 @@
             <td class="checksum">{{ version.checksum_sha256|default:"-" }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="5">No versions in evidence package.</td></tr>
+          <tr><td colspan="5">В доказательном пакете нет версий.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </section>
 
   <section class="report-section">
-    <h2 class="section-title">AI Fields</h2>
+    <h2 class="section-title">AI-поля</h2>
     <table class="table">
-      <thead><tr><th>Field</th><th>Value</th><th>Status</th><th>Confidence</th><th>Reviewed</th></tr></thead>
+      <thead><tr><th>Поле</th><th>Значение</th><th>Статус</th><th>Уверенность</th><th>Проверено</th></tr></thead>
       <tbody>
         {% for field in ai.fields %}
           <tr>
@@ -105,24 +102,24 @@
             <td>{{ field.reviewed_at|default:"-" }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="5">No AI fields in evidence package.</td></tr>
+          <tr><td colspan="5">В доказательном пакете нет AI-полей.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </section>
 
   <section class="report-section">
-    <h2 class="section-title">Workflow</h2>
+    <h2 class="section-title">Согласование</h2>
     {% for instance in workflow %}
       <div class="report-card" style="margin-top:12px;">
         <div class="kv">
-          <div class="k">Template</div><div class="v">{{ instance.template.name }}</div>
-          <div class="k">Status</div><div class="v">{{ instance.status }}</div>
-          <div class="k">Started</div><div class="v">{{ instance.started_at }}</div>
-          <div class="k">Completed</div><div class="v">{{ instance.completed_at|default:"-" }}</div>
+          <div class="k">Шаблон</div><div class="v">{{ instance.template.name }}</div>
+          <div class="k">Статус</div><div class="v">{{ instance.status }}</div>
+          <div class="k">Запущен</div><div class="v">{{ instance.started_at }}</div>
+          <div class="k">Завершён</div><div class="v">{{ instance.completed_at|default:"-" }}</div>
         </div>
         <table class="table">
-          <thead><tr><th>Action</th><th>Actor</th><th>Comment</th><th>At</th></tr></thead>
+          <thead><tr><th>Действие</th><th>Исполнитель</th><th>Комментарий</th><th>Время</th></tr></thead>
           <tbody>
             {% for action in instance.actions %}
               <tr>
@@ -132,65 +129,65 @@
                 <td>{{ action.created_at }}</td>
               </tr>
             {% empty %}
-              <tr><td colspan="4">No workflow actions.</td></tr>
+              <tr><td colspan="4">Действий согласования нет.</td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     {% empty %}
-      <div class="section-note">No workflow records in evidence package.</div>
+      <div class="section-note">В доказательном пакете нет записей согласования.</div>
     {% endfor %}
   </section>
 
   <section class="report-section">
-    <h2 class="section-title">Exchanges and Messages</h2>
+    <h2 class="section-title">Обмен и сообщения</h2>
     {% for exchange in exchanges %}
       <div class="report-card" style="margin-top:12px;">
         <div class="kv">
-          <div class="k">Direction</div><div class="v">{{ exchange.direction }}</div>
-          <div class="k">Status</div><div class="v">{{ exchange.status }}</div>
-          <div class="k">Counterparty</div><div class="v">{{ exchange.counterparty.name|default:"-" }}</div>
-          <div class="k">Created</div><div class="v">{{ exchange.created_at }}</div>
+          <div class="k">Направление</div><div class="v">{{ exchange.direction }}</div>
+          <div class="k">Статус</div><div class="v">{{ exchange.status }}</div>
+          <div class="k">Контрагент</div><div class="v">{{ exchange.counterparty.name|default:"-" }}</div>
+          <div class="k">Создан</div><div class="v">{{ exchange.created_at }}</div>
         </div>
         <table class="table">
-          <thead><tr><th>Message/event</th><th>Actor</th><th>Comment/body</th><th>At</th></tr></thead>
+          <thead><tr><th>Событие</th><th>Участник</th><th>Комментарий</th><th>Время</th></tr></thead>
           <tbody>
             {% for event in exchange.events %}
               <tr><td>{{ event.event_type }}</td><td>{{ event.actor_name|default:"-" }}</td><td>{{ event.comment|default:"-" }}</td><td>{{ event.created_at }}</td></tr>
             {% endfor %}
             {% for message in exchange.messages %}
-              <tr><td>message {{ message.author_type }}</td><td>{{ message.user.display_name|default:message.counterparty_contact.name|default:"-" }}</td><td>{{ message.body }}</td><td>{{ message.created_at }}</td></tr>
+              <tr><td>сообщение {{ message.author_type }}</td><td>{{ message.user.display_name|default:message.counterparty_contact.name|default:"-" }}</td><td>{{ message.body }}</td><td>{{ message.created_at }}</td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     {% empty %}
-      <div class="section-note">No exchanges in evidence package.</div>
+      <div class="section-note">В доказательном пакете нет обменов.</div>
     {% endfor %}
   </section>
 
   <section class="report-section">
-    <h2 class="section-title">Audit Events</h2>
+    <h2 class="section-title">События аудита</h2>
     <table class="table">
-      <thead><tr><th>Event</th><th>User</th><th>Version</th><th>Metadata</th><th>At</th></tr></thead>
+      <thead><tr><th>Событие</th><th>Пользователь</th><th>Версия</th><th>Детали</th><th>Время</th></tr></thead>
       <tbody>
         {% for event in audit_events %}
           <tr>
             <td>{{ event.event_type }}</td>
             <td>{{ event.user.display_name|default:event.user.username|default:"-" }}</td>
             <td>{{ event.document_version_id|default:"-" }}</td>
-            <td>{{ event.metadata|default:"-" }}</td>
+            <td>{{ event.metadata|default:"-"|truncatechars:180 }}</td>
             <td>{{ event.created_at }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="5">No audit events in evidence package.</td></tr>
+          <tr><td colspan="5">В доказательном пакете нет событий аудита.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </section>
 
   <section class="report-section">
-    <h2 class="section-title">Timeline</h2>
+    <h2 class="section-title">Хронология</h2>
     <div class="timeline">
       {% for item in timeline %}
         <div class="timeline-item">
@@ -198,16 +195,16 @@
           <div class="timeline-label">{{ item.label }}</div>
         </div>
       {% empty %}
-        <div class="section-note">No timeline events.</div>
+        <div class="section-note">Событий хронологии нет.</div>
       {% endfor %}
     </div>
   </section>
 
   <section class="report-section">
-    <h2 class="section-title">Report Checksum and Limitations</h2>
+    <h2 class="section-title">Контрольная сумма и ограничения</h2>
     <div class="kv">
       <div class="k">SHA-256</div><div class="v checksum">{{ report_checksum_sha256 }}</div>
-      <div class="k">Schema</div><div class="v">{{ schema.name }} {{ schema.version }}</div>
+      <div class="k">Схема</div><div class="v">{{ schema.name }} {{ schema.version }}</div>
     </div>
     <ul>
       {% for limitation in limitations %}

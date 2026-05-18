@@ -122,7 +122,7 @@ class NotificationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, own.title)
-        self.assertContains(response, "Notifications (1)")
+        self.assertContains(response, "Уведомления (1)")
         self.assertNotContains(response, "Other user notification")
         self.assertNotContains(response, "Other organization notification")
 

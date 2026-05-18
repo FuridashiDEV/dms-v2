@@ -1167,23 +1167,23 @@ def document_list(request):
 
     active_filter_labels = []
     if selected_department:
-        active_filter_labels.append(f"Department: {selected_department.name}")
+        active_filter_labels.append(f"Отдел: {selected_department.name}")
     if selected_folder:
-        active_filter_labels.append(f"Folder: {selected_folder.name}")
+        active_filter_labels.append(f"Папка: {selected_folder.name}")
     if selected_doc_type:
-        active_filter_labels.append(f"Document type: {selected_doc_type.name}")
+        active_filter_labels.append(f"Тип документа: {selected_doc_type.name}")
     if counterparty:
-        active_filter_labels.append(f"Counterparty: {counterparty}")
+        active_filter_labels.append(f"Контрагент: {counterparty}")
     if amount_min:
-        active_filter_labels.append(f"Amount from: {amount_min}")
+        active_filter_labels.append(f"Сумма от: {amount_min}")
     if amount_max:
-        active_filter_labels.append(f"Amount to: {amount_max}")
+        active_filter_labels.append(f"Сумма до: {amount_max}")
     if status:
-        active_filter_labels.append(f"Status: {status}")
+        active_filter_labels.append(f"Статус: {status}")
     if date_from:
-        active_filter_labels.append(f"Date from: {date_from.isoformat()}")
+        active_filter_labels.append(f"Дата от: {date_from.isoformat()}")
     if date_to:
-        active_filter_labels.append(f"Date to: {date_to.isoformat()}")
+        active_filter_labels.append(f"Дата до: {date_to.isoformat()}")
 
     context = {
         "documents": documents,

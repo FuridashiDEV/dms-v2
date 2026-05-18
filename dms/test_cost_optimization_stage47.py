@@ -142,7 +142,7 @@ class CostOptimizationStage47Tests(TestCase):
         response = self.client.get(reverse("dms:cost_optimization_dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Cost optimization")
+        self.assertContains(response, "Стоимость обработки")
         self.assertEqual(response.context["selected_organization"], self.context.organization)
 
     def test_employee_cannot_open_cost_dashboard(self):

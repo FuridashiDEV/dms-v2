@@ -159,7 +159,7 @@ class BillingCommercialModelStage31Tests(TestCase):
         self.assertFalse(response.context["overview"]["payment_gateway_enabled"])
         self.assertFalse(response.context["overview"]["invoices_enabled"])
         self.assertFalse(hasattr(models, "Invoice"))
-        self.assertContains(response, "no payments, invoices, or hard blocking")
+        self.assertContains(response, "платежи, счета и жёсткая блокировка не включены")
 
     def test_employee_cannot_access_billing_screens(self):
         self.client.force_login(self.employee)

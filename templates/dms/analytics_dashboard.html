@@ -1,50 +1,38 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
-{% block title %}Analytics{% endblock %}
+{% block title %}Аналитика{% endblock %}
 
 {% block content %}
 <style>
-  .analytics-top { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; margin:10px 0 18px; }
-  .analytics-title { margin:0; font-size:32px; font-weight:900; letter-spacing:-0.02em; }
-  .analytics-sub { margin-top:8px; color:var(--muted); font-weight:650; line-height:1.6; }
   .analytics-filters { display:grid; grid-template-columns:repeat(4, minmax(140px, 1fr)); gap:12px; align-items:end; margin-bottom:18px; }
-  .analytics-grid { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; margin-bottom:18px; }
-  .analytics-card { padding:16px; border:1px solid rgba(148,163,184,.24); border-radius:14px; background:#fff; }
-  .analytics-label { color:rgba(15,23,42,.58); font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
-  .analytics-value { margin-top:8px; font-size:28px; font-weight:900; color:rgba(15,23,42,.94); }
-  .analytics-section { margin-top:18px; }
-  .analytics-row { display:flex; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid var(--border); }
-  .analytics-row:last-child { border-bottom:0; }
-  .analytics-main { font-weight:850; }
-  .analytics-meta { color:var(--muted); font-size:13px; font-weight:700; }
   .alert-pill { display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; font-size:12px; font-weight:850; background:#fff7ed; color:#9a3412; border:1px solid #fed7aa; }
-  @media(max-width:960px){ .analytics-top{display:grid;} .analytics-grid{grid-template-columns:repeat(2, minmax(0, 1fr));} .analytics-filters{grid-template-columns:1fr 1fr;} }
-  @media(max-width:640px){ .analytics-grid,.analytics-filters{grid-template-columns:1fr;} }
+  @media(max-width:960px){ .analytics-filters{grid-template-columns:1fr 1fr;} }
+  @media(max-width:640px){ .ops-grid,.analytics-filters{grid-template-columns:1fr;} }
 </style>
 
-<div class="analytics-top">
+<div class="page-top">
   <div>
-    <h1 class="analytics-title">Analytics</h1>
-    <div class="analytics-sub">
-      Internal product analytics from existing DMS data and UsageEvent records.
+    <h1 class="page-title">Аналитика</h1>
+    <div class="page-sub">
+      Внутренняя продуктовая аналитика по данным DMS и событиям использования.
     </div>
   </div>
   <div class="top-actions">
-    <a class="btn btn-ghost" href="{% url 'dms:dashboard' %}">Dashboard</a>
+    <a class="btn btn-ghost" href="{% url 'dms:dashboard' %}">Главная</a>
   </div>
 </div>
 
 <form method="get" class="card analytics-filters">
   <div>
-    <label for="start">Start</label>
+    <label for="start">Начало</label>
     <input id="start" type="date" name="start" value="{{ date_range.start|date:'Y-m-d' }}">
   </div>
   <div>
-    <label for="end">End</label>
+    <label for="end">Конец</label>
     <input id="end" type="date" name="end" value="{{ date_range.end|date:'Y-m-d' }}">
   </div>
   <div>
-    <label for="organization">Organization</label>
+    <label for="organization">Организация</label>
     <select id="organization" name="organization">
       {% for organization in allowed_organizations %}
         <option value="{{ organization.id }}" {% if selected_organization and organization.id == selected_organization.id %}selected{% endif %}>{{ organization.name }}</option>
@@ -55,135 +43,135 @@
     </select>
   </div>
   <div>
-    <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Apply</button>
+    <button class="btn btn-primary" type="submit" style="width:100%; justify-content:center;">Применить</button>
   </div>
 </form>
 
 {% if platform_metrics %}
-  <div class="card analytics-section">
-    <h2 class="section-title">Platform metrics</h2>
-    <div class="analytics-grid">
-      <div class="analytics-card"><div class="analytics-label">Active orgs</div><div class="analytics-value">{{ platform_metrics.active_organizations }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Orgs with usage</div><div class="analytics-value">{{ platform_metrics.organizations_with_usage }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Documents</div><div class="analytics-value">{{ platform_metrics.documents_uploaded }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">AI processed</div><div class="analytics-value">{{ platform_metrics.ai_documents_processed }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">AI fields reviewed</div><div class="analytics-value">{{ platform_metrics.ai_fields_confirmed }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Workflow started</div><div class="analytics-value">{{ platform_metrics.workflow_started }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Sent to counterparties</div><div class="analytics-value">{{ platform_metrics.documents_sent_to_counterparties }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Evidence exports</div><div class="analytics-value">{{ platform_metrics.evidence_exports }}</div></div>
+  <div class="card ops-section">
+    <h2 class="section-title">Платформенные метрики</h2>
+    <div class="ops-grid">
+      <div class="ops-card"><div class="ops-label">Активные организации</div><div class="ops-value">{{ platform_metrics.active_organizations }}</div></div>
+      <div class="ops-card"><div class="ops-label">С использованием</div><div class="ops-value">{{ platform_metrics.organizations_with_usage }}</div></div>
+      <div class="ops-card"><div class="ops-label">Документы</div><div class="ops-value">{{ platform_metrics.documents_uploaded }}</div></div>
+      <div class="ops-card"><div class="ops-label">AI-обработка</div><div class="ops-value">{{ platform_metrics.ai_documents_processed }}</div></div>
+      <div class="ops-card"><div class="ops-label">AI-поля проверены</div><div class="ops-value">{{ platform_metrics.ai_fields_confirmed }}</div></div>
+      <div class="ops-card"><div class="ops-label">Маршруты запущены</div><div class="ops-value">{{ platform_metrics.workflow_started }}</div></div>
+      <div class="ops-card"><div class="ops-label">Отправки контрагентам</div><div class="ops-value">{{ platform_metrics.documents_sent_to_counterparties }}</div></div>
+      <div class="ops-card"><div class="ops-label">Доказательные отчёты</div><div class="ops-value">{{ platform_metrics.evidence_exports }}</div></div>
     </div>
   </div>
 {% endif %}
 
 {% if organization_metrics %}
-  <div class="card analytics-section">
-    <h2 class="section-title">Organization metrics: {{ organization_metrics.organization.name }}</h2>
-    <div class="analytics-grid">
-      <div class="analytics-card"><div class="analytics-label">Documents uploaded</div><div class="analytics-value">{{ organization_metrics.documents_uploaded }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Total documents</div><div class="analytics-value">{{ organization_metrics.documents_total }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">AI processed</div><div class="analytics-value">{{ organization_metrics.ai_documents_processed }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">AI fields reviewed</div><div class="analytics-value">{{ organization_metrics.ai_fields_confirmed }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Workflow started</div><div class="analytics-value">{{ organization_metrics.workflow_started }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Workflow completed</div><div class="analytics-value">{{ organization_metrics.workflow_completed }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Counterparty sends</div><div class="analytics-value">{{ organization_metrics.documents_sent_to_counterparties }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Counterparties</div><div class="analytics-value">{{ organization_metrics.counterparties_created }}</div></div>
+  <div class="card ops-section">
+    <h2 class="section-title">Метрики организации: {{ organization_metrics.organization.name }}</h2>
+    <div class="ops-grid">
+      <div class="ops-card"><div class="ops-label">Загружено</div><div class="ops-value">{{ organization_metrics.documents_uploaded }}</div></div>
+      <div class="ops-card"><div class="ops-label">Всего документов</div><div class="ops-value">{{ organization_metrics.documents_total }}</div></div>
+      <div class="ops-card"><div class="ops-label">AI-обработка</div><div class="ops-value">{{ organization_metrics.ai_documents_processed }}</div></div>
+      <div class="ops-card"><div class="ops-label">AI-поля проверены</div><div class="ops-value">{{ organization_metrics.ai_fields_confirmed }}</div></div>
+      <div class="ops-card"><div class="ops-label">Маршруты запущены</div><div class="ops-value">{{ organization_metrics.workflow_started }}</div></div>
+      <div class="ops-card"><div class="ops-label">Маршруты завершены</div><div class="ops-value">{{ organization_metrics.workflow_completed }}</div></div>
+      <div class="ops-card"><div class="ops-label">Отправки контрагентам</div><div class="ops-value">{{ organization_metrics.documents_sent_to_counterparties }}</div></div>
+      <div class="ops-card"><div class="ops-label">Контрагенты</div><div class="ops-value">{{ organization_metrics.counterparties_created }}</div></div>
     </div>
   </div>
 
-  <div class="card analytics-section">
-    <h2 class="section-title">Usage by event</h2>
+  <div class="card ops-section">
+    <h2 class="section-title">Использование по событиям</h2>
     {% for item in organization_metrics.usage_summary %}
-      <div class="analytics-row">
+      <div class="data-row">
         <div>
-          <div class="analytics-main">{{ item.event_type }}</div>
-          <div class="analytics-meta">{{ item.events }} events</div>
+          <div class="data-main">{{ item.event_type }}</div>
+          <div class="data-meta">событий: {{ item.events }}</div>
         </div>
-        <div class="analytics-main">{{ item.quantity|default:0 }}</div>
+        <div class="data-main">{{ item.quantity|default:0 }}</div>
       </div>
     {% empty %}
-      <div class="analytics-row"><div class="analytics-main">No usage events in this period</div></div>
+      <div class="data-row"><div class="data-main">За период нет событий использования</div></div>
     {% endfor %}
   </div>
 {% endif %}
 
 {% if observability_metrics %}
-  <div class="card analytics-section">
-    <h2 class="section-title">AI/search observability</h2>
-    <div class="analytics-grid">
-      <div class="analytics-card"><div class="analytics-label">Pending jobs</div><div class="analytics-value">{{ observability_metrics.queue_pending }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Running jobs</div><div class="analytics-value">{{ observability_metrics.queue_running }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Failed jobs</div><div class="analytics-value">{{ observability_metrics.queue_failed }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Stale indexes</div><div class="analytics-value">{{ observability_metrics.stale_documents }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Avg processing ms</div><div class="analytics-value">{{ observability_metrics.avg_processing_time_ms }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Avg search ms</div><div class="analytics-value">{{ observability_metrics.avg_search_latency_ms }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Avg embedding ms</div><div class="analytics-value">{{ observability_metrics.avg_embedding_time_ms }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Avg Qdrant insert ms</div><div class="analytics-value">{{ observability_metrics.avg_qdrant_insert_time_ms }}</div></div>
+  <div class="card ops-section">
+    <h2 class="section-title">Наблюдаемость AI и поиска</h2>
+    <div class="ops-grid">
+      <div class="ops-card"><div class="ops-label">Ожидают</div><div class="ops-value">{{ observability_metrics.queue_pending }}</div></div>
+      <div class="ops-card"><div class="ops-label">В работе</div><div class="ops-value">{{ observability_metrics.queue_running }}</div></div>
+      <div class="ops-card"><div class="ops-label">Ошибки</div><div class="ops-value">{{ observability_metrics.queue_failed }}</div></div>
+      <div class="ops-card"><div class="ops-label">Устаревший индекс</div><div class="ops-value">{{ observability_metrics.stale_documents }}</div></div>
+      <div class="ops-card"><div class="ops-label">Обработка, мс</div><div class="ops-value">{{ observability_metrics.avg_processing_time_ms }}</div></div>
+      <div class="ops-card"><div class="ops-label">Поиск, мс</div><div class="ops-value">{{ observability_metrics.avg_search_latency_ms }}</div></div>
+      <div class="ops-card"><div class="ops-label">Embeddings, мс</div><div class="ops-value">{{ observability_metrics.avg_embedding_time_ms }}</div></div>
+      <div class="ops-card"><div class="ops-label">Запись в векторный индекс, мс</div><div class="ops-value">{{ observability_metrics.avg_qdrant_insert_time_ms }}</div></div>
     </div>
   </div>
 
-  <div class="card analytics-section">
-    <h2 class="section-title">Alerts foundation</h2>
+  <div class="card ops-section">
+    <h2 class="section-title">Оповещения наблюдаемости</h2>
     {% for alert in observability_metrics.open_alerts %}
-      <div class="analytics-row">
+      <div class="data-row">
         <div>
-          <div class="analytics-main">{{ alert.title }}</div>
-          <div class="analytics-meta">{{ alert.organization.name|default:"Platform" }} · {{ alert.alert_type }}</div>
+          <div class="data-main">{{ alert.title }}</div>
+          <div class="data-meta">{{ alert.organization.name|default:"Платформа" }} · {{ alert.alert_type }}</div>
         </div>
         <div class="alert-pill">{{ alert.severity }}</div>
       </div>
     {% empty %}
-      <div class="analytics-row"><div class="analytics-main">No open observability alerts</div></div>
+      <div class="data-row"><div class="data-main">Открытых оповещений нет</div></div>
     {% endfor %}
   </div>
 
-  <div class="card analytics-section">
-    <h2 class="section-title">Failed and slow jobs</h2>
+  <div class="card ops-section">
+    <h2 class="section-title">Ошибочные и медленные задачи</h2>
     {% for job in observability_metrics.failed_jobs %}
-      <div class="analytics-row">
+      <div class="data-row">
         <div>
-          <div class="analytics-main">Job #{{ job.id }} · {{ job.pipeline_stage }}</div>
-          <div class="analytics-meta">{{ job.organization.name }} · failed</div>
+          <div class="data-main">Задача #{{ job.id }} · {{ job.pipeline_stage }}</div>
+          <div class="data-meta">{{ job.organization.name }} · ошибка</div>
         </div>
-        <div class="analytics-main">{{ job.attempt_count }}</div>
+        <div class="data-main">{{ job.attempt_count }}</div>
       </div>
     {% empty %}
-      <div class="analytics-row"><div class="analytics-main">No failed jobs</div></div>
+      <div class="data-row"><div class="data-main">Ошибочных задач нет</div></div>
     {% endfor %}
     {% for item in observability_metrics.slow_jobs %}
-      <div class="analytics-row">
+      <div class="data-row">
         <div>
-          <div class="analytics-main">Slow job #{{ item.job.id }} · {{ item.job.pipeline_stage }}</div>
-          <div class="analytics-meta">{{ item.job.organization.name }}</div>
+          <div class="data-main">Медленная задача #{{ item.job.id }} · {{ item.job.pipeline_stage }}</div>
+          <div class="data-meta">{{ item.job.organization.name }}</div>
         </div>
-        <div class="analytics-main">{{ item.duration_seconds }}s</div>
+        <div class="data-main">{{ item.duration_seconds }}s</div>
       </div>
     {% endfor %}
   </div>
 
-  <div class="card analytics-section">
-    <h2 class="section-title">GPU foundation</h2>
-    <div class="analytics-grid">
-      <div class="analytics-card"><div class="analytics-label">GPU available</div><div class="analytics-value">{{ observability_metrics.gpu.gpu_available|yesno:"Yes,No" }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">GPU busy</div><div class="analytics-value">{{ observability_metrics.gpu.gpu_busy|yesno:"Yes,No" }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Worker count</div><div class="analytics-value">{{ observability_metrics.gpu.worker_count }}</div></div>
-      <div class="analytics-card"><div class="analytics-label">Avg batch ms</div><div class="analytics-value">{{ observability_metrics.gpu.avg_batch_duration_ms|floatformat:1 }}</div></div>
+  <div class="card ops-section">
+    <h2 class="section-title">GPU-обработка</h2>
+    <div class="ops-grid">
+      <div class="ops-card"><div class="ops-label">GPU доступен</div><div class="ops-value">{{ observability_metrics.gpu.gpu_available|yesno:"Да,Нет" }}</div></div>
+      <div class="ops-card"><div class="ops-label">GPU занят</div><div class="ops-value">{{ observability_metrics.gpu.gpu_busy|yesno:"Да,Нет" }}</div></div>
+      <div class="ops-card"><div class="ops-label">Workers</div><div class="ops-value">{{ observability_metrics.gpu.worker_count }}</div></div>
+      <div class="ops-card"><div class="ops-label">Пакет, мс</div><div class="ops-value">{{ observability_metrics.gpu.avg_batch_duration_ms|floatformat:1 }}</div></div>
     </div>
   </div>
 {% endif %}
 
 {% if platform_metrics %}
-  <div class="card analytics-section">
-    <h2 class="section-title">Organizations using product</h2>
+  <div class="card ops-section">
+    <h2 class="section-title">Организации с использованием продукта</h2>
     {% for row in platform_metrics.organization_rows %}
-      <div class="analytics-row">
+      <div class="data-row">
         <div>
-          <div class="analytics-main">{{ row.organization.name }}</div>
-          <div class="analytics-meta">{{ row.documents_uploaded }} documents uploaded</div>
+          <div class="data-main">{{ row.organization.name }}</div>
+          <div class="data-meta">загружено документов: {{ row.documents_uploaded }}</div>
         </div>
-        <div class="analytics-main">{{ row.usage_quantity }}</div>
+        <div class="data-main">{{ row.usage_quantity }}</div>
       </div>
     {% empty %}
-      <div class="analytics-row"><div class="analytics-main">No organization usage in this period</div></div>
+      <div class="data-row"><div class="data-main">За период нет активности организаций</div></div>
     {% endfor %}
   </div>
 {% endif %}
