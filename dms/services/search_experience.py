@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from django.db.models import Q, QuerySet
 
-from dms.models import Document, DocumentRelation
+from dms.models import Document, DocumentRelation, DocumentSearchIndexState
 from dms.services.search_intelligence import SearchQuery, normalize_search_text
 
 
@@ -29,8 +30,181 @@ class SearchQualityResult:
     top_titles: list[str] = field(default_factory=list)
 
 
+@dataclass
+class SearchSuggestion:
+    label: str
+    description: str
+    querystring: str
+
+
+@dataclass
+class SearchModeExplanation:
+    mode: str
+    label: str
+    description: str
+    is_active: bool = False
+
+
 def normalize_search_mode(value: str | None) -> str:
     return value if value in SEARCH_MODES else SEARCH_MODE_HYBRID
+
+
+def search_mode_explanations(active_mode: str) -> list[SearchModeExplanation]:
+    active_mode = normalize_search_mode(active_mode)
+    return [
+        SearchModeExplanation(
+            mode=SEARCH_MODE_HYBRID,
+            label="Hybrid",
+            description="Combines exact fields, extracted entities, aliases, text and semantic candidates.",
+            is_active=active_mode == SEARCH_MODE_HYBRID,
+        ),
+        SearchModeExplanation(
+            mode=SEARCH_MODE_EXACT,
+            label="Exact",
+            description="Best for document numbers, file names, titles and strict archive fields.",
+            is_active=active_mode == SEARCH_MODE_EXACT,
+        ),
+        SearchModeExplanation(
+            mode=SEARCH_MODE_SEMANTIC,
+            label="Semantic",
+            description="Uses meaning-based candidates when the vector index is available, with safe text fallback.",
+            is_active=active_mode == SEARCH_MODE_SEMANTIC,
+        ),
+    ]
+
+
+def confidence_badge(confidence: float | None) -> dict:
+    if confidence is None:
+        return {
+            "label": "Not scored",
+            "level": "unknown",
+            "note": "Shown by archive ordering or filters.",
+        }
+    confidence = float(confidence or 0)
+    if confidence >= 0.72:
+        return {
+            "label": "High confidence",
+            "level": "high",
+            "note": "Several search signals agree.",
+        }
+    if confidence >= 0.42:
+        return {
+            "label": "Medium confidence",
+            "level": "medium",
+            "note": "Some relevant signals matched.",
+        }
+    return {
+        "label": "Low confidence",
+        "level": "low",
+        "note": "Review the card before relying on it.",
+    }
+
+
+def build_search_readiness(document: Document) -> list[dict]:
+    states = _document_index_states(document)
+    has_indexed_state = any(state.status == DocumentSearchIndexState.Status.INDEXED for state in states)
+    has_failed_state = any(state.status == DocumentSearchIndexState.Status.FAILED for state in states)
+    has_pending_state = any(
+        state.status in {DocumentSearchIndexState.Status.PENDING, DocumentSearchIndexState.Status.STALE}
+        for state in states
+    )
+    has_file = bool(getattr(document, "file", None))
+    has_basic_text = bool(document.search_text_normalized or document.title or document.source_file_name)
+    has_extracted_text = bool((document.extracted_text or "").strip())
+
+    readiness = [
+        {
+            "key": "uploaded",
+            "label": "Uploaded",
+            "state": "ready" if has_file else "missing",
+            "note": "Document record exists." if has_file else "File is missing.",
+        },
+        {
+            "key": "basic",
+            "label": "Basic search",
+            "state": "ready" if has_basic_text else "pending",
+            "note": "Title and metadata are searchable." if has_basic_text else "Waiting for basic metadata.",
+        },
+        {
+            "key": "text",
+            "label": "Text extracted",
+            "state": "ready" if has_extracted_text else "pending",
+            "note": "Full-text snippets can be shown." if has_extracted_text else "Text extraction may still be pending.",
+        },
+    ]
+
+    if has_failed_state:
+        readiness.append(
+            {
+                "key": "processing_failed",
+                "label": "Processing failed",
+                "state": "failed",
+                "note": "Semantic index needs attention.",
+            }
+        )
+    elif has_indexed_state or document.search_indexed_at:
+        readiness.append(
+            {
+                "key": "semantic_ready",
+                "label": "Semantic ready",
+                "state": "ready",
+                "note": "Vector search can use this document.",
+            }
+        )
+    else:
+        readiness.append(
+            {
+                "key": "semantic_pending",
+                "label": "Semantic pending",
+                "state": "pending" if has_pending_state or has_extracted_text or has_basic_text else "missing",
+                "note": "Document can still appear through filters and text search.",
+            }
+        )
+    return readiness
+
+
+def build_search_suggestions(
+    search_query: SearchQuery | None,
+    current_params,
+    *,
+    max_items: int = 4,
+) -> list[SearchSuggestion]:
+    suggestions: list[SearchSuggestion] = []
+
+    def add(label: str, description: str, **updates) -> None:
+        params = _query_params_with_updates(current_params, **updates)
+        querystring = urlencode(params, doseq=True)
+        candidate = SearchSuggestion(label=label, description=description, querystring=querystring)
+        if candidate.querystring and candidate.querystring not in {item.querystring for item in suggestions}:
+            suggestions.append(candidate)
+
+    if search_query:
+        entities = search_query.entities or {}
+        counterparty = entities.get("counterparty")
+        if counterparty:
+            add("Search this counterparty", "Narrow results to the detected counterparty.", q=counterparty, counterparty=counterparty, search_mode=SEARCH_MODE_HYBRID)
+        amount = entities.get("amount") or {}
+        amount_value = amount.get("value")
+        if amount_value:
+            lower = max(int(amount_value * 0.9), 0)
+            upper = int(amount_value * 1.1)
+            add("Search around this amount", "Use a practical amount range instead of an exact phrase.", amount_min=lower, amount_max=upper, search_mode=SEARCH_MODE_HYBRID)
+        document_type = entities.get("document_type")
+        if document_type:
+            add("Search this document type", "Keep the detected document type as the main term.", q=document_type, search_mode=SEARCH_MODE_HYBRID)
+        for key, values in (search_query.aliases or {}).items():
+            if values:
+                add("Try alias variants", "Use normalized aliases for spelling or language variants.", q=" ".join(values[:4]), search_mode=SEARCH_MODE_HYBRID)
+                break
+
+    if len(suggestions) < max_items:
+        add("Search by counterparty", "Example: contract with IP Firma.", q="contract IP Firma", search_mode=SEARCH_MODE_HYBRID)
+    if len(suggestions) < max_items:
+        add("Search by amount", "Example: invoice for 3 mln KZT.", q="invoice 3 mln KZT", search_mode=SEARCH_MODE_HYBRID)
+    if len(suggestions) < max_items:
+        add("Search by document type", "Example: act or appendix for a contract.", q="appendix act contract", search_mode=SEARCH_MODE_HYBRID)
+
+    return suggestions[:max_items]
 
 
 def apply_experience_filters(
@@ -209,6 +383,61 @@ def accessible_related_documents_for_search(
         if len(related) >= limit:
             break
     return related
+
+
+def accessible_similar_documents_for_search(
+    document: Document,
+    allowed_documents: QuerySet,
+    *,
+    limit: int = 2,
+) -> list[Document]:
+    queryset = allowed_documents.exclude(id=document.id)
+    similarity_filter = Q()
+
+    entities = document.search_entities or {}
+    counterparty = entities.get("counterparty")
+    if counterparty:
+        similarity_filter |= Q(search_entities__counterparty__icontains=str(counterparty))
+    document_type = entities.get("document_type")
+    if document_type:
+        similarity_filter |= Q(search_entities__document_type__icontains=str(document_type))
+    if document.doc_type_id:
+        similarity_filter |= Q(doc_type_id=document.doc_type_id)
+
+    phrases = entities.get("key_phrases") or []
+    for phrase in phrases[:3]:
+        if phrase:
+            similarity_filter |= Q(search_text_normalized__icontains=str(phrase))
+
+    if not similarity_filter:
+        return []
+
+    return list(
+        queryset.filter(similarity_filter)
+        .distinct()
+        .order_by("-doc_date", "-created_at")[:limit]
+    )
+
+
+def _document_index_states(document: Document) -> list[DocumentSearchIndexState]:
+    try:
+        states = list(document.search_index_states.all())
+    except Exception:
+        return []
+    return sorted(states, key=lambda state: state.updated_at, reverse=True)
+
+
+def _query_params_with_updates(current_params, **updates) -> dict:
+    if hasattr(current_params, "lists"):
+        params = {key: values[-1] for key, values in current_params.lists() if values and values[-1] not in (None, "")}
+    else:
+        params = {key: value for key, value in dict(current_params or {}).items() if value not in (None, "")}
+    for key, value in updates.items():
+        if value in (None, ""):
+            params.pop(key, None)
+        else:
+            params[key] = str(value)
+    return params
 
 
 def evaluate_search_quality(

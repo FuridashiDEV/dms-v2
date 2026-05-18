@@ -137,6 +137,81 @@
     border-color:rgba(37,99,235,0.18);
     color:#1d4ed8;
   }
+  .tag-green{ background:rgba(22,163,74,0.1); border-color:rgba(22,163,74,0.18); color:#15803d; }
+  .tag-amber{ background:rgba(217,119,6,0.1); border-color:rgba(217,119,6,0.18); color:#b45309; }
+  .tag-red{ background:rgba(220,38,38,0.1); border-color:rgba(220,38,38,0.18); color:#b91c1c; }
+  .mode-guide,
+  .suggestion-grid,
+  .readiness-row,
+  .confidence-row{
+    margin-top:14px;
+    display:grid;
+    gap:10px;
+  }
+  .mode-item,
+  .suggestion-card{
+    display:block;
+    padding:12px 14px;
+    border-radius:16px;
+    border:1px solid rgba(148,163,184,0.2);
+    background:rgba(248,250,252,0.88);
+  }
+  .mode-item.active{
+    border-color:rgba(37,99,235,0.24);
+    background:rgba(239,246,255,0.76);
+  }
+  .mode-title,
+  .suggestion-title{
+    font-size:13px;
+    font-weight:900;
+    color:rgba(15,23,42,0.9);
+  }
+  .mode-text,
+  .suggestion-text,
+  .confidence-note{
+    margin-top:4px;
+    font-size:12px;
+    line-height:1.45;
+    color:rgba(15,23,42,0.58);
+    font-weight:700;
+  }
+  .readiness-row{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .readiness-item{
+    padding:10px 12px;
+    border-radius:14px;
+    background:rgba(248,250,252,0.9);
+    border:1px solid rgba(148,163,184,0.2);
+  }
+  .readiness-label{
+    font-size:12px;
+    font-weight:900;
+    color:rgba(15,23,42,0.82);
+  }
+  .readiness-note{
+    margin-top:3px;
+    font-size:11px;
+    line-height:1.35;
+    color:rgba(15,23,42,0.56);
+    font-weight:700;
+  }
+  .readiness-ready{ border-color:rgba(22,163,74,0.18); background:rgba(240,253,244,0.72); }
+  .readiness-pending{ border-color:rgba(217,119,6,0.18); background:rgba(255,251,235,0.74); }
+  .readiness-failed{ border-color:rgba(220,38,38,0.18); background:rgba(254,242,242,0.72); }
+  .confidence-row{
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .confidence-card{
+    padding:12px 14px;
+    border-radius:16px;
+    border:1px solid rgba(148,163,184,0.2);
+    background:#fff;
+  }
+  .confidence-high{ border-color:rgba(22,163,74,0.2); }
+  .confidence-medium{ border-color:rgba(217,119,6,0.22); }
+  .confidence-low{ border-color:rgba(220,38,38,0.18); }
+  .confidence-unknown{ border-color:rgba(148,163,184,0.24); }
   .query-panel{
     margin-top:14px;
     padding:14px 16px;
@@ -377,6 +452,15 @@
       </select>
     </div>
 
+    <div class="mode-guide" aria-label="Search mode explanations">
+      {% for item in search_mode_explanations %}
+        <div class="mode-item {% if item.is_active %}active{% endif %}">
+          <div class="mode-title">{{ item.label }}</div>
+          <div class="mode-text">{{ item.description }}</div>
+        </div>
+      {% endfor %}
+    </div>
+
     <div class="field">
       <label for="id_department">Подразделение</label>
       <select id="id_department" name="department">
@@ -501,6 +585,20 @@
       </div>
     {% endif %}
 
+    {% if search_suggestions %}
+      <div class="query-panel">
+        <div class="query-panel-title">Search suggestions</div>
+        <div class="suggestion-grid">
+          {% for suggestion in search_suggestions %}
+            <a class="suggestion-card" href="{% url 'dms:document_list' %}?{{ suggestion.querystring }}">
+              <div class="suggestion-title">{{ suggestion.label }}</div>
+              <div class="suggestion-text">{{ suggestion.description }}</div>
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
     {% if documents %}
       <div class="doc-list">
         {% for doc in documents %}
@@ -516,7 +614,26 @@
                   {% endif %}
                 </div>
               </div>
-              <span class="status-badge {{ doc.status_badge }}">{{ doc.status_label }}</span>
+              <div>
+                <span class="status-badge {{ doc.status_badge }}">{{ doc.status_label }}</span>
+                {% if q %}
+                  <div class="confidence-row">
+                    <div class="confidence-card confidence-{{ doc.search_confidence_badge.level }}">
+                      <div class="mode-title">{{ doc.search_confidence_badge.label }}</div>
+                      <div class="confidence-note">{{ doc.search_confidence_badge.note }}</div>
+                    </div>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="readiness-row" aria-label="Search readiness">
+              {% for item in doc.search_readiness %}
+                <div class="readiness-item readiness-{{ item.state }}">
+                  <div class="readiness-label">{{ item.label }}</div>
+                  <div class="readiness-note">{{ item.note }}</div>
+                </div>
+              {% endfor %}
             </div>
 
             <div class="doc-grid">
@@ -591,10 +708,22 @@
             {% endif %}
             {% if doc.search_related_documents %}
               <div class="related-strip">
+                <div class="meta-label">Related documents</div>
                 {% for item in doc.search_related_documents %}
                   <a class="related-link" href="{% url 'dms:document_detail' item.document.pk %}">
                     <span>{{ item.document.title }}</span>
                     <span>{{ item.relation_type }}</span>
+                  </a>
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if doc.search_similar_documents %}
+              <div class="related-strip">
+                <div class="meta-label">Similar documents</div>
+                {% for similar in doc.search_similar_documents %}
+                  <a class="related-link" href="{% url 'dms:document_detail' similar.pk %}">
+                    <span>{{ similar.title }}</span>
+                    <span>{% if similar.doc_type %}{{ similar.doc_type.name }}{% else %}similar context{% endif %}</span>
                   </a>
                 {% endfor %}
               </div>
@@ -606,6 +735,14 @@
       <div class="empty-state">
         <div class="empty-title">Подходящих документов пока нет</div>
         <div class="empty-text">
+          {% if active_filter_labels %}
+            Applied filters: {{ active_filter_labels|join:", " }}.<br><br>
+          {% endif %}
+          {% if search_degraded %}
+            Semantic index is not ready right now. Exact text, entity and filter search still apply.<br><br>
+          {% else %}
+            If a newly uploaded document is missing, its semantic index may still be pending.<br><br>
+          {% endif %}
           {% if has_active_filters %}
             Попробуйте убрать часть фильтров или использовать более широкий смысловой запрос.
           {% else %}

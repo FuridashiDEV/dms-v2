@@ -80,11 +80,16 @@ from dms.services.search_experience import (
     SEARCH_MODE_HYBRID,
     SEARCH_MODE_SEMANTIC,
     accessible_related_documents_for_search,
+    accessible_similar_documents_for_search,
     apply_experience_filters,
     build_lexical_filter,
     build_search_snippet,
+    build_search_readiness,
+    build_search_suggestions,
+    confidence_badge,
     matched_entities_for_document,
     normalize_search_mode,
+    search_mode_explanations,
 )
 from dms.services.reranking import fuse_candidates, rank_documents_for_search
 from dms.services.usage import record_usage_event
@@ -930,7 +935,7 @@ def document_list(request):
     base_qs = (
         get_allowed_documents(user)
         .select_related("department", "doc_type", "uploaded_by", "folder")
-        .prefetch_related("versions")
+        .prefetch_related("versions", "search_index_states")
     )
 
     if doc_type_id:
@@ -1125,7 +1130,13 @@ def document_list(request):
         doc.folder_path = _folder_path(doc.folder) if doc.folder else "Без папки"
         doc.search_snippet = build_search_snippet(doc, search_query)
         doc.search_matched_entities = matched_entities_for_document(doc, search_query)
+        doc.search_confidence_badge = confidence_badge(getattr(doc, "search_confidence", None))
+        doc.search_readiness = build_search_readiness(doc)
         doc.search_related_documents = accessible_related_documents_for_search(
+            doc,
+            allowed_documents_for_relations,
+        )
+        doc.search_similar_documents = accessible_similar_documents_for_search(
             doc,
             allowed_documents_for_relations,
         )
@@ -1154,6 +1165,26 @@ def document_list(request):
         (Document.Status.ARCHIVED, "Архивные"),
     ]
 
+    active_filter_labels = []
+    if selected_department:
+        active_filter_labels.append(f"Department: {selected_department.name}")
+    if selected_folder:
+        active_filter_labels.append(f"Folder: {selected_folder.name}")
+    if selected_doc_type:
+        active_filter_labels.append(f"Document type: {selected_doc_type.name}")
+    if counterparty:
+        active_filter_labels.append(f"Counterparty: {counterparty}")
+    if amount_min:
+        active_filter_labels.append(f"Amount from: {amount_min}")
+    if amount_max:
+        active_filter_labels.append(f"Amount to: {amount_max}")
+    if status:
+        active_filter_labels.append(f"Status: {status}")
+    if date_from:
+        active_filter_labels.append(f"Date from: {date_from.isoformat()}")
+    if date_to:
+        active_filter_labels.append(f"Date to: {date_to.isoformat()}")
+
     context = {
         "documents": documents,
         "q": q,
@@ -1181,6 +1212,9 @@ def document_list(request):
         "search_degraded": search_degraded,
         "query_entities": search_query.entities if q and search_query else {},
         "query_aliases": search_query.aliases if q and search_query else {},
+        "search_suggestions": build_search_suggestions(search_query, request.GET),
+        "search_mode_explanations": search_mode_explanations(requested_search_mode),
+        "active_filter_labels": active_filter_labels,
         "selected_department": selected_department,
         "selected_folder": selected_folder,
         "selected_doc_type": selected_doc_type,
