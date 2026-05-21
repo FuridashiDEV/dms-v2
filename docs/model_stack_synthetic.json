@@ -1,0 +1,67 @@
+{
+  "name": "synthetic",
+  "documents": [
+    {
+      "id": "contract-ip-firma-tools",
+      "title": "Договор с ИП Фирма на поставку инструментов",
+      "text": "Договор № DF-2026-001 с ИП Фирма на поставку инструментов на сумму 3 000 000 тенге. Предмет: поставка инструментов для склада.",
+      "entities": {
+        "document_type": "contract",
+        "counterparty": "ip firma",
+        "subject": "поставка инструментов",
+        "amount": {"value": 3000000, "raw": "3 000 000 тенге", "currency": "KZT"},
+        "document_number": "DF-2026-001"
+      }
+    },
+    {
+      "id": "invoice-invision-subscription",
+      "title": "Счёт от Invision за подписку архивного поиска",
+      "text": "Счёт № INV-77 от Invision за подписку на архивный поиск и AI indexing. Сумма 850 000 тенге.",
+      "entities": {
+        "document_type": "invoice",
+        "counterparty": "invision",
+        "subject": "подписка архивного поиска",
+        "amount": {"value": 850000, "raw": "850 000 тенге", "currency": "KZT"},
+        "document_number": "INV-77"
+      }
+    },
+    {
+      "id": "act-workflow-services",
+      "title": "Акт выполненных работ по workflow pilot",
+      "text": "Акт выполненных работ по пилотному workflow. Услуги внедрения и проверки маршрутов согласования.",
+      "entities": {
+        "document_type": "act",
+        "counterparty": "workflow partner",
+        "subject": "workflow pilot services"
+      }
+    },
+    {
+      "id": "rent-invoice-office",
+      "title": "Счёт за аренду офиса",
+      "text": "Счёт за аренду офиса за май. Контрагент Office Rent LLP. Сумма 1 200 000 тенге.",
+      "entities": {
+        "document_type": "invoice",
+        "counterparty": "office rent llp",
+        "subject": "аренда офиса",
+        "amount": {"value": 1200000, "raw": "1 200 000 тенге", "currency": "KZT"}
+      }
+    }
+  ],
+  "queries": [
+    {
+      "id": "contract-tools-3m",
+      "query": "договор с ИП Фирма на поставку инструментов на 3 млн",
+      "expected_document_id": "contract-ip-firma-tools"
+    },
+    {
+      "id": "invision-alias",
+      "query": "счет инвижн подписка архивного поиска",
+      "expected_document_id": "invoice-invision-subscription"
+    },
+    {
+      "id": "workflow-act",
+      "query": "акт выполненных работ workflow pilot services",
+      "expected_document_id": "act-workflow-services"
+    }
+  ]
+}

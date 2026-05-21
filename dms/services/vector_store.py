@@ -17,6 +17,8 @@ from qdrant_client.models import (
     VectorParams,
 )
 
+from dms.services.model_stack import validate_embedding_vector
+
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +92,23 @@ def make_point_id(
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{collection}:{doc_id}:{version_part}:{chunk_key}:{index_part}"))
 
 
-def _valid_vector(vector: list[float]) -> bool:
-    return bool(vector) and len(vector) == VECTOR_SIZE
+def _valid_vector(vector: list[float], *, model_name: str | None = None) -> bool:
+    validation = validate_embedding_vector(
+        vector,
+        model_name=model_name or getattr(settings, "SEARCH_EMBEDDING_MODEL", ""),
+        expected_dimension=VECTOR_SIZE,
+    )
+    if not validation.valid:
+        logger.warning(
+            "Embedding vector rejected",
+            extra={
+                "model_name": validation.model_name,
+                "expected_dimension": validation.expected_dimension,
+                "actual_dimension": validation.actual_dimension,
+                "reason": validation.reason,
+            },
+        )
+    return validation.valid
 
 
 def upsert_document(
@@ -124,7 +141,8 @@ def upsert_document_chunks(*, chunks: list[dict]) -> bool:
     points = []
     for chunk in chunks:
         vector = chunk.get("vector") or []
-        if not _valid_vector(vector):
+        model_name = (chunk.get("payload") or {}).get("embedding_model")
+        if not _valid_vector(vector, model_name=model_name):
             continue
         points.append(
             PointStruct(

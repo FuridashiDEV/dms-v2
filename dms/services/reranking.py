@@ -4,6 +4,9 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Callable, Iterable
 
+from django.conf import settings
+
+from dms.services.model_stack import get_reranker_adapter
 from dms.services.search_intelligence import SearchQuery, score_document_for_query
 
 
@@ -66,6 +69,33 @@ class RankedSearchResult:
 
 
 RerankerHook = Callable[[object, SearchQuery], tuple[float, list[str]] | float]
+
+
+def configured_reranker_hook() -> RerankerHook | None:
+    if not getattr(settings, "SEARCH_RERANKER_ENABLED", False):
+        return None
+    adapter = get_reranker_adapter(getattr(settings, "SEARCH_RERANKER_MODEL", "noop"))
+
+    def _hook(document: object, search_query: SearchQuery) -> tuple[float, list[str]]:
+        passages = [
+            " ".join(
+                filter(
+                    None,
+                    [
+                        getattr(document, "title", ""),
+                        getattr(document, "description", ""),
+                        getattr(document, "search_text_normalized", ""),
+                    ],
+                )
+            )
+        ]
+        results = adapter.rerank(query=search_query.raw, passages=passages, top_k=1)
+        if not results:
+            return 0.0, ["optional reranker unavailable"]
+        result = results[0]
+        return result.score, [result.reason or "optional reranker score applied"]
+
+    return _hook
 
 
 def fuse_candidates(
