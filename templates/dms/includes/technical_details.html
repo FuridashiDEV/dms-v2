@@ -1,0 +1,6 @@
+{% if request.user.is_staff or request.user.is_superuser %}
+  <details class="ui-technical-details">
+    <summary>{{ title|default:"Технические детали" }}</summary>
+    <div style="margin-top:10px;">{{ content }}</div>
+  </details>
+{% endif %}

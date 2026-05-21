@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿﻿{% extends "base.html" %}
 {% block title %}Поиск по архиву — ИИ-архив{% endblock %}
 
 {% block content %}
@@ -400,8 +400,7 @@
   <div class="hero-card">
     <h1>Поиск по архиву, а не по имени файла</h1>
     <p>
-      Страница объединяет обычный поиск по реквизитам и смысловой AI-поиск по содержимому. Для демо это самый
-      сильный экран: здесь видно, что архив не просто хранит документы, а понимает их контекст, связи и актуальность.
+      Страница объединяет поиск по реквизитам, содержимому и смысловым совпадениям. Здесь видно, что архив помогает быстро найти нужный документ без знания точного имени файла.
     </p>
     <div class="hero-actions">
       <a class="btn btn-primary" href="{% url 'dms:document_upload' %}">Загрузить документ</a>
@@ -415,12 +414,12 @@
     <div class="kpi-card">
       <div class="kpi-label">Найдено документов</div>
       <div class="kpi-value">{{ result_count }}</div>
-      <div class="kpi-note">Страница собирает выдачу из фильтров, полнотекстового поиска и семантического слоя.</div>
+      <div class="kpi-note">Страница собирает выдачу из фильтров, реквизитов и содержимого документов.</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Режим поиска</div>
       <div class="kpi-value">
-        {% if search_mode == "hybrid" %}Гибридный{% elif search_mode == "semantic" %}Семантический{% elif search_mode == "semantic_fallback" %}Семантика недоступна{% elif search_mode == "exact" %}Точный{% elif search_mode == "text" %}Текстовый{% else %}Обзор{% endif %}
+        {% if search_mode == "hybrid" %}Умный{% elif search_mode == "semantic" %}Смысловой{% elif search_mode == "semantic_fallback" %}Базовый{% elif search_mode == "exact" %}Точный{% elif search_mode == "text" %}Текстовый{% else %}Обзор{% endif %}
       </div>
       <div class="kpi-note">
         {% if q %}
@@ -439,7 +438,7 @@
     <div class="section-sub">Для презентации удобно сочетать простой запрос со строгими архивными фильтрами.</div>
 
     <div class="field">
-      <label for="id_q">Смысловой запрос</label>
+      <label for="id_q">Поисковый запрос</label>
       <input id="id_q" type="text" name="q" value="{{ q }}" placeholder="Например: положение по академической мобильности" />
     </div>
 
@@ -543,7 +542,7 @@
         <div class="section-sub">На одной странице видно смысл, реквизиты, путь по папкам и статус актуальности документа.</div>
         <div class="summary-meta">
           <span class="tag tag-blue">
-            {% if search_mode == "hybrid" %}AI + реквизиты{% elif search_mode == "semantic" %}AI-поиск{% elif search_mode == "semantic_fallback" %}Fallback без Qdrant{% elif search_mode == "exact" %}Точный поиск{% elif search_mode == "text" %}Полнотекстовый поиск{% else %}Обзор архива{% endif %}
+            {% if search_mode == "hybrid" %}Умный поиск{% elif search_mode == "semantic" %}Смысловой поиск{% elif search_mode == "semantic_fallback" %}Базовый поиск{% elif search_mode == "exact" %}Точный поиск{% elif search_mode == "text" %}Текстовый поиск{% else %}Обзор архива{% endif %}
           </span>
           {% if selected_department %}<span class="tag">Отдел: {{ selected_department.name }}</span>{% endif %}
           {% if selected_folder %}<span class="tag">Папка: {{ selected_folder.name }}</span>{% endif %}
@@ -554,7 +553,7 @@
           {% if status %}<span class="tag">Статус: {{ status }}</span>{% endif %}
         </div>
         {% if search_degraded %}
-          <div class="section-sub">Смысловой индекс сейчас недоступен. Показаны результаты безопасного текстового поиска, сущностей и фильтров с теми же правилами доступа.</div>
+          <div class="section-sub">Расширенный поиск временно недоступен. Показаны результаты по тексту, реквизитам и фильтрам с теми же правилами доступа.</div>
         {% endif %}
       </div>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -563,9 +562,10 @@
       </div>
     </div>
 
+    {% if request.user.is_staff or request.user.is_superuser %}
     {% if query_entities or query_aliases %}
       <div class="query-panel">
-        <div class="query-panel-title">Как система поняла запрос</div>
+        <div class="query-panel-title">Технический разбор запроса</div>
         {% if query_entities %}
           <div class="query-panel-row">
             {% for key, value in query_entities.items %}
@@ -583,6 +583,7 @@
           </div>
         {% endif %}
       </div>
+    {% endif %}
     {% endif %}
 
     {% if search_suggestions %}
@@ -654,11 +655,11 @@
                 </div>
               </div>
               <div class="meta-box">
-                <div class="meta-label">Сохранность</div>
+                <div class="meta-label">Файл</div>
                 <div class="meta-value">
-                  MIME: {{ doc.mime_type|default:"Не определен" }}<br>
-                  Риск формата: {{ doc.get_format_risk_level_display|default:"Не определен" }}<br>
-                  Источник: {{ doc.source_system|default:"manual_upload" }}
+                  {% if doc.source_file_name %}{{ doc.source_file_name }}{% else %}Файл сохранён в архиве{% endif %}<br>
+                  {{ doc.get_format_risk_level_display|default:"Формат проверяется" }}<br>
+                  Загружен через DocFlow
                 </div>
               </div>
               <div class="meta-box">
@@ -693,16 +694,19 @@
               </div>
             </div>
             {% if doc.search_explanation %}
-              <div class="reason-list">
-                {% for reason in doc.search_explanation %}
-                  <span class="tag">{{ reason }}</span>
+              <div class="ui-explanation">
+                <div class="ui-explanation-title">Почему найдено</div>
+                <ul class="ui-explanation-list">
+                {% for reason in doc.search_explanation|slice:":3" %}
+                  <li><span class="ui-badge info">{{ reason }}</span></li>
                 {% endfor %}
+                </ul>
               </div>
             {% endif %}
             {% if doc.search_matched_entities %}
               <div class="reason-list">
-                {% for entity in doc.search_matched_entities %}
-                  <span class="tag tag-blue">{{ entity }}</span>
+                {% for entity in doc.search_matched_entities|slice:":3" %}
+                  <span class="ui-badge success">{{ entity }}</span>
                 {% endfor %}
               </div>
             {% endif %}
@@ -739,12 +743,12 @@
             Применённые фильтры: {{ active_filter_labels|join:", " }}.<br><br>
           {% endif %}
           {% if search_degraded %}
-            Смысловой индекс сейчас не готов. Точный текстовый поиск, сущности и фильтры продолжают работать.<br><br>
+            Расширенный поиск сейчас не готов. Точный текстовый поиск, реквизиты и фильтры продолжают работать.<br><br>
           {% else %}
-            Если недавно загруженного документа нет в выдаче, его смысловая индексация может ещё выполняться.<br><br>
+            Если недавно загруженного документа нет в выдаче, его обработка может ещё выполняться.<br><br>
           {% endif %}
           {% if has_active_filters %}
-            Попробуйте убрать часть фильтров или использовать более широкий смысловой запрос.
+            Попробуйте убрать часть фильтров или использовать более широкий запрос.
           {% else %}
             Архив пуст. Для демонстрации можно загрузить документы или выполнить подготовку демо-данных через management command.
           {% endif %}

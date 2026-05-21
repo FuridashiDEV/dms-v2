@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿﻿{% extends "base.html" %}
 {% block title %}Главная — ИИ-архив{% endblock %}
 
 {% block content %}
@@ -199,7 +199,7 @@
       <span class="dot"></span>
       Активен
     </div>
-    <div class="kpi-foot">Веб-приложение, архивный контур и AI-модули доступны</div>
+    <div class="kpi-foot">Веб-приложение, архивный контур и модули обработки доступны</div>
   </div>
 </div>
 
@@ -207,7 +207,7 @@
   <div class="card" style="padding:22px; display:flex; flex-direction:column;">
     <h2 class="action-title">Загрузить документ</h2>
     <div class="action-sub">
-      Добавьте новый документ в архив. Система сохранит файл, построит карточку, посчитает контрольную сумму и запустит AI-обработку для поддерживаемых форматов.
+      Добавьте новый документ в архив. Система сохранит файл, построит карточку, посчитает контрольную сумму и запустит обработку документа для поддерживаемых форматов.
     </div>
     <div style="margin-top:auto; padding-top:16px;">
       <a class="btn btn-primary btn-lg" href="{% url 'dms:document_upload' %}">Загрузить документ</a>

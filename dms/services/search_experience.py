@@ -54,20 +54,20 @@ def search_mode_explanations(active_mode: str) -> list[SearchModeExplanation]:
     return [
         SearchModeExplanation(
             mode=SEARCH_MODE_HYBRID,
-            label="Гибридный",
-            description="Объединяет реквизиты, сущности, алиасы, текст и смысловые совпадения.",
+            label="Умный поиск",
+            description="Учитывает реквизиты, текст документа и близкие по смыслу совпадения.",
             is_active=active_mode == SEARCH_MODE_HYBRID,
         ),
         SearchModeExplanation(
             mode=SEARCH_MODE_EXACT,
-            label="Точный",
-            description="Подходит для номеров документов, названий, файлов и строгих архивных полей.",
+            label="Точный поиск",
+            description="Подходит для номера, названия, файла или конкретного реквизита.",
             is_active=active_mode == SEARCH_MODE_EXACT,
         ),
         SearchModeExplanation(
             mode=SEARCH_MODE_SEMANTIC,
-            label="Смысловой",
-            description="Ищет по смыслу, если индекс доступен, и безопасно возвращается к текстовому поиску.",
+            label="Смысловой поиск",
+            description="Ищет близкие по содержанию документы и при необходимости использует обычный текстовый поиск.",
             is_active=active_mode == SEARCH_MODE_SEMANTIC,
         ),
     ]
@@ -194,7 +194,7 @@ def build_search_suggestions(
             add("Искать по типу документа", "Оставить найденный тип документа основным условием.", q=document_type, search_mode=SEARCH_MODE_HYBRID)
         for key, values in (search_query.aliases or {}).items():
             if values:
-                add("Попробовать алиасы", "Использовать варианты написания и языка.", q=" ".join(values[:4]), search_mode=SEARCH_MODE_HYBRID)
+                add("Попробовать варианты написания", "Использовать похожие написания и языковые варианты.", q=" ".join(values[:4]), search_mode=SEARCH_MODE_HYBRID)
                 break
 
     if len(suggestions) < max_items:

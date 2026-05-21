@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿﻿{% extends "base.html" %}
 {% block title %}{{ doc.title }} - ИИ-архив{% endblock %}
 
 {% block content %}
@@ -34,7 +34,7 @@
 <div class="page-top">
   <div>
     <h1 class="page-title">{{ doc.title }}</h1>
-    <div class="page-sub">Умная карточка архивного документа: метаданные, сохранность файла, AI-сводка, связи, версии и аудит действий.</div>
+    <div class="page-sub">Карточка архивного документа: реквизиты, файл, связи, версии и история действий.</div>
   </div>
   <div class="top-actions">
     <a class="btn btn-ghost" href="{% url 'dms:document_list' %}">К документам</a>
@@ -42,9 +42,11 @@
     <a class="btn btn-ghost" href="{% url 'dms:document_view' doc.id %}" target="_blank">Открыть файл</a>
     <a class="btn btn-ghost" href="{% url 'dms:document_download' doc.id %}">Скачать</a>
     <a class="btn btn-ghost" href="{% url 'dms:document_evidence_report' doc.id %}">Доказательный отчёт</a>
-    <a class="btn btn-ghost" href="{% url 'dms:document_evidence_export' doc.id %}">JSON-пакет</a>
+    {% if request.user.is_staff or request.user.is_superuser %}
+      <a class="btn btn-ghost" href="{% url 'dms:document_evidence_export' doc.id %}">Технический JSON</a>
+    {% endif %}
     {% if latest_processing_job and can_validate_ai %}
-      <a class="btn btn-ghost" href="{% url 'dms:document_ai_review' doc.id %}">Проверить AI-поля</a>
+      <a class="btn btn-ghost" href="{% url 'dms:document_ai_review' doc.id %}">Проверить предложенные поля</a>
     {% endif %}
   </div>
 </div>
@@ -53,7 +55,7 @@
   <div style="display:grid; gap:18px;">
     <div class="card" style="padding:22px;">
       <h2 class="section-title">Архивная карточка</h2>
-      <div class="section-sub">Основные, архивные и preservation-метаданные документа.</div>
+      <div class="section-sub">Основные реквизиты и архивный контекст документа.</div>
       <div class="meta-grid">
         <div class="meta-item"><div class="meta-label">Отдел</div><div class="meta-value">{{ doc.department.name }}</div></div>
         <div class="meta-item"><div class="meta-label">Папка</div><div class="meta-value">{{ folder_path }}</div></div>
@@ -69,12 +71,20 @@
         <div class="meta-item"><div class="meta-label">Категория хранения</div><div class="meta-value">{{ doc.retention_category|default:"Не указана" }}</div></div>
         <div class="meta-item"><div class="meta-label">Срок хранения до</div><div class="meta-value">{{ doc.retention_until|date:"d.m.Y"|default:"Не указан" }}</div></div>
         <div class="meta-item"><div class="meta-label">Юридическое удержание</div><div class="meta-value">{% if doc.legal_hold %}Активен{% else %}Нет{% endif %}</div></div>
-        <div class="meta-item"><div class="meta-label">Источник документа</div><div class="meta-value">{{ doc.source_system|default:"Не указан" }}</div></div>
+
         <div class="meta-item"><div class="meta-label">Исходное имя файла</div><div class="meta-value">{{ doc.source_file_name|default:doc.file.name }}</div></div>
-        <div class="meta-item"><div class="meta-label">MIME-тип</div><div class="meta-value">{{ doc.mime_type|default:"Не определен" }}</div></div>
-        <div class="meta-item"><div class="meta-label">SHA-256</div><div class="meta-value">{{ doc.checksum_sha256|default:"Не рассчитан" }}</div></div>
         <div class="meta-item"><div class="meta-label">Риск формата</div><div class="meta-value">{{ doc.get_format_risk_level_display }}</div></div>
       </div>
+      {% if request.user.is_staff or request.user.is_superuser %}
+        <details class="ui-technical-details">
+          <summary>Технические параметры файла</summary>
+          <div style="margin-top:10px;">
+            MIME-тип: {{ doc.mime_type|default:"Не определен" }}<br>
+            SHA-256: {{ doc.checksum_sha256|default:"Не рассчитан" }}<br>
+            Источник: {{ doc.source_system|default:"Не указан" }}
+          </div>
+        </details>
+      {% endif %}
       <div style="margin-top:18px;">
         <div class="meta-label">Описание</div>
         <div class="meta-value" style="font-size:15px; line-height:1.6; margin-top:10px;">{{ doc.description|default:"Описание пока не заполнено." }}</div>
@@ -82,11 +92,11 @@
     </div>
 
     <div class="card" style="padding:22px;">
-      <h2 class="section-title">AI-сводка</h2>
+      <h2 class="section-title">Краткая сводка</h2>
       <div class="section-sub">Краткое содержание документа для быстрого просмотра.</div>
       {% if latest_processing_job %}
         <div class="row-card" style="margin-top:16px;">
-          <div class="row-main">AI-обработка: {{ latest_processing_job.get_status_display }}</div>
+          <div class="row-main">Обработка: {{ latest_processing_job.get_status_display }}</div>
           <div class="row-meta">
             {{ latest_processing_job.created_at|date:"d.m.Y H:i" }}
             • предложений: {{ latest_processing_job.fields.count }}
@@ -99,7 +109,7 @@
       {% else %}
         <div class="row-card" style="margin-top:16px;">
           <div class="row-main">Сводка пока недоступна</div>
-          <div class="row-meta">Если Ollama недоступна или по документу мало текста, карточка продолжит работать без AI-описания.</div>
+          <div class="row-meta">Если по документу пока мало распознанного текста, карточка продолжит работать без сводки.</div>
         </div>
       {% endif %}
     </div>
@@ -129,7 +139,7 @@
               {{ version.created_at|date:"d.m.Y H:i" }}
               {% if version.uploaded_by %} • {{ version.uploaded_by.get_full_name|default:version.uploaded_by.username }}{% endif %}
               {% if version.doc_type %} • {{ version.doc_type.name }}{% endif %}
-              {% if version.checksum_sha256 %} • SHA-256: {{ version.checksum_sha256|slice:":12" }}...{% endif %}
+              {% if request.user.is_staff or request.user.is_superuser %}{% if version.checksum_sha256 %} • SHA-256: {{ version.checksum_sha256|slice:":12" }}...{% endif %}{% endif %}
             </div>
             <div class="row-actions">
               <a class="btn btn-ghost" href="{% url 'dms:document_version_view' doc.id version.id %}" target="_blank">Открыть</a>
@@ -152,7 +162,7 @@
       <div class="section-sub">Контекст архива: какие документы этот файл заменяет, к чему относится и где фигурирует.</div>
       {% if relation_graph.nodes %}
         <div class="row-card" style="margin-top:14px;">
-          <div class="row-main">Граф связей: {{ relation_graph.nodes|length }} документов / {{ relation_graph.edges|length }} связей</div>
+          <div class="row-main">Связанные документы: {{ relation_graph.nodes|length }} документов / {{ relation_graph.edges|length }} связей</div>
           {% if relation_graph.chains %}
             {% for chain in relation_graph.chains %}
               <div class="row-meta">
@@ -187,7 +197,7 @@
         {% for relation in outgoing_relations %}
           <div class="row-card">
             <div class="row-main">{{ relation.get_relation_type_display }}: <a href="{% url 'dms:document_detail' relation.to_document.id %}">{{ relation.to_document.title }}</a></div>
-            <div class="row-meta">{{ relation.to_document.department.name }}{% if relation.to_document.doc_type %} • {{ relation.to_document.doc_type.name }}{% endif %}{% if relation.confidence %} • уверенность: {{ relation.confidence }}{% endif %} • {{ relation.source }}{% if not relation.is_confirmed %} • предложено{% endif %}</div>
+            <div class="row-meta">{{ relation.to_document.department.name }}{% if relation.to_document.doc_type %} • {{ relation.to_document.doc_type.name }}{% endif %}{% if not relation.is_confirmed %} • предложено{% endif %}</div>
             {% if can_manage_relations %}
               <form method="post" action="{% url 'dms:document_relation_delete' doc.id relation.id %}" class="row-actions">
                 {% csrf_token %}
@@ -199,7 +209,7 @@
         {% for relation in incoming_relations %}
           <div class="row-card">
             <div class="row-main"><a href="{% url 'dms:document_detail' relation.from_document.id %}">{{ relation.from_document.title }}</a> -> {{ relation.get_relation_type_display|lower }} текущий документ</div>
-            <div class="row-meta">{{ relation.from_document.department.name }}{% if relation.from_document.doc_type %} • {{ relation.from_document.doc_type.name }}{% endif %}{% if relation.confidence %} • уверенность: {{ relation.confidence }}{% endif %} • {{ relation.source }}{% if not relation.is_confirmed %} • предложено{% endif %}</div>
+            <div class="row-meta">{{ relation.from_document.department.name }}{% if relation.from_document.doc_type %} • {{ relation.from_document.doc_type.name }}{% endif %}{% if not relation.is_confirmed %} • предложено{% endif %}</div>
             {% if can_manage_relations %}
               <form method="post" action="{% url 'dms:document_relation_delete' doc.id relation.id %}" class="row-actions">
                 {% csrf_token %}
@@ -218,7 +228,7 @@
     </div>
 
     <div class="card" style="padding:22px;">
-      <h2 class="section-title">AI-подсказки архива</h2>
+      <h2 class="section-title">Подсказки архива</h2>
       <div class="section-sub">Подсказки по сроку хранения, качеству карточки и вероятным устаревшим редакциям.</div>
       <div class="stack">
         <div class="row-card">
@@ -234,7 +244,7 @@
           <div class="row-main">
             Качество карточки:
             <span class="{% if card_quality.score >= 80 %}score-strong{% elif card_quality.score >= 50 %}score-medium{% else %}score-weak{% endif %}">
-              {{ card_quality.score }}/100
+              {% if card_quality.score >= 80 %}Высокое{% elif card_quality.score >= 50 %}Среднее{% else %}Требует внимания{% endif %}
             </span>
           </div>
           {% if card_quality.issues %}
@@ -246,7 +256,7 @@
         {% for suggestion in relation_suggestions %}
           <div class="row-card">
             <div class="row-main">{{ suggestion.label }}: <a href="{% url 'dms:document_detail' suggestion.target.id %}">{{ suggestion.target.title }}</a></div>
-            <div class="row-meta">{{ suggestion.target.department.name }}{% if suggestion.target.doc_type %} • {{ suggestion.target.doc_type.name }}{% endif %}{% if suggestion.target.doc_date %} • {{ suggestion.target.doc_date|date:"d.m.Y" }}{% endif %} • уверенность: {{ suggestion.confidence }} • не подтверждено автоматически</div>
+            <div class="row-meta">{{ suggestion.target.department.name }}{% if suggestion.target.doc_type %} • {{ suggestion.target.doc_type.name }}{% endif %}{% if suggestion.target.doc_date %} • {{ suggestion.target.doc_date|date:"d.m.Y" }}{% endif %}  • не подтверждено автоматически</div>
             {% if suggestion.reasons %}
               <div class="row-meta">{{ suggestion.reasons|join:", " }}</div>
             {% endif %}
@@ -265,7 +275,7 @@
 
     <div class="card" style="padding:22px;">
       <h2 class="section-title">Похожие документы</h2>
-      <div class="section-sub">Материалы, которые AI считает близкими по содержанию.</div>
+      <div class="section-sub">Материалы, близкие по содержанию и реквизитам.</div>
       <div class="stack">
         {% for similar_doc in similar_documents %}
           <div class="row-card">
@@ -275,7 +285,7 @@
         {% empty %}
           <div class="row-card">
             <div class="row-main">Похожие документы пока не найдены</div>
-            <div class="row-meta">Если Qdrant недоступен или индекс еще не наполнен, этот блок останется пустым.</div>
+            <div class="row-meta">Похожие документы появятся после обработки архива.</div>
           </div>
         {% endfor %}
       </div>

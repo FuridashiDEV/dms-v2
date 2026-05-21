@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+﻿﻿{% extends "base.html" %}
 
 {% block title %}Стоимость обработки{% endblock %}
 
@@ -11,7 +11,7 @@
 <div class="page-top">
   <div>
     <h1 class="page-title">Стоимость обработки</h1>
-    <div class="page-sub">Отчётный слой контроля AI, OCR, embeddings и тяжёлой обработки для {{ selected_organization.name }}. Политики помогают оценивать и маршрутизировать задачи, но не блокируют клиентов.</div>
+    <div class="page-sub">Отчётный слой контроля распознавания, индексации и тяжёлой обработки для {{ selected_organization.name }}. Политики помогают оценивать и маршрутизировать задачи, но не блокируют клиентов.</div>
   </div>
   <div class="top-actions">
     <a class="btn btn-ghost" href="{% url 'dms:billing_usage_limits' %}?organization={{ selected_organization.id }}">Лимиты</a>
@@ -35,9 +35,9 @@
 
 <div class="ops-grid">
   <div class="ops-card"><div class="ops-label">Оценка стоимости</div><div class="ops-value">{{ report.total_cost_units|floatformat:2 }}</div><div class="ops-note">единиц обработки за месяц</div></div>
-  <div class="ops-card"><div class="ops-label">AI-документы</div><div class="ops-value">{{ report.total_documents }}</div><div class="ops-note">оценённых документов</div></div>
-  <div class="ops-card"><div class="ops-label">OCR</div><div class="ops-value">{{ report.ocr_pages }}</div><div class="ops-note">страниц направлено на OCR</div></div>
-  <div class="ops-card"><div class="ops-label">Индексация</div><div class="ops-value">{{ report.total_chunks }}</div><div class="ops-note">оценённых фрагментов</div></div>
+  <div class="ops-card"><div class="ops-label">Документы</div><div class="ops-value">{{ report.total_documents }}</div><div class="ops-note">оценённых документов</div></div>
+  <div class="ops-card"><div class="ops-label">Распознавание</div><div class="ops-value">{{ report.ocr_pages }}</div><div class="ops-note">страниц направлено на Распознавание</div></div>
+  <div class="ops-card"><div class="ops-label">Индексация</div><div class="ops-value">{{ report.total_chunks }}</div><div class="ops-note">фрагментов для индекса</div></div>
 </div>
 
 <div class="card" style="padding:20px;margin-bottom:18px;">
@@ -102,7 +102,7 @@
 <div class="card" style="padding:20px;">
   <h2 class="section-title">Правила маршрутизации</h2>
   <table>
-    <thead><tr><th>Политика</th><th>Макс. стоимость</th><th>Задержка</th><th>OCR</th><th>GPU</th></tr></thead>
+    <thead><tr><th>Политика</th><th>Макс. стоимость</th><th>Задержка</th><th>Распознавание</th><th>GPU</th></tr></thead>
     <tbody>
       {% for policy in report.policies %}
         <tr>

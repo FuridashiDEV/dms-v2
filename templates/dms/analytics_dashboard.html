@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+﻿﻿{% extends "base.html" %}
 
 {% block title %}Аналитика{% endblock %}
 
@@ -54,8 +54,8 @@
       <div class="ops-card"><div class="ops-label">Активные организации</div><div class="ops-value">{{ platform_metrics.active_organizations }}</div></div>
       <div class="ops-card"><div class="ops-label">С использованием</div><div class="ops-value">{{ platform_metrics.organizations_with_usage }}</div></div>
       <div class="ops-card"><div class="ops-label">Документы</div><div class="ops-value">{{ platform_metrics.documents_uploaded }}</div></div>
-      <div class="ops-card"><div class="ops-label">AI-обработка</div><div class="ops-value">{{ platform_metrics.ai_documents_processed }}</div></div>
-      <div class="ops-card"><div class="ops-label">AI-поля проверены</div><div class="ops-value">{{ platform_metrics.ai_fields_confirmed }}</div></div>
+      <div class="ops-card"><div class="ops-label">Обработка документов</div><div class="ops-value">{{ platform_metrics.ai_documents_processed }}</div></div>
+      <div class="ops-card"><div class="ops-label">Предложенные поля проверены</div><div class="ops-value">{{ platform_metrics.ai_fields_confirmed }}</div></div>
       <div class="ops-card"><div class="ops-label">Маршруты запущены</div><div class="ops-value">{{ platform_metrics.workflow_started }}</div></div>
       <div class="ops-card"><div class="ops-label">Отправки контрагентам</div><div class="ops-value">{{ platform_metrics.documents_sent_to_counterparties }}</div></div>
       <div class="ops-card"><div class="ops-label">Доказательные отчёты</div><div class="ops-value">{{ platform_metrics.evidence_exports }}</div></div>
@@ -69,8 +69,8 @@
     <div class="ops-grid">
       <div class="ops-card"><div class="ops-label">Загружено</div><div class="ops-value">{{ organization_metrics.documents_uploaded }}</div></div>
       <div class="ops-card"><div class="ops-label">Всего документов</div><div class="ops-value">{{ organization_metrics.documents_total }}</div></div>
-      <div class="ops-card"><div class="ops-label">AI-обработка</div><div class="ops-value">{{ organization_metrics.ai_documents_processed }}</div></div>
-      <div class="ops-card"><div class="ops-label">AI-поля проверены</div><div class="ops-value">{{ organization_metrics.ai_fields_confirmed }}</div></div>
+      <div class="ops-card"><div class="ops-label">Обработка документов</div><div class="ops-value">{{ organization_metrics.ai_documents_processed }}</div></div>
+      <div class="ops-card"><div class="ops-label">Предложенные поля проверены</div><div class="ops-value">{{ organization_metrics.ai_fields_confirmed }}</div></div>
       <div class="ops-card"><div class="ops-label">Маршруты запущены</div><div class="ops-value">{{ organization_metrics.workflow_started }}</div></div>
       <div class="ops-card"><div class="ops-label">Маршруты завершены</div><div class="ops-value">{{ organization_metrics.workflow_completed }}</div></div>
       <div class="ops-card"><div class="ops-label">Отправки контрагентам</div><div class="ops-value">{{ organization_metrics.documents_sent_to_counterparties }}</div></div>
@@ -96,7 +96,7 @@
 
 {% if observability_metrics %}
   <div class="card ops-section">
-    <h2 class="section-title">Наблюдаемость AI и поиска</h2>
+    <h2 class="section-title">Наблюдаемость обработки и поиска</h2>
     <div class="ops-grid">
       <div class="ops-card"><div class="ops-label">Ожидают</div><div class="ops-value">{{ observability_metrics.queue_pending }}</div></div>
       <div class="ops-card"><div class="ops-label">В работе</div><div class="ops-value">{{ observability_metrics.queue_running }}</div></div>
@@ -104,8 +104,8 @@
       <div class="ops-card"><div class="ops-label">Устаревший индекс</div><div class="ops-value">{{ observability_metrics.stale_documents }}</div></div>
       <div class="ops-card"><div class="ops-label">Обработка, мс</div><div class="ops-value">{{ observability_metrics.avg_processing_time_ms }}</div></div>
       <div class="ops-card"><div class="ops-label">Поиск, мс</div><div class="ops-value">{{ observability_metrics.avg_search_latency_ms }}</div></div>
-      <div class="ops-card"><div class="ops-label">Embeddings, мс</div><div class="ops-value">{{ observability_metrics.avg_embedding_time_ms }}</div></div>
-      <div class="ops-card"><div class="ops-label">Запись в векторный индекс, мс</div><div class="ops-value">{{ observability_metrics.avg_qdrant_insert_time_ms }}</div></div>
+      <div class="ops-card"><div class="ops-label">Индексация, мс</div><div class="ops-value">{{ observability_metrics.avg_embedding_time_ms }}</div></div>
+      <div class="ops-card"><div class="ops-label">Запись индекса, мс</div><div class="ops-value">{{ observability_metrics.avg_qdrant_insert_time_ms }}</div></div>
     </div>
   </div>
 
@@ -149,7 +149,7 @@
   </div>
 
   <div class="card ops-section">
-    <h2 class="section-title">GPU-обработка</h2>
+    <h2 class="section-title">Ресурсы обработки</h2>
     <div class="ops-grid">
       <div class="ops-card"><div class="ops-label">GPU доступен</div><div class="ops-value">{{ observability_metrics.gpu.gpu_available|yesno:"Да,Нет" }}</div></div>
       <div class="ops-card"><div class="ops-label">GPU занят</div><div class="ops-value">{{ observability_metrics.gpu.gpu_busy|yesno:"Да,Нет" }}</div></div>

@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿﻿{% extends "base.html" %}
 {% block title %}{{ page_title }} — ИИ-архив{% endblock %}
 {% block content %}
 
@@ -815,7 +815,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (response.redirected || !contentType.includes("application/json")) {
           if (aiHint) {
-            aiHint.textContent = "Не удалось получить корректный ответ от AI-модуля. Обновите страницу и попробуйте снова.";
+            aiHint.textContent = "Не удалось получить корректный ответ от модуля обработки. Обновите страницу и попробуйте снова.";
             aiHint.className = "ai-hint is-error";
           }
           return;
@@ -842,7 +842,7 @@ document.addEventListener("DOMContentLoaded", () => {
       } catch (e) {
         console.error("AI parse error", e);
         if (aiHint) {
-          aiHint.textContent = "Не удалось связаться с AI-модулем. Поля можно заполнить вручную.";
+          aiHint.textContent = "Не удалось связаться с модулем обработки. Поля можно заполнить вручную.";
           aiHint.className = "ai-hint is-error";
         }
       }

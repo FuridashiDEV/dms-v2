@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿﻿{% extends "base.html" %}
 
 {% block title %}Уведомления{% endblock %}
 
@@ -22,7 +22,7 @@
 <div class="notifications-top">
   <div>
     <h1 class="notifications-title">Уведомления</h1>
-    <div class="notifications-sub">Внутренние события по согласованию, AI-проверке и B2B-обмену.</div>
+    <div class="notifications-sub">Внутренние события по согласованию, проверке предложений и B2B-обмену.</div>
   </div>
   <div class="top-actions">
     <a class="btn btn-ghost" href="{% url 'dms:document_list' %}">Документы</a>
@@ -66,7 +66,7 @@
   {% empty %}
     <div class="notification-row">
       <div class="notification-title">Уведомлений пока нет</div>
-      <div class="notification-meta">Здесь появятся уведомления по согласованию, AI-проверке и B2B-обмену.</div>
+      <div class="notification-meta">Здесь появятся уведомления по согласованию, проверке предложений и B2B-обмену.</div>
     </div>
   {% endfor %}
 </div>

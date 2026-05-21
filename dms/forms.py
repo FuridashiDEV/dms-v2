@@ -97,9 +97,9 @@ def validate_uploaded_file(uploaded_file):
 
 class DocumentSearchForm(forms.Form):
     SEARCH_MODE_CHOICES = (
-        ("hybrid", "Hybrid"),
-        ("exact", "Exact"),
-        ("semantic", "Semantic"),
+        ("hybrid", "Умный поиск"),
+        ("exact", "Точный поиск"),
+        ("semantic", "Смысловой поиск"),
     )
 
     q = forms.CharField(required=False, max_length=MAX_QUERY_LENGTH)

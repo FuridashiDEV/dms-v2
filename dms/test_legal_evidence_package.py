@@ -244,7 +244,7 @@ class LegalEvidencePackageTests(TestCase):
         self.assertContains(response, "Доказательный отчёт")
         self.assertContains(response, "Документ")
         self.assertContains(response, "Версии")
-        self.assertContains(response, "AI-поля")
+        self.assertContains(response, "Предложенные поля")
         self.assertContains(response, "Согласование")
         self.assertContains(response, "Обмен и сообщения")
         self.assertContains(response, "События аудита")
@@ -278,7 +278,8 @@ class LegalEvidencePackageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         raw_report = response.content.decode("utf-8")
-        self.assertIn("human report note", raw_report)
+        self.assertIn("Служебные детали скрыты", raw_report)
+        self.assertNotIn("human report note", raw_report)
         self.assertNotIn("super-secret-token", raw_report)
         self.assertNotIn("should-not-export-token-hash", raw_report)
         self.assertNotIn("token_hint", raw_report)

@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿﻿{% extends "base.html" %}
 {% block title %}Доказательный отчёт - {{ document.title }}{% endblock %}
 
 {% block content %}
@@ -38,7 +38,9 @@
     </div>
     <div class="report-actions">
       <a class="btn btn-ghost" href="{% url 'dms:document_detail' document.id %}">К документу</a>
-      <a class="btn btn-ghost" href="{% url 'dms:document_evidence_export' document.id %}">Скачать JSON</a>
+      {% if request.user.is_staff or request.user.is_superuser %}
+        <a class="btn btn-ghost" href="{% url 'dms:document_evidence_export' document.id %}">Технический JSON</a>
+      {% endif %}
     </div>
   </div>
 
@@ -89,7 +91,7 @@
   </section>
 
   <section class="report-section">
-    <h2 class="section-title">AI-поля</h2>
+    <h2 class="section-title">Предложенные поля</h2>
     <table class="table">
       <thead><tr><th>Поле</th><th>Значение</th><th>Статус</th><th>Уверенность</th><th>Проверено</th></tr></thead>
       <tbody>
@@ -102,7 +104,7 @@
             <td>{{ field.reviewed_at|default:"-" }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="5">В доказательном пакете нет AI-полей.</td></tr>
+          <tr><td colspan="5">В доказательном пакете нет предложенных полей.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -176,7 +178,13 @@
             <td>{{ event.event_type }}</td>
             <td>{{ event.user.display_name|default:event.user.username|default:"-" }}</td>
             <td>{{ event.document_version_id|default:"-" }}</td>
-            <td>{{ event.metadata|default:"-"|truncatechars:180 }}</td>
+            <td>
+              {% if request.user.is_staff or request.user.is_superuser %}
+                {{ event.metadata|default:"-"|truncatechars:180 }}
+              {% else %}
+                Служебные детали скрыты
+              {% endif %}
+            </td>
             <td>{{ event.created_at }}</td>
           </tr>
         {% empty %}

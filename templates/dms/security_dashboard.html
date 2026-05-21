@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+﻿﻿{% extends "base.html" %}
 
 {% block title %}Безопасность{% endblock %}
 
@@ -64,8 +64,12 @@
         </div>
         <div>
           <div class="data-main">{% if event.document %}{{ event.document.title }}{% else %}{{ event.organization.name|default:"Платформа" }}{% endif %}</div>
-          <div class="data-meta">{{ event.user_agent|truncatechars:140 }}</div>
-          <pre class="security-code">{{ item.metadata|truncatechars:220 }}</pre>
+          {% if request.user.is_staff or request.user.is_superuser %}
+            <div class="data-meta">{{ event.user_agent|truncatechars:140 }}</div>
+            <pre class="security-code">{{ item.metadata|truncatechars:220 }}</pre>
+          {% else %}
+            <div class="data-meta">Служебные детали скрыты</div>
+          {% endif %}
         </div>
       </div>
     {% endwith %}

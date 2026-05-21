@@ -120,7 +120,7 @@ class EnterpriseObservabilityStage41Tests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode("utf-8")
-        self.assertIn("Наблюдаемость AI и поиска", content)
+        self.assertIn("Наблюдаемость обработки и поиска", content)
         self.assertIn("Stage 41", content)
         self.assertNotIn("Stage 41 Other", content)
 

@@ -1,5 +1,5 @@
-{% extends "base.html" %}
-{% block title %}AI-проверка - {{ doc.title }}{% endblock %}
+﻿﻿{% extends "base.html" %}
+{% block title %}Проверка предложений - {{ doc.title }}{% endblock %}
 
 {% block content %}
 <style>
@@ -26,8 +26,8 @@
 
 <div class="page-top">
   <div>
-    <h1 class="page-title">Проверка AI-полей</h1>
-    <div class="page-sub">AI-предложения сохраняются отдельно от карточки документа. Изменения попадут в документ только после подтверждения и применения.</div>
+    <h1 class="page-title">Проверка предложенных полей</h1>
+    <div class="page-sub">Предложения сохраняются отдельно от карточки документа. Изменения попадут в документ только после подтверждения и применения.</div>
   </div>
   <div class="top-actions">
     <a class="btn btn-ghost" href="{% url 'dms:document_detail' doc.id %}">К карточке</a>
@@ -35,7 +35,7 @@
 </div>
 
 <div class="card" style="padding:22px;">
-  <h2 class="section-title">Processing job #{{ job.id }}</h2>
+  <h2 class="section-title">Задача обработки</h2>
   <div class="section-sub">{{ job.get_status_display }} • {{ job.created_at|date:"d.m.Y H:i" }} • {{ job.get_source_display }}</div>
 
   <form method="post">
@@ -44,7 +44,7 @@
       <thead>
         <tr>
           <th>Поле</th>
-          <th>AI-значение</th>
+          <th>Предложенное значение</th>
           <th>Решение</th>
         </tr>
       </thead>
@@ -69,8 +69,8 @@
         {% empty %}
           <tr class="review-row">
             <td colspan="3">
-              <div class="field-name">AI-предложений пока нет</div>
-              <div class="field-meta">Pipeline завершился без полей, которые можно применить к документу.</div>
+              <div class="field-name">Предложений пока нет</div>
+              <div class="field-meta">Обработка завершилась без полей, которые можно применить к документу.</div>
             </td>
           </tr>
         {% endfor %}
