@@ -99,16 +99,24 @@ label{ color:var(--muted); }
     }
 
     .top-logo{
-      width: 66px;
-      height: 66px;
-      border-radius: 999px;
+      width: 82px;
+      height: 82px;
+      border-radius: 22px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      background: rgba(109,40,217,0.08);
-      border: 2px solid rgba(109,40,217,0.35);
-      box-shadow: 0 18px 70px rgba(2,6,23,0.08);
+      background: #fff;
+      border: 1px solid rgba(15,23,42,0.08);
+      box-shadow: 0 18px 45px rgba(15,23,42,0.10);
       margin-bottom: 18px;
+      overflow: hidden;
+    }
+
+    .top-logo img{
+      width: 72px;
+      height: 72px;
+      display:block;
+      object-fit: contain;
     }
 
     .title{
@@ -442,12 +450,7 @@ label{ color:var(--muted); }
 
     <div class="top">
       <div class="top-logo" aria-hidden="true">
-        <!-- book icon -->
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
-          <path d="M4 19.5V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v13.5" stroke="#6d28d9" stroke-width="2" stroke-linecap="round"/>
-          <path d="M6 4v15.5a2 2 0 0 0 2 2h12" stroke="#6d28d9" stroke-width="2" stroke-linecap="round"/>
-          <path d="M9 8h7" stroke="#6d28d9" stroke-width="2" stroke-linecap="round"/>
-        </svg>
+        <img src="{% static 'dms/img/docflow-mark.png' %}" alt="">
       </div>
 
       <h1 class="title">DocFlow</h1>
