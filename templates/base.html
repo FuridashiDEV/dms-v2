@@ -1,9 +1,22 @@
+{% load dms_ui i18n %}
+{% get_current_language as LANGUAGE_CODE %}
 <!doctype html>
-<html lang="ru">
+<html lang="{{ LANGUAGE_CODE|default:'ru' }}">
 <head>
   <meta charset="utf-8" />
   <title>{% block title %}ИИ-архив документов{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("docflow-theme");
+        var theme = stored || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (error) {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  </script>
 
   <style>
     :root{
@@ -12,10 +25,28 @@
       --text: #0f172a;
       --muted: #64748b;
       --border: #e6eaf2;
+      --surface-soft: #f8fafc;
+      --surface-hover: #f2f5fb;
+      --input-bg: #ffffff;
       --primary: #2f6fed;
       --primary-2: #245ee0;
       --shadow: 0 10px 30px rgba(16,24,40,0.08);
       --radius: 18px;
+    }
+
+    [data-theme="dark"]{
+      --bg: #0b1120;
+      --card: #111827;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --border: #273244;
+      --surface-soft: #162033;
+      --surface-hover: #1f2a3d;
+      --input-bg: #0f172a;
+      --primary: #6d9cff;
+      --primary-2: #8bb2ff;
+      --shadow: 0 16px 36px rgba(0,0,0,0.28);
+      color-scheme: dark;
     }
 
     *{ box-sizing:border-box; }
@@ -28,6 +59,18 @@
 
     a{ text-decoration:none; color:inherit; }
 
+    .sr-only{
+      position:absolute;
+      width:1px;
+      height:1px;
+      padding:0;
+      margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
+    }
+
     .container{
       max-width: 1180px;
       margin: 0 auto;
@@ -36,7 +79,7 @@
 
     /* Header */
     .header{
-      background: #fff;
+      background: var(--card);
       border-bottom: 1px solid var(--border);
       position: sticky;
       top: 0;
@@ -116,11 +159,11 @@
 
     .btn-ghost{
       border: 1px solid var(--border);
-      background: #fff;
+      background: var(--card);
       color: var(--text);
     }
     .btn-ghost:hover{
-      background:#f2f5fb;
+      background:var(--surface-hover);
     }
 
     .btn-text{
@@ -130,7 +173,7 @@
       padding: 8px 10px;
       border-radius: 12px;
     }
-    .btn-text:hover{ background:#f1f5f9; color: var(--text); }
+    .btn-text:hover{ background:var(--surface-hover); color: var(--text); }
 
     .main{
       padding: 26px 0 60px;
@@ -151,7 +194,7 @@
       padding:8px;
       border:1px solid var(--border);
       border-radius:16px;
-      background:#fff;
+      background:var(--card);
       box-shadow:var(--shadow);
       z-index:80;
       display:grid;
@@ -167,7 +210,7 @@
       font-size:14px;
       font-weight:700;
     }
-    .nav-menu a:hover{ background:#f2f5fb; }
+    .nav-menu a:hover{ background:var(--surface-hover); }
 
     /* Cards */
     .card{
@@ -493,6 +536,100 @@
       font-size: 14px;
     }
 
+    .site-controls{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:4px;
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:var(--card);
+    }
+    .theme-toggle{
+      min-width:40px;
+      height:32px;
+      padding:0 10px;
+      border:0;
+      border-radius:10px;
+      background:var(--surface-soft);
+      color:var(--text);
+      cursor:pointer;
+      font-size:13px;
+      font-weight:900;
+    }
+    .language-switch{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      margin:0;
+    }
+    .language-switch select{
+      width:auto;
+      min-width:74px;
+      height:32px;
+      padding:0 26px 0 10px;
+      border-radius:10px;
+      font-size:13px;
+      font-weight:800;
+    }
+    [data-theme="dark"] .brand-icon{
+      background:#24385f;
+      box-shadow:none;
+    }
+    [data-theme="dark"] input,
+    [data-theme="dark"] select,
+    [data-theme="dark"] textarea{
+      background:var(--input-bg);
+      color:var(--text);
+      border-color:var(--border);
+    }
+    [data-theme="dark"] .card,
+    [data-theme="dark"] .ui-card,
+    [data-theme="dark"] .ops-card,
+    [data-theme="dark"] .report-card,
+    [data-theme="dark"] .report-section,
+    [data-theme="dark"] .review-row,
+    [data-theme="dark"] .row-card,
+    [data-theme="dark"] .meta-item,
+    [data-theme="dark"] .preview-shell,
+    [data-theme="dark"] .preview-frame,
+    [data-theme="dark"] .notice,
+    [data-theme="dark"] .portal-card,
+    [data-theme="dark"] .portal-item,
+    [data-theme="dark"] .kpi-card,
+    [data-theme="dark"] .doc-card,
+    [data-theme="dark"] .result-card{
+      background:var(--card) !important;
+      border-color:var(--border) !important;
+      color:var(--text);
+      box-shadow:var(--shadow);
+    }
+    [data-theme="dark"] .ops-value,
+    [data-theme="dark"] .data-main,
+    [data-theme="dark"] .ui-card-title,
+    [data-theme="dark"] .ui-empty-title,
+    [data-theme="dark"] .ui-related-item,
+    [data-theme="dark"] .section-title,
+    [data-theme="dark"] .page-title{
+      color:var(--text);
+    }
+    [data-theme="dark"] .ui-card-body,
+    [data-theme="dark"] .ui-snippet,
+    [data-theme="dark"] .data-meta,
+    [data-theme="dark"] .section-sub,
+    [data-theme="dark"] .page-sub{
+      color:#cbd5e1;
+    }
+    [data-theme="dark"] th,
+    [data-theme="dark"] td,
+    [data-theme="dark"] .data-row{
+      border-color:var(--border);
+    }
+    [data-theme="dark"] .btn-primary{
+      color:#08111f;
+      box-shadow:none;
+    }
+
     /* Responsive */
     @media(max-width: 780px){
       .brand-title{ font-size: 14px; }
@@ -522,8 +659,8 @@
             </svg>
           </div>
           <div>
-            <div class="brand-title">ИИ-архив документов</div>
-            <div class="brand-subtitle">Электронный архив с умным поиском и карточкой документа</div>
+            <div class="brand-title">{% ui_text "brand_title" %}</div>
+            <div class="brand-subtitle">{% ui_text "brand_subtitle" %}</div>
           </div>
         </a>
 
@@ -535,7 +672,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
           <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" stroke="#2563eb" stroke-width="2" stroke-linejoin="round"/>
         </svg>
-        <span>Папки</span>
+        <span>{% ui_text "folders" %}</span>
       </span>
     </a>
 
@@ -547,7 +684,7 @@
             <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="#2563eb" stroke-width="2"/>
             <path d="M19 8v6M16 11h6" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
           </svg>
-          <span>Регистрация пользователя</span>
+          <span>{% ui_text "create_user" %}</span>
         </span>
       </a>
     {% endif %}
@@ -561,7 +698,7 @@
         <path d="M12 17v-10" stroke="#2563eb" stroke-width="2"/>
         <path d="M17 17v-4" stroke="#2563eb" stroke-width="2"/>
       </svg>
-      <span>Пользователи</span>
+      <span>{% ui_text "users" %}</span>
     </span>
   </a>
         {% endif %}
@@ -575,15 +712,15 @@
               <path d="M4 19h16" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
               <path d="M8 15l3-3 3 2 4-6" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span>Администрирование</span>
+            <span>{% ui_text "administration" %}</span>
           </span>
         </summary>
         <div class="nav-menu">
-          <a href="{% url 'dms:analytics_dashboard' %}">Аналитика и наблюдаемость</a>
-          <a href="{% url 'dms:billing_dashboard' %}">Тарифы и лимиты</a>
-          <a href="{% url 'dms:cost_optimization_dashboard' %}">Стоимость обработки</a>
-          <a href="{% url 'dms:security_dashboard' %}">Безопасность</a>
-          <a href="{% url 'dms:usage_dashboard' %}">Использование и вебхуки</a>
+          <a href="{% url 'dms:analytics_dashboard' %}">{% ui_text "analytics" %}</a>
+          <a href="{% url 'dms:billing_dashboard' %}">{% ui_text "billing" %}</a>
+          <a href="{% url 'dms:cost_optimization_dashboard' %}">{% ui_text "costs" %}</a>
+          <a href="{% url 'dms:security_dashboard' %}">{% ui_text "security" %}</a>
+          <a href="{% url 'dms:usage_dashboard' %}">{% ui_text "usage" %}</a>
         </div>
       </details>
     {% endif %}
@@ -594,10 +731,32 @@
           <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" stroke="#2563eb" stroke-width="2" stroke-linejoin="round"/>
           <path d="M10 21h4" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
         </svg>
-        <span>Уведомления{% if unread_notification_count %} ({{ unread_notification_count }}){% endif %}</span>
+        <span>{% ui_text "notifications" %}{% if unread_notification_count %} ({{ unread_notification_count }}){% endif %}</span>
       </span>
     </a>
 
+    <div class="site-controls" aria-label="{% ui_text "language" %}">
+      <button
+        class="theme-toggle"
+        type="button"
+        id="theme-toggle"
+        data-light-label="{% ui_text "theme_light" %}"
+        data-dark-label="{% ui_text "theme_dark" %}"
+        aria-label="{% ui_text "theme_dark" %}"
+        title="{% ui_text "theme_dark" %}"
+      >◐</button>
+      <form class="language-switch" action="{% url 'set_language' %}" method="post">
+        {% csrf_token %}
+        <input name="next" type="hidden" value="{{ request.get_full_path }}">
+        <label for="language-select" class="sr-only">{% ui_text "language" %}</label>
+        <select id="language-select" name="language" onchange="this.form.submit()">
+          {% get_available_languages as LANGUAGES %}
+          {% for code, name in LANGUAGES %}
+            <option value="{{ code }}"{% if code == LANGUAGE_CODE %} selected{% endif %}>{{ code|upper }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
 
             <a class="btn btn-ghost" href="{% url 'logout' %}" style="height:40px;">
               <span style="display:inline-flex; align-items:center; gap:10px;">
@@ -606,7 +765,7 @@
                   <path d="M15 12H3" stroke="#64748b" stroke-width="2" stroke-linecap="round"/>
                   <path d="M21 21V3" stroke="#64748b" stroke-width="2" stroke-linecap="round"/>
                 </svg>
-                <span>Выйти</span>
+                <span>{% ui_text "logout" %}</span>
               </span>
             </a>
 
@@ -624,5 +783,37 @@
       {% block content %}{% endblock %}
     </div>
   </main>
+  <script>
+    (function () {
+      var button = document.getElementById("theme-toggle");
+      if (!button) {
+        return;
+      }
+
+      function activeTheme() {
+        return document.documentElement.getAttribute("data-theme") || "light";
+      }
+
+      function renderButton() {
+        var theme = activeTheme();
+        var label = theme === "dark" ? button.dataset.lightLabel : button.dataset.darkLabel;
+        button.textContent = theme === "dark" ? "☼" : "◐";
+        button.setAttribute("aria-label", label);
+        button.setAttribute("title", label);
+      }
+
+      button.addEventListener("click", function () {
+        var next = activeTheme() === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", next);
+        try {
+          localStorage.setItem("docflow-theme", next);
+          document.cookie = "docflow_theme=" + next + "; path=/; max-age=31536000; samesite=lax";
+        } catch (error) {}
+        renderButton();
+      });
+
+      renderButton();
+    })();
+  </script>
 </body>
 </html>

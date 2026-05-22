@@ -15,6 +15,7 @@ urlpatterns = [
     path("accounts/login/", accounts_login_redirect),
 
     path("admin/", admin.site.urls),
+    path("i18n/", include("django.conf.urls.i18n")),
     path("health/", health_check, name="health_check"),
 
     path("login/", CustomLoginView.as_view(), name="login"),

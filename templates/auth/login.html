@@ -1,10 +1,21 @@
-{% load static %}
+{% load static dms_ui i18n %}
+{% get_current_language as LANGUAGE_CODE %}
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="{{ LANGUAGE_CODE|default:'ru' }}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Вход — DMS</title>
+  <title>{% ui_text "login_page_title" %}</title>
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("docflow-theme");
+        if (stored === "dark") {
+          document.documentElement.classList.add("dark");
+        }
+      } catch (error) {}
+    })();
+  </script>
 
   <style>
 
@@ -18,7 +29,8 @@
 }
 
 /* Тёмная тема */
-body.dark{
+body.dark,
+html.dark{
   --bg:#0b1220;
   --card:#0f172a;
   --text:#e5e7eb;
@@ -259,6 +271,37 @@ label{ color:var(--muted); }
       transform: translateY(1px);
     }
 
+    .login-controls{
+      position:fixed;
+      top:14px;
+      right:14px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      z-index:10;
+    }
+    .theme-toggle,
+    .language-switch select{
+      height:38px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:var(--card);
+      color:var(--text);
+      font-weight:900;
+      cursor:pointer;
+    }
+    .theme-toggle{
+      min-width:42px;
+      padding:0 12px;
+    }
+    .language-switch{
+      margin:0;
+    }
+    .language-switch select{
+      width:auto;
+      padding:0 26px 0 10px;
+    }
+
     .forgot:focus{
       outline: none;
     }
@@ -423,19 +466,27 @@ label{ color:var(--muted); }
 
 <body>
 
-  <button id="themeToggle"
-        style="
-          position:fixed;
-          top:14px;
-          right:14px;
-          padding:8px 12px;
-          border-radius:10px;
-          border:1px solid var(--border);
-          background:var(--card);
-          font-weight:700;
-          cursor:pointer;">
-🌙
-</button>
+  <div class="login-controls">
+    <button
+      class="theme-toggle"
+      id="themeToggle"
+      type="button"
+      data-light-label="{% ui_text "theme_light" %}"
+      data-dark-label="{% ui_text "theme_dark" %}"
+      aria-label="{% ui_text "theme_dark" %}"
+      title="{% ui_text "theme_dark" %}"
+    >◐</button>
+    <form class="language-switch" action="{% url 'set_language' %}" method="post">
+      {% csrf_token %}
+      <input name="next" type="hidden" value="{{ request.get_full_path }}">
+      <select name="language" aria-label="{% ui_text "language" %}" onchange="this.form.submit()">
+        {% get_available_languages as LANGUAGES %}
+        {% for code, name in LANGUAGES %}
+          <option value="{{ code }}"{% if code == LANGUAGE_CODE %} selected{% endif %}>{{ code|upper }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
 
 
   <div class="page">
@@ -450,14 +501,14 @@ label{ color:var(--muted); }
         </svg>
       </div>
 
-      <h1 class="title">Система документооборота</h1>
-      <div class="subtitle">Южно-Казахстанский университет имени М. Ауэзова</div>
+      <h1 class="title">{% ui_text "login_title" %}</h1>
+      <div class="subtitle">{% ui_text "login_subtitle" %}</div>
     </div>
 
     <div class="card">
       <div class="card-inner">
-        <h2 class="card-h">Вход в систему</h2>
-        <p class="card-p">Войдите, используя учетные данные</p>
+        <h2 class="card-h">{% ui_text "login_card_title" %}</h2>
+        <p class="card-p">{% ui_text "login_card_subtitle" %}</p>
 
         {% if form.errors %}
           <div class="error">
@@ -474,7 +525,7 @@ label{ color:var(--muted); }
         <form method="post" action="{% url 'login' %}">
           {% csrf_token %}
 
-          <label>Email / Логин</label>
+          <label>{% ui_text "username_label" %}</label>
           <div class="field">
             <div class="icon" aria-hidden="true">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -492,8 +543,8 @@ label{ color:var(--muted); }
           </div>
 
           <div class="row" style="margin-top:12px;">
-            <label style="margin:0;">Пароль</label>
-            <button type="button" class="forgot" id="forgotBtn">Забыли?</button>
+            <label style="margin:0;">{% ui_text "password_label" %}</label>
+            <button type="button" class="forgot" id="forgotBtn">{% ui_text "forgot" %}</button>
           </div>
 
           <div class="field" style="margin-top:8px;">
@@ -512,11 +563,11 @@ label{ color:var(--muted); }
             />
           </div>
 
-          <button class="btn" type="submit">Войти в систему</button>
+          <button class="btn" type="submit">{% ui_text "sign_in" %}</button>
         </form>
 
         <div class="footer-note">
-          Система предназначена для сотрудников университета
+          {% ui_text "staff_only" %}
         </div>
       </div>
     </div>
@@ -526,7 +577,7 @@ label{ color:var(--muted); }
   <!-- Forgot modal -->
   <div class="modal-backdrop" id="forgotModal" aria-hidden="true">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <button type="button" class="modal-close" id="forgotCloseX" aria-label="Закрыть">✕</button>
+      <button type="button" class="modal-close" id="forgotCloseX" aria-label="{% ui_text "close" %}">✕</button>
 
       <div class="modal-top">
         <div class="modal-icon" aria-hidden="true">
@@ -538,17 +589,17 @@ label{ color:var(--muted); }
         </div>
 
         <div>
-          <div class="modal-title" id="modalTitle">Восстановление доступа</div>
-          <div class="modal-subtitle">Самостоятельное восстановление недоступно</div>
+          <div class="modal-title" id="modalTitle">{% ui_text "forgot_title" %}</div>
+          <div class="modal-subtitle">{% ui_text "forgot_subtitle" %}</div>
         </div>
       </div>
 
       <div class="modal-text">
-        Обратитесь в IT отдел в <b>XXX кабинет</b> <b>Х корпуса</b>.
+        {% ui_text "forgot_text" %}
       </div>
 
       <div class="modal-actions">
-        <button type="button" class="modal-btn-primary" id="forgotCloseBtn">Понятно</button>
+        <button type="button" class="modal-btn-primary" id="forgotCloseBtn">{% ui_text "understood" %}</button>
       </div>
     </div>
   </div>
@@ -589,19 +640,31 @@ label{ color:var(--muted); }
   </script>
 
   <script>
+const root = document.documentElement;
 const body = document.body;
 const btn = document.getElementById("themeToggle");
 
-if(localStorage.getItem("theme") === "dark"){
-  body.classList.add("dark");
-  btn.textContent = "☀️";
+function isDark(){
+  return root.classList.contains("dark") || body.classList.contains("dark");
 }
 
+function setTheme(theme){
+  const dark = theme === "dark";
+  root.classList.toggle("dark", dark);
+  body.classList.toggle("dark", dark);
+  btn.textContent = dark ? "☼" : "◐";
+  const label = dark ? btn.dataset.lightLabel : btn.dataset.darkLabel;
+  btn.setAttribute("aria-label", label);
+  btn.setAttribute("title", label);
+}
+
+setTheme(localStorage.getItem("docflow-theme") === "dark" ? "dark" : "light");
+
 btn.onclick = () => {
-  body.classList.toggle("dark");
-  const dark = body.classList.contains("dark");
-  localStorage.setItem("theme", dark ? "dark" : "light");
-  btn.textContent = dark ? "☀️" : "🌙";
+  const next = isDark() ? "light" : "dark";
+  setTheme(next);
+  localStorage.setItem("docflow-theme", next);
+  document.cookie = "docflow_theme=" + next + "; path=/; max-age=31536000; samesite=lax";
 };
 </script>
 
