@@ -4,27 +4,27 @@
 {% block content %}
 <style>
   .page-top { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin:10px 0 18px; }
-  .page-title { margin:0; font-size:34px; font-weight:900; letter-spacing:-0.02em; }
+  .page-title { margin:0; font-size:34px; font-weight:720; letter-spacing:-0.02em; }
   .page-sub { margin-top:10px; color:var(--muted); font-weight:600; max-width:860px; }
   .top-actions { display:flex; gap:12px; flex-wrap:wrap; }
   .grid { display:grid; grid-template-columns:1.2fr .8fr; gap:18px; }
   .meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px; }
   .meta-item { padding:14px 16px; border-radius:16px; background:rgba(248,250,252,0.82); border:1px solid rgba(148,163,184,0.18); }
-  .meta-label { font-size:12px; font-weight:900; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
-  .meta-value { margin-top:8px; font-size:16px; font-weight:900; color:rgba(15,23,42,0.92); word-break:break-word; }
-  .section-title { margin:0; font-size:18px; font-weight:900; }
+  .meta-label { font-size:12px; font-weight:720; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
+  .meta-value { margin-top:8px; font-size:16px; font-weight:720; color:rgba(15,23,42,0.92); word-break:break-word; }
+  .section-title { margin:0; font-size:18px; font-weight:720; }
   .section-sub { margin-top:6px; color:var(--muted); font-weight:600; }
   .stack { display:grid; gap:12px; margin-top:16px; }
   .row-card { padding:14px 16px; border-radius:16px; border:1px solid rgba(148,163,184,0.18); background:#fff; }
-  .row-main { font-weight:900; color:rgba(15,23,42,0.92); }
+  .row-main { font-weight:720; color:rgba(15,23,42,0.92); }
   .row-main a { color:inherit; text-decoration:none; }
   .row-main a:hover { text-decoration:underline; }
-  .row-meta { margin-top:6px; color:rgba(15,23,42,0.55); font-size:13px; font-weight:700; }
+  .row-meta { margin-top:6px; color:rgba(15,23,42,0.55); font-size:13px; font-weight:600; }
   .row-actions { margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; }
   .preview-shell { margin-top:16px; border-radius:18px; overflow:hidden; border:1px solid rgba(148,163,184,0.22); background:rgba(248,250,252,0.72); }
   .preview-frame { width:100%; min-height:640px; border:0; background:#fff; }
   .preview-image { display:block; width:100%; height:auto; background:#fff; }
-  .preview-empty { padding:28px 22px; color:rgba(15,23,42,0.62); font-weight:700; line-height:1.6; }
+  .preview-empty { padding:28px 22px; color:rgba(15,23,42,0.62); font-weight:600; line-height:1.6; }
   .score-strong { color:#15803d; }
   .score-medium { color:#b45309; }
   .score-weak { color:#b91c1c; }
@@ -453,9 +453,9 @@
             {% endif %}
             <div class="row-meta">
               {{ exchange.created_at|date:"d.m.Y H:i" }}
-              {% if exchange.sent_by %} ? {{ exchange.sent_by.get_full_name|default:exchange.sent_by.username }}{% endif %}
-              {% if exchange.expires_at %} ? ????????? ?? {{ exchange.expires_at|date:"d.m.Y H:i" }}{% endif %}
-              ? ?????? {% if exchange.is_link_active %}???????{% else %}?????????{% endif %}
+              {% if exchange.sent_by %} • {{ exchange.sent_by.get_full_name|default:exchange.sent_by.username }}{% endif %}
+              {% if exchange.expires_at %} • действует до {{ exchange.expires_at|date:"d.m.Y H:i" }}{% endif %}
+              • ссылка {% if exchange.is_link_active %}активна{% else %}недоступна{% endif %}
             </div>
             <div class="row-actions">
               <a class="btn btn-ghost" href="{% url 'dms:exchange_detail' exchange.id %}">Открыть обмен</a>

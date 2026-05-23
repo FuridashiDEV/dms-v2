@@ -2,63 +2,32 @@
 {% block content %}
 
 <div class="container" style="max-width: 920px;">
-  <div style="margin-bottom:18px;">
-    <a href="{% url 'dms:dashboard' %}" class="btn btn-ghost" style="height:40px;">
-      ← Вернуться на главную
-    </a>
+  <div class="page-top">
+    <div>
+      <a href="{% url 'dms:dashboard' %}" class="btn btn-ghost" style="height:40px;">
+        Назад на главную
+      </a>
+      <h1 class="page-title" style="margin-top:18px;">Регистрация пользователя</h1>
+      <p class="page-sub">Создание рабочей учётной записи сотрудника компании.</p>
+    </div>
   </div>
 
   <div class="card" style="padding:26px;">
-    <div style="display:flex; gap:12px; align-items:flex-start;">
-      <div style="
-        width:42px;height:42px;border-radius:12px;
-        display:flex;align-items:center;justify-content:center;
-        background:rgba(109,40,217,0.10);
-      ">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-          <path d="M15 19c-1.2.6-2.6 1-4 1-4 0-7-2-7-5s3-5 7-5 7 2 7 5" stroke="#6d28d9" stroke-width="2" stroke-linecap="round"/>
-          <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="#6d28d9" stroke-width="2"/>
-          <path d="M19 8v6M16 11h6" stroke="#6d28d9" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </div>
-
-      <div>
-        <h1 style="margin:0;font-size:30px;font-weight:1000;letter-spacing:-0.02em;">
-          Регистрация пользователя
-        </h1>
-        <div style="margin-top:6px;font-weight:800;color:rgba(15,23,42,0.55);">
-          Создание учетной записи сотрудника университета
-        </div>
-      </div>
-    </div>
-
     {% if form.non_field_errors %}
-      <div style="
-        margin-top:18px;
-        padding:12px 14px;
-        border-radius:14px;
-        background:rgba(239,68,68,0.10);
-        border:1px solid rgba(239,68,68,0.25);
-        color:#b91c1c;
-        font-weight:900;
-        font-size:13px;
-      ">
+      <div class="alert alert-danger" style="margin-bottom:18px;">
         {{ form.non_field_errors|striptags }}
       </div>
     {% endif %}
 
-    <form method="post" style="margin-top:22px;">
+    <form method="post">
       {% csrf_token %}
 
       <div style="display:grid; grid-template-columns: 1fr; gap:18px;">
-
         <div>
           <label>Фамилия <span style="color:#ef4444;">*</span></label>
           {{ form.last_name }}
           {% if form.last_name.errors %}
-            <div style="margin-top:6px;color:#b91c1c;font-weight:900;font-size:13px;">
-              {{ form.last_name.errors|striptags }}
-            </div>
+            <div class="field-error">{{ form.last_name.errors|striptags }}</div>
           {% endif %}
         </div>
 
@@ -66,19 +35,15 @@
           <label>Имя <span style="color:#ef4444;">*</span></label>
           {{ form.first_name }}
           {% if form.first_name.errors %}
-            <div style="margin-top:6px;color:#b91c1c;font-weight:900;font-size:13px;">
-              {{ form.first_name.errors|striptags }}
-            </div>
+            <div class="field-error">{{ form.first_name.errors|striptags }}</div>
           {% endif %}
         </div>
 
         <div>
-          <label>Email (логин) <span style="color:#ef4444;">*</span></label>
+          <label>Email или логин <span style="color:#ef4444;">*</span></label>
           {{ form.username }}
           {% if form.username.errors %}
-            <div style="margin-top:6px;color:#b91c1c;font-weight:900;font-size:13px;">
-              {{ form.username.errors|striptags }}
-            </div>
+            <div class="field-error">{{ form.username.errors|striptags }}</div>
           {% endif %}
         </div>
 
@@ -86,9 +51,7 @@
           <label>Отдел <span style="color:#ef4444;">*</span></label>
           {{ form.department }}
           {% if form.department.errors %}
-            <div style="margin-top:6px;color:#b91c1c;font-weight:900;font-size:13px;">
-              {{ form.department.errors|striptags }}
-            </div>
+            <div class="field-error">{{ form.department.errors|striptags }}</div>
           {% endif %}
         </div>
 
@@ -96,9 +59,7 @@
           <label>Роль в системе <span style="color:#ef4444;">*</span></label>
           {{ form.role }}
           {% if form.role.errors %}
-            <div style="margin-top:6px;color:#b91c1c;font-weight:900;font-size:13px;">
-              {{ form.role.errors|striptags }}
-            </div>
+            <div class="field-error">{{ form.role.errors|striptags }}</div>
           {% endif %}
         </div>
 
@@ -106,23 +67,16 @@
           <label>Временный пароль <span style="color:#ef4444;">*</span></label>
           {{ form.temp_password }}
           {% if form.temp_password.errors %}
-            <div style="margin-top:6px;color:#b91c1c;font-weight:900;font-size:13px;">
-              {{ form.temp_password.errors|striptags }}
-            </div>
+            <div class="field-error">{{ form.temp_password.errors|striptags }}</div>
           {% endif %}
-
-          <div style="margin-top:8px;font-size:13px;font-weight:800;color:rgba(15,23,42,0.55);">
-            Пользователь сможет изменить пароль после первого входа
-          </div>
+          <p class="field-help">Пользователь сможет изменить пароль после первого входа.</p>
         </div>
-
       </div>
 
-      <div style="margin-top:22px;display:flex;gap:12px;flex-wrap:wrap;">
-        <button type="submit" class="btn btn-primary btn-lg" style="min-width:320px;">
+      <div class="form-actions" style="margin-top:22px;">
+        <button type="submit" class="btn btn-primary btn-lg">
           Создать пользователя
         </button>
-
         <a class="btn btn-ghost btn-lg" href="{% url 'dms:dashboard' %}">
           Отмена
         </a>

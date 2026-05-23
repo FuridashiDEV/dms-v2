@@ -11,7 +11,7 @@
 <div class="page-top">
   <div>
     <h1 class="page-title">Стоимость обработки</h1>
-    <div class="page-sub">Отчётный слой контроля распознавания, индексации и тяжёлой обработки для {{ selected_organization.name }}. Политики помогают оценивать и маршрутизировать задачи, но не блокируют клиентов.</div>
+    <div class="page-sub">Контроль затрат обработки для {{ selected_organization.name }}. Политики помогают оценивать задачи, но не блокируют работу пользователей.</div>
   </div>
   <div class="top-actions">
     <a class="btn btn-ghost" href="{% url 'dms:billing_usage_limits' %}?organization={{ selected_organization.id }}">Лимиты</a>
@@ -36,33 +36,35 @@
 <div class="ops-grid">
   <div class="ops-card"><div class="ops-label">Оценка стоимости</div><div class="ops-value">{{ report.total_cost_units|floatformat:2 }}</div><div class="ops-note">единиц обработки за месяц</div></div>
   <div class="ops-card"><div class="ops-label">Документы</div><div class="ops-value">{{ report.total_documents }}</div><div class="ops-note">оценённых документов</div></div>
-  <div class="ops-card"><div class="ops-label">Распознавание</div><div class="ops-value">{{ report.ocr_pages }}</div><div class="ops-note">страниц направлено на Распознавание</div></div>
-  <div class="ops-card"><div class="ops-label">Индексация</div><div class="ops-value">{{ report.total_chunks }}</div><div class="ops-note">фрагментов для индекса</div></div>
+  <div class="ops-card"><div class="ops-label">Распознавание</div><div class="ops-value">{{ report.ocr_pages }}</div><div class="ops-note">страниц ожидают или прошли распознавание</div></div>
+  <div class="ops-card"><div class="ops-label">Поиск</div><div class="ops-value">{{ report.total_chunks }}</div><div class="ops-note">подготовленных фрагментов</div></div>
 </div>
 
 <div class="card" style="padding:20px;margin-bottom:18px;">
   <h2 class="section-title">Политики обработки</h2>
-  <table>
-    <thead><tr><th>Политика</th><th>Задачи</th><th>Единицы обработки</th><th>Страницы</th><th>Фрагменты</th></tr></thead>
-    <tbody>
-      {% for row in report.by_policy %}
-        <tr>
-          <td><span class="badge badge-info">{{ row.recommended_policy|default:"нет" }}</span></td>
-          <td>{{ row.count }}</td>
-          <td>{{ row.cost_units|floatformat:2 }}</td>
-          <td>{{ row.pages|default:0 }}</td>
-          <td>{{ row.chunks|default:0 }}</td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="5" class="ops-note">Оценок стоимости пока нет.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Политика</th><th>Задачи</th><th>Единицы обработки</th><th>Страницы</th><th>Фрагменты</th></tr></thead>
+      <tbody>
+        {% for row in report.by_policy %}
+          <tr>
+            <td><span class="badge badge-info">{{ row.recommended_policy|default:"нет" }}</span></td>
+            <td>{{ row.count }}</td>
+            <td>{{ row.cost_units|floatformat:2 }}</td>
+            <td>{{ row.pages|default:0 }}</td>
+            <td>{{ row.chunks|default:0 }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="ops-note">Оценок стоимости пока нет.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <div class="card" style="padding:20px;margin-bottom:18px;">
   <h2 class="section-title">Лимиты обработки</h2>
-  <table>
+  <div class="table-wrap"><table>
     <thead><tr><th>Лимит</th><th>Использовано</th><th>Прогноз</th><th>Порог</th><th>Статус</th></tr></thead>
     <tbody>
       {% for row in report.quota_snapshot.rows %}
@@ -77,12 +79,12 @@
         <tr><td colspan="5" class="ops-note">Лимиты пока не настроены.</td></tr>
       {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </div>
 
 <div class="card" style="padding:20px;margin-bottom:18px;">
   <h2 class="section-title">Очередь по стоимости</h2>
-  <table>
+  <div class="table-wrap"><table>
     <thead><tr><th>Документ</th><th>Этап</th><th>Политика</th><th>Единицы обработки</th></tr></thead>
     <tbody>
       {% for row in report.backlog_by_cost %}
@@ -96,12 +98,12 @@
         <tr><td colspan="4" class="ops-note">Ожидающих задач обработки нет.</td></tr>
       {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </div>
 
 <div class="card" style="padding:20px;">
   <h2 class="section-title">Правила маршрутизации</h2>
-  <table>
+  <div class="table-wrap"><table>
     <thead><tr><th>Политика</th><th>Макс. стоимость</th><th>Задержка</th><th>Распознавание</th><th>GPU</th></tr></thead>
     <tbody>
       {% for policy in report.policies %}
@@ -114,6 +116,6 @@
         </tr>
       {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </div>
 {% endblock %}

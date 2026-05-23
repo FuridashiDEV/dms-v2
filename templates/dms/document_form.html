@@ -14,7 +14,7 @@
 .page-title{
   margin:0;
   font-size:34px;
-  font-weight:900;
+  font-weight:720;
   letter-spacing:-0.02em;
 }
 
@@ -48,7 +48,7 @@
 label{
   display:block;
   font-size:13px;
-  font-weight:900;
+  font-weight:720;
   color:rgba(15,23,42,0.75);
   margin-bottom:8px;
 }
@@ -61,7 +61,7 @@ input, select, textarea{
   border-radius:14px;
   border:1px solid rgba(148,163,184,0.35);
   padding:0 14px;
-  font-weight:700;
+  font-weight:600;
   font-size:14px;
 }
 
@@ -82,14 +82,14 @@ input:focus, select:focus, textarea:focus{
   color:#9f1239;
   padding:14px;
   border-radius:14px;
-  font-weight:800;
+  font-weight:680;
   margin-bottom:18px;
 }
 
 .field-error{
   margin-top:6px;
   font-size:12px;
-  font-weight:800;
+  font-weight:680;
   color:#9f1239;
 }
 
@@ -109,7 +109,7 @@ input:focus, select:focus, textarea:focus{
 
 .file-current-title{
   font-size:13px;
-  font-weight:900;
+  font-weight:720;
   color:rgba(15,23,42,0.58);
   margin-bottom:8px;
 }
@@ -123,7 +123,7 @@ input:focus, select:focus, textarea:focus{
 }
 
 .file-path{
-  font-weight:800;
+  font-weight:680;
   color:rgba(15,23,42,0.82);
   word-break:break-all;
 }
@@ -135,7 +135,7 @@ input:focus, select:focus, textarea:focus{
   height:36px;
   padding:0 14px;
   border-radius:12px;
-  font-weight:900;
+  font-weight:720;
   text-decoration:none;
   border:1px solid rgba(37,99,235,0.18);
   background:rgba(37,99,235,0.08);
@@ -181,25 +181,25 @@ input:focus, select:focus, textarea:focus{
 
 .drop-title{
   font-size:16px;
-  font-weight:900;
+  font-weight:720;
 }
 
 .drop-sub{
   font-size:13px;
-  font-weight:700;
+  font-weight:600;
   color:rgba(15,23,42,0.6);
 }
 
 .file-name{
   margin-top:6px;
-  font-weight:800;
+  font-weight:680;
   font-size:13px;
 }
 
 .ai-hint{
   margin-top:10px;
   font-size:13px;
-  font-weight:700;
+  font-weight:600;
   color:rgba(15,23,42,0.55);
 }
 
@@ -231,7 +231,7 @@ input:focus, select:focus, textarea:focus{
   align-items:center;
   justify-content:space-between;
   cursor:pointer;
-  font-weight:700;
+  font-weight:600;
   background:#fff;
   position:relative;
   z-index:5;
@@ -290,7 +290,7 @@ input:focus, select:focus, textarea:focus{
 .help{
   margin-top:8px;
   font-size:13px;
-  font-weight:700;
+  font-weight:600;
   color:rgba(15,23,42,0.55);
 }
 
@@ -350,7 +350,7 @@ input:focus, select:focus, textarea:focus{
 
 .toggle-text{
   font-size:14px;
-  font-weight:800;
+  font-weight:680;
   color:rgba(15,23,42,0.72);
 }
 
@@ -364,14 +364,14 @@ input:focus, select:focus, textarea:focus{
 
 .versions-title{
   font-size:18px;
-  font-weight:900;
+  font-weight:720;
   margin:0;
 }
 
 .versions-sub{
   margin-top:6px;
   color:rgba(15,23,42,0.55);
-  font-weight:700;
+  font-weight:600;
 }
 
 .version-list{
@@ -392,7 +392,7 @@ input:focus, select:focus, textarea:focus{
 }
 
 .version-main{
-  font-weight:900;
+  font-weight:720;
   color:rgba(15,23,42,0.92);
 }
 
@@ -400,7 +400,7 @@ input:focus, select:focus, textarea:focus{
   margin-top:6px;
   color:rgba(15,23,42,0.55);
   font-size:13px;
-  font-weight:700;
+  font-weight:600;
 }
 
 .version-actions{
@@ -707,7 +707,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const updateName = () => {
       fileName.textContent = fileInput.files && fileInput.files.length
         ? fileInput.files[0].name
-        : "???? ?? ??????";
+        : "Файл не выбран";
     };
 
     const applyAiMetadata = (data) => {

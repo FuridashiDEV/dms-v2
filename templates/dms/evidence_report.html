@@ -8,18 +8,18 @@
   .report-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; }
   .report-card { padding:20px; border-radius:18px; border:1px solid rgba(148,163,184,0.18); background:#fff; }
   .report-section { margin-top:16px; padding:22px; border-radius:18px; border:1px solid rgba(148,163,184,0.18); background:#fff; }
-  .section-title { margin:0; font-size:19px; font-weight:900; }
+  .section-title { margin:0; font-size:19px; font-weight:720; }
   .section-note { margin-top:6px; color:var(--muted); font-size:13px; font-weight:650; line-height:1.5; }
   .kv { display:grid; grid-template-columns:180px minmax(0, 1fr); gap:8px 14px; margin-top:14px; }
-  .k { color:rgba(15,23,42,0.52); font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:0.04em; }
-  .v { color:rgba(15,23,42,0.9); font-weight:800; word-break:break-word; }
+  .k { color:rgba(15,23,42,0.52); font-size:12px; font-weight:720; text-transform:uppercase; letter-spacing:0.04em; }
+  .v { color:rgba(15,23,42,0.9); font-weight:680; word-break:break-word; }
   .table { width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
   .table th, .table td { padding:10px 12px; border-bottom:1px solid rgba(148,163,184,0.18); text-align:left; vertical-align:top; }
-  .table th { color:rgba(15,23,42,0.55); font-weight:900; text-transform:uppercase; letter-spacing:0.04em; }
+  .table th { color:rgba(15,23,42,0.55); font-weight:720; text-transform:uppercase; letter-spacing:0.04em; }
   .timeline { display:grid; gap:10px; margin-top:14px; }
   .timeline-item { padding:12px 14px; border-radius:14px; background:rgba(248,250,252,0.9); border:1px solid rgba(148,163,184,0.16); }
-  .timeline-meta { color:rgba(15,23,42,0.55); font-size:12px; font-weight:850; }
-  .timeline-label { margin-top:4px; font-weight:850; color:rgba(15,23,42,0.88); }
+  .timeline-meta { color:rgba(15,23,42,0.55); font-size:12px; font-weight:680; }
+  .timeline-label { margin-top:4px; font-weight:680; color:rgba(15,23,42,0.88); }
   .checksum { font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:13px; word-break:break-all; }
   .notice { margin-top:14px; padding:14px 16px; border-radius:16px; background:rgba(239,246,255,0.72); border:1px solid rgba(37,99,235,0.16); color:rgba(30,64,175,0.9); font-weight:750; line-height:1.5; }
   @media(max-width:860px){ .report-grid{grid-template-columns:1fr;} .kv{grid-template-columns:1fr;} }
@@ -72,7 +72,7 @@
   <section class="report-section">
     <h2 class="section-title">Версии</h2>
     <div class="section-note">Версии документа и preservation-метаданные из доказательного пакета.</div>
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead><tr><th>#</th><th>Название</th><th>Статус</th><th>Создана</th><th>Контрольная сумма</th></tr></thead>
       <tbody>
         {% for version in versions %}
@@ -87,12 +87,12 @@
           <tr><td colspan="5">В доказательном пакете нет версий.</td></tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   </section>
 
   <section class="report-section">
     <h2 class="section-title">Предложенные поля</h2>
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead><tr><th>Поле</th><th>Значение</th><th>Статус</th><th>Уверенность</th><th>Проверено</th></tr></thead>
       <tbody>
         {% for field in ai.fields %}
@@ -107,7 +107,7 @@
           <tr><td colspan="5">В доказательном пакете нет предложенных полей.</td></tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   </section>
 
   <section class="report-section">
@@ -120,7 +120,7 @@
           <div class="k">Запущен</div><div class="v">{{ instance.started_at }}</div>
           <div class="k">Завершён</div><div class="v">{{ instance.completed_at|default:"-" }}</div>
         </div>
-        <table class="table">
+        <div class="table-wrap"><table class="table">
           <thead><tr><th>Действие</th><th>Исполнитель</th><th>Комментарий</th><th>Время</th></tr></thead>
           <tbody>
             {% for action in instance.actions %}
@@ -134,7 +134,7 @@
               <tr><td colspan="4">Действий согласования нет.</td></tr>
             {% endfor %}
           </tbody>
-        </table>
+        </table></div>
       </div>
     {% empty %}
       <div class="section-note">В доказательном пакете нет записей согласования.</div>
@@ -151,7 +151,7 @@
           <div class="k">Контрагент</div><div class="v">{{ exchange.counterparty.name|default:"-" }}</div>
           <div class="k">Создан</div><div class="v">{{ exchange.created_at }}</div>
         </div>
-        <table class="table">
+        <div class="table-wrap"><table class="table">
           <thead><tr><th>Событие</th><th>Участник</th><th>Комментарий</th><th>Время</th></tr></thead>
           <tbody>
             {% for event in exchange.events %}
@@ -161,7 +161,7 @@
               <tr><td>сообщение {{ message.author_type }}</td><td>{{ message.user.display_name|default:message.counterparty_contact.name|default:"-" }}</td><td>{{ message.body }}</td><td>{{ message.created_at }}</td></tr>
             {% endfor %}
           </tbody>
-        </table>
+        </table></div>
       </div>
     {% empty %}
       <div class="section-note">В доказательном пакете нет обменов.</div>
@@ -170,7 +170,7 @@
 
   <section class="report-section">
     <h2 class="section-title">События аудита</h2>
-    <table class="table">
+    <div class="table-wrap"><table class="table">
       <thead><tr><th>Событие</th><th>Пользователь</th><th>Версия</th><th>Детали</th><th>Время</th></tr></thead>
       <tbody>
         {% for event in audit_events %}
@@ -191,7 +191,7 @@
           <tr><td colspan="5">В доказательном пакете нет событий аудита.</td></tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   </section>
 
   <section class="report-section">
