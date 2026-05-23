@@ -1,0 +1,160 @@
+{
+  "name": "realistic-document-search-benchmark",
+  "notes": [
+    "Semi-real synthetic dataset for pilot search QA. It uses realistic business document patterns without real customer data.",
+    "The default benchmark mode does not download or load heavy embedding/reranking models.",
+    "OCR notes are scenario-level hints only; this file does not contain real scanned customer documents."
+  ],
+  "documents": [
+    {
+      "id": "contract-tools-ip-firma",
+      "title": "Договор DF-2026-001 с ИП Фирма на поставку инструментов",
+      "text": "Договор DF-2026-001 от 15.01.2026. Контрагент: ИП Фирма. Предмет договора: поставка инструментов для складского комплекса. Сумма договора 3 000 000 тенге. Срок поставки до 28.02.2026.",
+      "entities": {
+        "document_type": "contract",
+        "counterparty": "ИП Фирма",
+        "subject": "поставка инструментов",
+        "amount": {"value": 3000000, "raw": "3 000 000 тенге", "currency": "KZT"},
+        "document_number": "DF-2026-001",
+        "date": "2026-01-15"
+      },
+      "ocr_quality_note": "Text PDF; OCR should not be required."
+    },
+    {
+      "id": "appendix-tools-delivery",
+      "title": "Приложение 1 к договору DF-2026-001: график поставки",
+      "text": "Приложение 1 к договору DF-2026-001. График поставки инструментов: партия 1 до 01.02.2026, партия 2 до 28.02.2026. Контрагент ИП Фирма.",
+      "entities": {
+        "document_type": "appendix",
+        "counterparty": "ИП Фирма",
+        "subject": "график поставки инструментов",
+        "document_number": "DF-2026-001-APP1",
+        "date": "2026-01-15"
+      },
+      "ocr_quality_note": "Text PDF; OCR should not be required."
+    },
+    {
+      "id": "act-tools-acceptance",
+      "title": "Акт выполненных работ по договору DF-2026-001",
+      "text": "Акт выполненных работ от 01.03.2026 по договору DF-2026-001. ИП Фирма передала инструменты по спецификации. Сумма принятых работ 3 000 000 тенге.",
+      "entities": {
+        "document_type": "act",
+        "counterparty": "ИП Фирма",
+        "subject": "приемка инструментов",
+        "amount": {"value": 3000000, "raw": "3 000 000 тенге", "currency": "KZT"},
+        "document_number": "ACT-DF-001",
+        "date": "2026-03-01"
+      },
+      "ocr_quality_note": "Text PDF; OCR should not be required."
+    },
+    {
+      "id": "invoice-tools-payment",
+      "title": "Счёт INV-2026-044 на оплату инструментов",
+      "text": "Счёт INV-2026-044 от ИП Фирма на оплату поставки инструментов по договору DF-2026-001. Сумма к оплате 3 000 000 тенге.",
+      "entities": {
+        "document_type": "invoice",
+        "counterparty": "ИП Фирма",
+        "subject": "оплата поставки инструментов",
+        "amount": {"value": 3000000, "raw": "3 000 000 тенге", "currency": "KZT"},
+        "document_number": "INV-2026-044",
+        "date": "2026-03-02"
+      },
+      "ocr_quality_note": "Text PDF; OCR should not be required."
+    },
+    {
+      "id": "additional-agreement-tools",
+      "title": "Дополнительное соглашение 1 к договору DF-2026-001",
+      "text": "Дополнительное соглашение 1 от 20.02.2026 к договору DF-2026-001. Стороны продлевают срок поставки инструментов до 15.03.2026 без изменения суммы договора.",
+      "entities": {
+        "document_type": "additional_agreement",
+        "counterparty": "ИП Фирма",
+        "subject": "продление срока поставки",
+        "document_number": "DF-2026-001-ADD1",
+        "date": "2026-02-20"
+      },
+      "ocr_quality_note": "Text PDF; OCR should not be required."
+    },
+    {
+      "id": "order-archive-policy",
+      "title": "Приказ ORD-2026-010 о правилах электронного архива",
+      "text": "Приказ ORD-2026-010 от 05.01.2026. Утвердить правила электронного архива, роли пользователей, контроль доступа и порядок выгрузки доказательного пакета.",
+      "entities": {
+        "document_type": "order",
+        "subject": "правила электронного архива",
+        "document_number": "ORD-2026-010",
+        "date": "2026-01-05"
+      },
+      "ocr_quality_note": "Text PDF; OCR should not be required."
+    },
+    {
+      "id": "scanned-medical-supply-pdf",
+      "title": "Сканированный PDF: поставка расходных материалов для клиники",
+      "text": "Сканированный договор MED-2026-017. Контрагент: ТОО MedSupply Demo. Предмет: поставка медицинских расходных материалов. Сумма 1 450 000 тенге. OCR confidence medium.",
+      "entities": {
+        "document_type": "scanned_pdf",
+        "counterparty": "ТОО MedSupply Demo",
+        "subject": "поставка медицинских расходных материалов",
+        "amount": {"value": 1450000, "raw": "1 450 000 тенге", "currency": "KZT"},
+        "document_number": "MED-2026-017",
+        "date": "2026-04-12"
+      },
+      "ocr_quality_note": "Scanned PDF scenario; OCR should run only when text quality is low or user/admin policy requests it."
+    },
+    {
+      "id": "kazakh-quasi-gov-report",
+      "title": "Квазигос есеп: цифрлық мұрағат пилоты",
+      "text": "Есеп QG-2026-02. Ұйым: Demo QazService. Тақырып: цифрлық мұрағат пилоты және құжат айналымын бақылау. Сома 2 200 000 теңге. Мерзім 2026 жылғы сәуір.",
+      "entities": {
+        "document_type": "report",
+        "counterparty": "Demo QazService",
+        "subject": "цифрлық мұрағат пилоты",
+        "amount": {"value": 2200000, "raw": "2 200 000 теңге", "currency": "KZT"},
+        "document_number": "QG-2026-02",
+        "date": "2026-04-01"
+      },
+      "ocr_quality_note": "Kazakh text scenario; quality depends on tokenizer and model support."
+    }
+  ],
+  "queries": [
+    {
+      "id": "ru-contract-counterparty-amount-subject",
+      "query": "договор с ИП Фирма на поставку инструментов на 3 млн",
+      "expected_document_id": "contract-tools-ip-firma"
+    },
+    {
+      "id": "ru-appendix-delivery-schedule",
+      "query": "приложение график поставки инструментов DF-2026-001",
+      "expected_document_id": "appendix-tools-delivery"
+    },
+    {
+      "id": "ru-act-contract-number",
+      "query": "акт выполненных работ по договору DF-2026-001",
+      "expected_document_id": "act-tools-acceptance"
+    },
+    {
+      "id": "ru-invoice-payment",
+      "query": "счет INV-2026-044 оплата инструментов ИП Фирма",
+      "expected_document_id": "invoice-tools-payment"
+    },
+    {
+      "id": "ru-additional-agreement-date",
+      "query": "доп соглашение 20 февраля продление срока поставки",
+      "expected_document_id": "additional-agreement-tools"
+    },
+    {
+      "id": "ru-order-archive",
+      "query": "приказ о правилах электронного архива и контроле доступа",
+      "expected_document_id": "order-archive-policy"
+    },
+    {
+      "id": "mixed-medical-scan",
+      "query": "scanned PDF MedSupply расходные материалы 1.45 млн",
+      "expected_document_id": "scanned-medical-supply-pdf"
+    },
+    {
+      "id": "kk-quasi-gov-report",
+      "query": "квазигос есеп цифрлық мұрағат пилоты 2 200 000 теңге",
+      "expected_document_id": "kazakh-quasi-gov-report"
+    }
+  ]
+}

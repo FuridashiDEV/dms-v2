@@ -29,6 +29,7 @@ from dms.services.search_intelligence import build_search_query, build_document_
 
 
 DEFAULT_SYNTHETIC_DATASET = "docs/model_stack_synthetic.json"
+DEFAULT_REALISTIC_DATASET = "docs/search_benchmark/realistic_document_search_benchmark.json"
 
 
 @dataclass(frozen=True)
@@ -89,7 +90,7 @@ class Command(BaseCommand):
         }
 
         if options["format"] == "json":
-            self.stdout.write(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+            self.stdout.write(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
             return
 
         for report in reports:
@@ -110,12 +111,18 @@ class Command(BaseCommand):
 
     def _model_names(self, raw_models: str | None) -> list[str]:
         if raw_models:
+            if raw_models.strip().lower() == "all":
+                configured = getattr(settings, "SEARCH_EMBEDDING_MODEL", "BAAI/bge-m3")
+                ordered = [configured, "BAAI/bge-m3", "intfloat/multilingual-e5-large", "all-MiniLM-L6-v2"]
+                return list(dict.fromkeys(ordered))
             return [item.strip() for item in raw_models.split(",") if item.strip()]
         return [getattr(settings, "SEARCH_EMBEDDING_MODEL", "BAAI/bge-m3")]
 
     def _load_dataset(self, dataset: str) -> dict[str, Any]:
         if dataset == "synthetic":
             path = Path(settings.BASE_DIR) / DEFAULT_SYNTHETIC_DATASET
+        elif dataset == "realistic":
+            path = Path(settings.BASE_DIR) / DEFAULT_REALISTIC_DATASET
         elif dataset == "golden":
             path = Path(settings.BASE_DIR) / "docs/search_quality_golden.json"
             golden = json.loads(path.read_text(encoding="utf-8"))

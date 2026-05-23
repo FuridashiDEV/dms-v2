@@ -104,3 +104,30 @@ class ModelStackStage50Tests(TestCase):
             self.assertIn(key, metrics)
         self.assertEqual(report["vector_dimension"], 1024)
         self.assertTrue(report["search_index_version_compatible"])
+
+    def test_benchmark_model_stack_can_run_realistic_dataset_across_model_candidates(self):
+        stdout = io.StringIO()
+
+        call_command(
+            "benchmark_model_stack",
+            "--dataset",
+            "realistic",
+            "--models",
+            "all",
+            "--limit",
+            "4",
+            "--format",
+            "json",
+            stdout=stdout,
+        )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["dataset"], "realistic-document-search-benchmark")
+        self.assertFalse(payload["load_models"])
+        model_names = {report["embedding_model"] for report in payload["reports"]}
+        self.assertIn(BGE_M3_MODEL, model_names)
+        self.assertIn(MULTILINGUAL_E5_LARGE_MODEL, model_names)
+        self.assertIn("all-MiniLM-L6-v2", model_names)
+        for report in payload["reports"]:
+            self.assertGreaterEqual(report["metrics"]["scenario_count"], 1)
+            self.assertIn("fallback_count", report["metrics"])

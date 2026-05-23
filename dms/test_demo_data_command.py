@@ -51,11 +51,11 @@ class PrepareDemoDataCommandTests(TestCase):
         self.assertEqual(
             second_counts,
             {
-                "documents": 9,
-                "document_versions": 10,
-                "document_types": 8,
-                "folders": 9,
-                "relations": 6,
+                "documents": 13,
+                "document_versions": 14,
+                "document_types": 10,
+                "folders": 12,
+                "relations": 10,
                 "processing_jobs": 1,
                 "extracted_fields": 4,
                 "workflow_instances": 2,
@@ -63,8 +63,8 @@ class PrepareDemoDataCommandTests(TestCase):
                 "messages": 2,
                 "import_batches": 1,
                 "import_files": 3,
-                "audit_events": 10,
-                "usage_events": 14,
+                "audit_events": 14,
+                "usage_events": 18,
             },
         )
         self.assertIn("demo_admin / DemoArchive2026!", second_output.getvalue())
