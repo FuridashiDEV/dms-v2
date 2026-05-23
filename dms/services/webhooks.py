@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import os
@@ -12,6 +13,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 from django.conf import settings
 from django.db import transaction
@@ -27,6 +29,7 @@ DEFAULT_TIMEOUT_SECONDS = 5
 DEFAULT_MAX_ATTEMPTS = 3
 DEFAULT_RETRY_BASE_SECONDS = 60
 MAX_ERROR_LENGTH = 2000
+BLOCKED_WEBHOOK_HOSTS = {"localhost"}
 
 
 @dataclass
@@ -37,6 +40,43 @@ class WebhookHttpResponse:
 
 WebhookTransport = Callable[[str, bytes, dict[str, str], int], WebhookHttpResponse]
 SecretResolver = Callable[[WebhookEndpoint], str]
+
+
+class WebhookDeliverySecurityError(ValueError):
+    pass
+
+
+def _is_blocked_ip_address(hostname: str) -> bool:
+    try:
+        address = ipaddress.ip_address(hostname.strip("[]"))
+    except ValueError:
+        return False
+    return any(
+        (
+            address.is_loopback,
+            address.is_private,
+            address.is_link_local,
+            address.is_multicast,
+            address.is_reserved,
+            address.is_unspecified,
+        )
+    )
+
+
+def validate_webhook_endpoint_url(url: str) -> None:
+    parsed = urlparse(str(url or "").strip())
+    if parsed.scheme not in {"http", "https"}:
+        raise WebhookDeliverySecurityError("Webhook endpoint must use http or https.")
+    if not parsed.hostname:
+        raise WebhookDeliverySecurityError("Webhook endpoint host is required.")
+    if parsed.username or parsed.password:
+        raise WebhookDeliverySecurityError("Webhook endpoint must not include credentials.")
+
+    hostname = parsed.hostname.lower().strip(".")
+    if hostname in BLOCKED_WEBHOOK_HOSTS or hostname.endswith(".localhost"):
+        raise WebhookDeliverySecurityError("Webhook endpoint host is not allowed.")
+    if not getattr(settings, "DMS_WEBHOOK_ALLOW_PRIVATE_NETWORKS", False) and _is_blocked_ip_address(hostname):
+        raise WebhookDeliverySecurityError("Webhook endpoint private network targets are not allowed.")
 
 
 def sanitize_webhook_payload(value: Any) -> Any:
@@ -201,6 +241,18 @@ def send_webhook_delivery(
     body = _json_body(safe_payload)
     timestamp = str(int(timezone.now().timestamp()))
     signing_secret = secret_resolver(delivery.endpoint)
+
+    try:
+        validate_webhook_endpoint_url(delivery.endpoint.url)
+    except WebhookDeliverySecurityError as exc:
+        return _mark_failure(
+            delivery=delivery,
+            error_message=str(exc),
+            response_status=None,
+            max_attempts=_max_attempts(max_attempts),
+            signing_secret=signing_secret,
+        )
+
     headers = build_webhook_headers(
         delivery=delivery,
         body=body,

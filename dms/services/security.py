@@ -79,7 +79,8 @@ def scan_uploaded_file(uploaded_file) -> AntivirusScanResult:
 
 
 def protected_file_response(file_field, *, as_attachment: bool) -> FileResponse:
-    response = FileResponse(file_field.open("rb"), as_attachment=as_attachment)
+    filename = os.path.basename(getattr(file_field, "name", "") or "") or None
+    response = FileResponse(file_field.open("rb"), as_attachment=as_attachment, filename=filename)
     response["Cache-Control"] = "private, no-store"
     response["X-Content-Type-Options"] = "nosniff"
     response["Referrer-Policy"] = "no-referrer"

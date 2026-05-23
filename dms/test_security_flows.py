@@ -5,7 +5,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from dms.models import Department, Document, DocumentAccess, User
+from dms.models import Department, Document, DocumentAccess, Organization, User
 
 
 TEST_MEDIA_ROOT = tempfile.mkdtemp(prefix="uni_dms_security_media_")
@@ -115,3 +115,42 @@ class AuthenticationSecurityTests(TestCase):
 
         self.assertEqual(blocked.status_code, 200)
         self.assertContains(blocked, "Слишком много попыток входа")
+
+
+class UserManagementOrganizationIsolationTests(TestCase):
+    def setUp(self):
+        self.organization = Organization.objects.create(name="Security Org A", slug="security-org-a")
+        self.other_organization = Organization.objects.create(name="Security Org B", slug="security-org-b")
+        self.department = Department.objects.create(name="Security users A", organization=self.organization)
+        self.other_department = Department.objects.create(name="Security users B", organization=self.other_organization)
+        self.admin = User.objects.create_user(
+            username="security-admin-a",
+            password="password123",
+            role=User.Role.ADMIN,
+            department=self.department,
+        )
+        self.other_user = User.objects.create_user(
+            username="security-user-b",
+            password="password123",
+            department=self.other_department,
+        )
+
+    def test_admin_cannot_delete_user_from_another_organization(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(reverse("dms:user_delete", args=[self.other_user.id]))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(User.objects.filter(id=self.other_user.id).exists())
+
+    def test_admin_cannot_change_password_for_user_from_another_organization(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("dms:user_change_password", args=[self.other_user.id]),
+            {"password": "new-safe-password-123", "password2": "new-safe-password-123"},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.other_user.refresh_from_db()
+        self.assertTrue(self.other_user.check_password("password123"))

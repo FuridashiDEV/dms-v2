@@ -37,7 +37,7 @@ from .forms import (
     WorkflowActionForm,
     WorkflowStartForm,
 )
-from .models import AuditEvent, Counterparty, Department, Document, DocumentActivity, DocumentExchange, DocumentRelation, DocumentType, DocumentVersion, ExchangeEvent, ExtractedField, Folder, ImportBatch, Notification, Organization, Plan, ProcessingJob, Subscription, UsageEvent, WebhookDelivery, WorkflowInstance
+from .models import AuditEvent, Counterparty, Department, Document, DocumentActivity, DocumentExchange, DocumentRelation, DocumentType, DocumentVersion, ExchangeEvent, ExtractedField, Folder, ImportBatch, Notification, Organization, Plan, ProcessingJob, Subscription, UsageEvent, User, WebhookDelivery, WorkflowInstance
 from dms.services.ai_parser import parse_document
 from dms.services.archive_intelligence import (
     build_card_quality,
@@ -580,6 +580,24 @@ def can_manage_users(user):
         return True
 
     return False
+
+
+def get_manageable_users_queryset(user):
+    if not can_manage_users(user):
+        return User.objects.none()
+
+    if user.is_superuser:
+        return User.objects.all()
+
+    organizations = get_user_organizations(user)
+    return (
+        User.objects
+        .filter(
+            Q(organization_memberships__organization__in=organizations)
+            | Q(department__organization__in=organizations)
+        )
+        .distinct()
+    )
 
 
 
@@ -2887,15 +2905,9 @@ def user_list(request):
     if not can_manage_users(request.user):
         return HttpResponseForbidden("Доступ запрещен")
 
-    organizations = get_user_organizations(request.user)
     users = (
-        User.objects
-        .filter(
-            Q(organization_memberships__organization__in=organizations) |
-            Q(department__organization__in=organizations)
-        )
+        get_manageable_users_queryset(request.user)
         .select_related("department")
-        .distinct()
         .order_by("last_name", "first_name")
     )
 
@@ -2909,7 +2921,7 @@ def user_delete(request, pk):
     if not can_manage_users(request.user):
         return HttpResponseForbidden("Доступ запрещен")
 
-    user_obj = get_object_or_404(User, pk=pk)
+    user_obj = get_object_or_404(get_manageable_users_queryset(request.user), pk=pk)
 
     if user_obj.id == request.user.id:
         return HttpResponseForbidden("Нельзя удалить самого себя")
@@ -3162,7 +3174,7 @@ def user_change_password(request, pk):
     if request.user.role != "ADMIN":
         return HttpResponseForbidden("Доступ запрещён")
 
-    user_obj = get_object_or_404(User, pk=pk)
+    user_obj = get_object_or_404(get_manageable_users_queryset(request.user), pk=pk)
 
     if request.method == "POST":
         form = UserPasswordChangeForm(request.POST, user_obj=user_obj)

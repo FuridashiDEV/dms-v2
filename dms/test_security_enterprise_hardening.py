@@ -86,6 +86,18 @@ class SecurityEnterpriseHardeningTests(TestCase):
         self.assertEqual(response["Referrer-Policy"], "no-referrer")
         self.assertEqual(response["X-Frame-Options"], "SAMEORIGIN")
 
+    def test_document_download_content_disposition_does_not_expose_storage_path(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("dms:document_download", args=[self.document.id]))
+
+        self.assertEqual(response.status_code, 200)
+        content_disposition = response.get("Content-Disposition", "")
+        self.assertIn("attachment", content_disposition)
+        self.assertNotIn("/", content_disposition)
+        self.assertNotIn("\\", content_disposition)
+        self.assertNotIn("media", content_disposition.lower())
+
     def test_outsider_cannot_access_document_edit_or_file(self):
         self.client.force_login(self.outsider)
 

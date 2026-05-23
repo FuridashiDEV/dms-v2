@@ -152,6 +152,24 @@ class WebhookDeliveryStage30Tests(TestCase):
         self.assertNotIn(self.secret, result.last_error)
         self.assertIn("[redacted]", result.last_error)
 
+    def test_private_network_endpoint_is_blocked_before_transport(self):
+        self.endpoint.url = "http://127.0.0.1:8080/internal"
+        self.endpoint.save(update_fields=["url"])
+        delivery = self.queue_delivery()
+        calls = []
+
+        result = send_webhook_delivery(
+            delivery,
+            transport=lambda url, body, headers, timeout: calls.append(url) or WebhookHttpResponse(status_code=200),
+            secret_resolver=self.secret_resolver,
+            max_attempts=1,
+        )
+
+        self.assertEqual(result.status, WebhookDelivery.Status.FAILED)
+        self.assertEqual(result.attempt_count, 1)
+        self.assertEqual(calls, [])
+        self.assertIn("private network", result.last_error)
+
     def test_due_deliveries_and_manual_retry_use_service(self):
         delivery = self.queue_delivery()
         delivery.next_attempt_at = timezone.now()
